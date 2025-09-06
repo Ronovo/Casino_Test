@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Blackjack_Win",
+    "displayName" : "Baby's First Win",
+    "description": "Win a game of Blackjack"
+  },
+  {
+    "name": "Blackjack_Lose",
+    "displayName" : "The House Always Wins",
+    "description": "Lose a game of Blackjack"
+  },
+  {
+    "name": "Blackjack_Draw",
+    "displayName": "What are the chances?",
+    "description": "Draw a game of Blackjack"
+  },
+  {
+    "name": "Blackjack_21",
+    "displayName" : "21!",
+    "description": "Get a Blackjack"
+  }
+]

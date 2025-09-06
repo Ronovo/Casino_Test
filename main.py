@@ -1,6 +1,7 @@
 from Games import tester, blackjack
 from Characters import charactermaintenance as cm
 
+
 characterData = cm.loadCharactersAtStart()
 while 1 > 0:
     print("Welcome to Ronovo's Casino v0.2")
@@ -16,11 +17,10 @@ while 1 > 0:
         case 1:
             tester.testStart()
         case 2:
-            blackjack.blackjackStart()
+            blackjack.blackjackStart(characterData)
         case 3:
             cm.displayCharacter(characterData)
         case 4:
             quit()
-
 
 

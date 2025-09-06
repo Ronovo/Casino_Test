@@ -1,12 +1,49 @@
 import json
 import os
-#Display Character Functions
+#Character Functions
 def displayCharacter(characterData):
     print("Your character:")
     print("Name : " + characterData['Name'])
     print("Credits : " + str(characterData['Credits']))
     print("Difficulty : " + characterData['Difficulty'])
+    if characterData['Achievements']:
+        achievementList = ""
+        lengthOfAchivements = len(characterData['Achievements'])
+        z = 1
+        for x in characterData['Achievements']:
+            if z < lengthOfAchivements:
+                achievementList += x['displayName'] + ", "
+            else:
+                achievementList += x['displayName']
+            z += 1
+        print("Achievements : " + achievementList)
+    else:
+        print("No Achievements Currently!")
     input("Press any key to continue to game...")
+
+def insertAchievement(achievementName, characterData):
+    cwd = os.getcwd()
+    path = cwd + "/Characters"
+    newPath = path + '/achievements.json'
+    with open(newPath, mode="r", encoding="utf-8") as read_file:
+        achievements = json.load(read_file)
+
+    newAchievement = None
+    # Find the achievement by name
+    for achievement in achievements:
+        if achievement['name'] == achievementName:
+            newAchievement = achievement
+
+    if newAchievement is None:
+        return None
+
+    for existing_achievement in characterData['Achievements']:
+        if existing_achievement['name'] == newAchievement['name']:
+            return None
+
+    # Add the achievement to the character's achievements list
+    characterData['Achievements'].append(newAchievement)
+    saveCharacter(characterData)
 
 #Character Creation Functions
 def createNewCharacter():
@@ -79,3 +116,9 @@ def loadCharactersNames():
         file = file[0:cutoff]
         fileList.append(file)
     return fileList
+
+#Save Functions
+def saveCharacter(characterData):
+    fileName = "Characters/Saved Games/" + characterData['Name'] + ".json"
+    with open(fileName, mode="w", encoding="utf-8") as write_file:
+        json.dump(characterData, write_file)

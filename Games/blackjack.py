@@ -1,7 +1,8 @@
 import deckmaintenance as dm
 import handmaintenance as hm
+from Characters import charactermaintenance as cm
 
-def blackjackStart():
+def blackjackStart(characterData):
     print("Welcome to the Blackjack v0.1")
     print("----------------")
     while 1 != 0:
@@ -12,12 +13,12 @@ def blackjackStart():
         match z:
             case 1:
                 currentDeck = dm.restockDeck()
-                dealin(currentDeck)
+                dealin(currentDeck, characterData)
             case 2:
                 return
 
 
-def dealin(currentDeck):
+def dealin(currentDeck, characterData):
     #Set Up
     hand = []
     dealerHand = []
@@ -60,6 +61,7 @@ def dealin(currentDeck):
     #Instant Lose
     if sumOfHand > 21:
         print("You Lose!")
+        cm.insertAchievement("Blackjack_Lose", characterData)
         return
 
     checkDealerSumOfHand(dealerHand, 0)
@@ -76,13 +78,23 @@ def dealin(currentDeck):
             sumOfDealerHand = checkDealerSumOfHand(dealerHand, 2)
     if sumOfDealerHand > 21:
         result = "You win!"
+        if sumOfHand == 21:
+            cm.insertAchievement("Blackjack_21", characterData)
+        else:
+            cm.insertAchievement("Blackjack_Win", characterData)
     else:
         if sumOfHand < sumOfDealerHand:
             result = "The house wins!"
+            cm.insertAchievement("Blackjack_Lose", characterData)
         elif sumOfHand > sumOfDealerHand:
             result = "You win!"
+            if sumOfHand == 21:
+                cm.insertAchievement("Blackjack_21", characterData)
+            else:
+                cm.insertAchievement("Blackjack_Win", characterData)
         else:
             result = "It's a draw!"
+            cm.insertAchievement("Blackjack_Draw", characterData)
     print(result)
     return result
 

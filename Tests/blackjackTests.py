@@ -15,42 +15,69 @@
 #Player Wins
 #Note, if there is an Ace in the stack, there needs to be a value sent every time you deal a card to player.
 
-from unittest import mock
+from unittest.mock import patch, mock_open
 from unittest import TestCase
 from Games import blackjack
+import json
+
 
 class TestBlackjack(TestCase):
 
-    @mock.patch('Games.blackjack.input', create=True)
-    def test_PlayerWins_Blackjack(self, mocked_input):
+    def setUp(self):
+        # Mock achievements data
+        self.mock_achievements = [
+            {"name": "Blackjack_Win", "displayName": "Baby's First Win", "description": "Win a game of Blackjack"},
+            {"name": "Blackjack_Lose", "displayName": "The House Always Wins", "description": "Lose a game of Blackjack"},
+            {"name": "Blackjack_Draw", "displayName": "What are the chances?", "description": "Draw a game of Blackjack"},
+            {"name": "Blackjack_21", "displayName": "21!", "description": "Get a Blackjack"}
+        ]
+
+    @patch('Characters.charactermaintenance.saveCharacter')
+    @patch('Games.blackjack.input', create=True)
+    @patch('builtins.open', new_callable=mock_open)
+    def test_PlayerWins_Blackjack(self, mock_file, mocked_input, mock_save):
         #Ace Value for Player, 3 for Stand
         mocked_input.side_effect = ['11','3']
+        mock_file.return_value.read.return_value = json.dumps(self.mock_achievements)
         deck = ['KS','AS','1S','6D','4H']
-        result = blackjack.dealin(deck)
+        testCharacterData = {"Achievements": [], "Name": "TestPlayer"}
+        result = blackjack.dealin(deck,testCharacterData)
         self.assertEqual(result, "You win!")
 
-    @mock.patch('Games.blackjack.input', create=True)
-    def test_DealerWins_Blackjack(self, mocked_input):
-        #3 for Stand
+    @patch('Characters.charactermaintenance.saveCharacter')
+    @patch('Games.blackjack.input', create=True)
+    @patch('builtins.open', new_callable=mock_open)
+    def test_DealerWins_Blackjack(self, mock_file, mocked_input, mock_save):
+        #3 for Stand (no Ace input needed since no player Aces)
         mocked_input.side_effect = ['3']
+        mock_file.return_value.read.return_value = json.dumps(self.mock_achievements)
         deck = ['KS', 'QS', '1S', 'AD']
-        result = blackjack.dealin(deck)
+        testCharacterData = {"Achievements": [], "Name": "TestPlayer"}
+        result = blackjack.dealin(deck, testCharacterData)
         self.assertEqual(result, "The house wins!")
 
-    @mock.patch('Games.blackjack.input', create=True)
-    def test_PlayerWins_DealerOver21(self, mocked_input):
+    @patch('Characters.charactermaintenance.saveCharacter')
+    @patch('Games.blackjack.input', create=True)
+    @patch('builtins.open', new_callable=mock_open)
+    def test_PlayerWins_DealerOver21(self, mock_file, mocked_input, mock_save):
         #Ace Value for Player, 3 for Stand
         mocked_input.side_effect = ['11','3']
+        mock_file.return_value.read.return_value = json.dumps(self.mock_achievements)
         deck = ['KS','QS','1S','6D','6H']
-        result = blackjack.dealin(deck)
+        testCharacterData = {"Achievements": [], "Name": "TestPlayer"}
+        result = blackjack.dealin(deck, testCharacterData)
         self.assertEqual(result, "You win!")
 
-    @mock.patch('Games.blackjack.input', create=True)
-    def test_Draw21(self, mocked_input):
+    @patch('Characters.charactermaintenance.saveCharacter')
+    @patch('Games.blackjack.input', create=True)
+    @patch('builtins.open', new_callable=mock_open)
+    def test_Draw21(self, mock_file, mocked_input, mock_save):
         # Ace Value for Player, 3 for Stand
         mocked_input.side_effect = ['11', '3']
+        mock_file.return_value.read.return_value = json.dumps(self.mock_achievements)
         deck = ['KS', 'AS', '1S', 'AD']
-        result = blackjack.dealin(deck)
+        testCharacterData = {"Achievements": [], "Name": "TestPlayer"}
+        result = blackjack.dealin(deck, testCharacterData)
         self.assertEqual(result, "It's a draw!")
 
 
