@@ -37,13 +37,21 @@ def insertAchievement(achievementName, characterData):
     if newAchievement is None:
         return None
 
+    if characterData['Achievements'] is None:
+        characterData['Achievements'] = []
+
     for existing_achievement in characterData['Achievements']:
         if existing_achievement['name'] == newAchievement['name']:
             return None
 
     # Add the achievement to the character's achievements list
+
     characterData['Achievements'].append(newAchievement)
     saveCharacter(characterData)
+    print("**************************")
+    print("New Achievement")
+    print(newAchievement['displayName'] + " : " + newAchievement['description'])
+    print("**************************")
 
 #Character Creation Functions
 def createNewCharacter():
@@ -75,6 +83,7 @@ def createNewCharacter():
     fileName = "Characters/Saved Games/" + name + ".json"
     with open(fileName, mode="w", encoding="utf-8") as write_file:
         json.dump(newCharacterData, write_file)
+    return newCharacterData
 
 #Loading Functions
 def loadCharactersAtStart():
@@ -89,7 +98,8 @@ def loadCharactersAtStart():
     print(str(n + 1) + ".) Quit\n")
     answer = input("Please choose an option\n")
     if int(answer) == n:
-        createNewCharacter()
+        characterData = createNewCharacter()
+        return characterData
     elif int(answer) == (n + 1):
         quit()
     else:
