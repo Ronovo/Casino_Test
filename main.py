@@ -3,12 +3,17 @@ from Characters import charactermaintenance as cm
 
 
 characterData = cm.loadCharactersAtStart()
+characterName = characterData['Name']
 while 1 > 0:
-    print("Welcome to Ronovo's Casino v0.2")
+    characterData = cm.loadCharacteByName(characterName)
+    print("Welcome to Ronovo's Casino v0.3")
+    print("*******************************")
+    print("NOW WITH BETTING")
+    print("*******************************")
     print("-------------------------------")
     print("Main Menu")
     print("1.) Test Deck Functions")
-    print("2.) Blackjack v1.0")
+    print("2.) Blackjack v1.1")
     print("3.) Display Character Information")
     print("4.) Quit")
     x = input("Please enter your answer!\n")

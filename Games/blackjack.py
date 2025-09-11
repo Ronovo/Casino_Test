@@ -1,5 +1,6 @@
 import deckmaintenance as dm
 import handmaintenance as hm
+import monymaintenance as mm
 from Characters import charactermaintenance as cm
 
 def blackjackStart(characterData):
@@ -7,21 +8,45 @@ def blackjackStart(characterData):
     print("----------------")
     while 1 != 0:
         print("1. Start Game(Deal In)")
-        print("2. Main Menu")
+        print("2. Game Information")
+        print("3. Main Menu")
         z = input("Enter your choice now!\n")
         z = int(z)
         match z:
             case 1:
+                characterData = cm.loadCharacteByName(characterData['Name'])
                 currentDeck = dm.restockDeck()
                 dealin(currentDeck, characterData)
             case 2:
+                printBlackjackGameInfo()
+            case 3:
                 return
 
+def printBlackjackGameInfo():
+    print("The classic game of Blackjack sees you matching up against the house.")
+    print("The goal of the game is to get as close to 21 as you can get without going over.")
+    print("Winning payout 3:2, Dealer Stands on 17.")
+    print("-----------------------------------------")
+    print("You start by betting before the cards are dealt.")
+    print("After cards are dealt, you can choose to Hit, or Stand")
+    print("-Hit - Deal another card")
+    print("-Stand - Keep the cards you have.")
+    print("After your turn, the dealer will go.")
+    print("At the end, whoever is the highest without going over 21 wins!")
+    print("-----------------------------------------")
+    print("Card Number Values")
+    print("Face Cards (J,K,Q) = 10")
+    print("Ace = 2 or 11 (You get to choose every time you calculate)")
+    input("Press any key to continue...\n")
+    return
 
 def dealin(currentDeck, characterData):
     #Set Up
     hand = []
     dealerHand = []
+
+    bet = input("How much do you want to bet? You have " + str(characterData['Credits']) + "\n")
+    characterData = mm.setBet(characterData,int(bet))
 
     for x in range(2):
         card = dm.draw(currentDeck)
@@ -46,7 +71,7 @@ def dealin(currentDeck, characterData):
         match command:
             case 1:
                 hm.displayHand(hand)
-                dealerSum = checkDealerSumOfHand(dealerHand, 1)
+                checkDealerSumOfHand(dealerHand, 1)
             case 2:
                 card = dm.draw(currentDeck)
                 hand.append(card)
@@ -61,6 +86,7 @@ def dealin(currentDeck, characterData):
     #Instant Lose
     if sumOfHand > 21:
         print("You Lose!")
+        characterData = mm.payOut(characterData, 0, 0)
         cm.insertAchievement("Blackjack_Lose", characterData)
         return
 
@@ -78,6 +104,7 @@ def dealin(currentDeck, characterData):
             sumOfDealerHand = checkDealerSumOfHand(dealerHand, 2)
     if sumOfDealerHand > 21:
         result = "You win!"
+        characterData = mm.payOut(characterData,1,1.5)
         if sumOfHand == 21:
             cm.insertAchievement("Blackjack_21", characterData)
         else:
@@ -85,16 +112,20 @@ def dealin(currentDeck, characterData):
     else:
         if sumOfHand < sumOfDealerHand:
             result = "The house wins!"
+            characterData = mm.payOut(characterData, 0, 0)
             cm.insertAchievement("Blackjack_Lose", characterData)
         elif sumOfHand > sumOfDealerHand:
             result = "You win!"
+            characterData = mm.payOut(characterData, 1, 1.5)
             if sumOfHand == 21:
                 cm.insertAchievement("Blackjack_21", characterData)
             else:
                 cm.insertAchievement("Blackjack_Win", characterData)
         else:
             result = "It's a draw!"
+            characterData = mm.payOut(characterData, -1, 0)
             cm.insertAchievement("Blackjack_Draw", characterData)
+    cm.saveCharacter(characterData)
     print(result)
     return result
 

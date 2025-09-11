@@ -32,16 +32,17 @@ class TestBlackjack(TestCase):
             {"name": "Blackjack_21", "displayName": "21!", "description": "Get a Blackjack"}
         ]
 
+        self.testCharacterData = {"Achievements": [], "Name": "TestPlayer", "Credits" : 1000, "Current Bet" : 0}
+
     @patch('Characters.charactermaintenance.saveCharacter')
     @patch('Games.blackjack.input', create=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_PlayerWins_Blackjack(self, mock_file, mocked_input, mock_save):
         #Ace Value for Player, 3 for Stand
-        mocked_input.side_effect = ['11','3']
+        mocked_input.side_effect = ['1','11','3']
         mock_file.return_value.read.return_value = json.dumps(self.mock_achievements)
         deck = ['KS','AS','1S','6D','4H']
-        testCharacterData = {"Achievements": [], "Name": "TestPlayer"}
-        result = blackjack.dealin(deck,testCharacterData)
+        result = blackjack.dealin(deck,self.testCharacterData)
         self.assertEqual(result, "You win!")
 
     @patch('Characters.charactermaintenance.saveCharacter')
@@ -49,11 +50,10 @@ class TestBlackjack(TestCase):
     @patch('builtins.open', new_callable=mock_open)
     def test_DealerWins_Blackjack(self, mock_file, mocked_input, mock_save):
         #3 for Stand (no Ace input needed since no player Aces)
-        mocked_input.side_effect = ['3']
+        mocked_input.side_effect = ['1','3']
         mock_file.return_value.read.return_value = json.dumps(self.mock_achievements)
         deck = ['KS', 'QS', '1S', 'AD']
-        testCharacterData = {"Achievements": [], "Name": "TestPlayer"}
-        result = blackjack.dealin(deck, testCharacterData)
+        result = blackjack.dealin(deck, self.testCharacterData)
         self.assertEqual(result, "The house wins!")
 
     @patch('Characters.charactermaintenance.saveCharacter')
@@ -61,11 +61,10 @@ class TestBlackjack(TestCase):
     @patch('builtins.open', new_callable=mock_open)
     def test_PlayerWins_DealerOver21(self, mock_file, mocked_input, mock_save):
         #Ace Value for Player, 3 for Stand
-        mocked_input.side_effect = ['11','3']
+        mocked_input.side_effect = ['1','11','3']
         mock_file.return_value.read.return_value = json.dumps(self.mock_achievements)
         deck = ['KS','QS','1S','6D','6H']
-        testCharacterData = {"Achievements": [], "Name": "TestPlayer"}
-        result = blackjack.dealin(deck, testCharacterData)
+        result = blackjack.dealin(deck, self.testCharacterData)
         self.assertEqual(result, "You win!")
 
     @patch('Characters.charactermaintenance.saveCharacter')
@@ -73,11 +72,10 @@ class TestBlackjack(TestCase):
     @patch('builtins.open', new_callable=mock_open)
     def test_Draw21(self, mock_file, mocked_input, mock_save):
         # Ace Value for Player, 3 for Stand
-        mocked_input.side_effect = ['11', '3']
+        mocked_input.side_effect = ['1','11', '3']
         mock_file.return_value.read.return_value = json.dumps(self.mock_achievements)
         deck = ['KS', 'AS', '1S', 'AD']
-        testCharacterData = {"Achievements": [], "Name": "TestPlayer"}
-        result = blackjack.dealin(deck, testCharacterData)
+        result = blackjack.dealin(deck, self.testCharacterData)
         self.assertEqual(result, "It's a draw!")
 
 

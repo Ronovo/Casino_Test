@@ -113,6 +113,14 @@ def loadCharactersAtStart():
         displayCharacter(characterData)
         return characterData
 
+def loadCharacteByName(name):
+    cwd = os.getcwd()
+    path = cwd + "/Characters/Saved Games"
+    newPath = path + '/' + name + '.json'
+    with open(newPath, mode="r", encoding="utf-8") as read_file:
+        characterData = json.load(read_file)
+    return characterData
+
 def loadCharactersNames():
     print("Load Game Called")
 
