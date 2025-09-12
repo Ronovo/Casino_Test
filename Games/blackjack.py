@@ -4,7 +4,7 @@ import monymaintenance as mm
 from Characters import charactermaintenance as cm
 
 def blackjackStart(characterData):
-    print("Welcome to the Blackjack v0.1")
+    print("Welcome to the Blackjack v1.1")
     print("----------------")
     while 1 != 0:
         print("1. Start Game(Deal In)")

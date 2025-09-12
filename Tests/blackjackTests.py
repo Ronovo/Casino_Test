@@ -32,7 +32,7 @@ class TestBlackjack(TestCase):
             {"name": "Blackjack_21", "displayName": "21!", "description": "Get a Blackjack"}
         ]
 
-        self.testCharacterData = {"Achievements": [], "Name": "TestPlayer", "Credits" : 1000, "Current Bet" : 0}
+        self.testCharacterData = {"Achievements": [], "Name": "TestPlayer", "Credits" : 1000, "Difficulty":"Medium", "Current Bet" : 0}
 
     @patch('Characters.charactermaintenance.saveCharacter')
     @patch('Games.blackjack.input', create=True)

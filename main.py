@@ -1,4 +1,4 @@
-from Games import tester, blackjack
+from Games import tester, blackjack, poker
 from Characters import charactermaintenance as cm
 
 
@@ -15,7 +15,8 @@ while 1 > 0:
     print("1.) Test Deck Functions")
     print("2.) Blackjack v1.1")
     print("3.) Display Character Information")
-    print("4.) Quit")
+    print("11.) Texas Hold'em Poker(Coming Soon)")
+    print("99.) Quit")
     x = input("Please enter your answer!\n")
     x = int(x)
     match x:
@@ -25,7 +26,9 @@ while 1 > 0:
             blackjack.blackjackStart(characterData)
         case 3:
             cm.displayCharacter(characterData)
-        case 4:
+        case 11:
+            poker.pokerStart(characterData)
+        case 99:
             quit()
 
 
