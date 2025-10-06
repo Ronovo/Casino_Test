@@ -138,6 +138,14 @@ def getCardNameByNumber(numericValue):
             return str(numericValue)
 
 def calculateScoreValue(currentCards):
+    #This is the return value
+    #Scores are weighted from 1-10
+    #1 = High Card Value Only
+    #2 = 2 Card Pair
+    #. . . .
+    #10 = Royal Flush
+    scoreValue = 1
+
     #Step 0 : Print the hand
     displayCurrentCards = ""
     for card in currentCards:
@@ -189,22 +197,27 @@ def calculateScoreValue(currentCards):
         # Four of a kind beats everything
         highestFour = max(fourOfAKind)
         print("Four of a Kind: " + getCardNameByNumber(highestFour))
+        scoreValue = updateScoreValue(8,scoreValue)
     elif threeOfAKind and pairs:
         # Full House: 3 of a kind + 2 of a kind beats everything except four of a kind
         highestThree = max(threeOfAKind)
         highestPair = max(pairs)
         print("Full House: " + getCardNameByNumber(highestThree) + "s over " + getCardNameByNumber(highestPair) + "s")
+        scoreValue = updateScoreValue(7,scoreValue)
     elif threeOfAKind:
         # Three of a kind is better than two pairs or pairs
         highestThree = max(threeOfAKind)
         print("Three of a Kind: " + getCardNameByNumber(highestThree))
+        scoreValue = updateScoreValue(4,scoreValue)
     elif len(pairs) >= 2:
         # Two pairs beats single pair
         pairs.sort(reverse=True)  # Sort in descending order
         print("Two Pairs: " + getCardNameByNumber(pairs[0]) + " and " + getCardNameByNumber(pairs[1]))
+        scoreValue = updateScoreValue(3,scoreValue)
     elif len(pairs) == 1:
         # Single pair is the lowest ranking
         print("Pair: " + getCardNameByNumber(pairs[0]))
+        scoreValue = updateScoreValue(2,scoreValue)
 
     # Step 3 Check for straights (5 consecutive cards)
     uniqueNumbers = sorted(list(set(numberList)))  # Remove duplicates and sort
@@ -237,6 +250,7 @@ def calculateScoreValue(currentCards):
     
     if straightFound:
         print("Straight: " + getCardNameByNumber(straightHigh) + " high")
+        scoreValue = updateScoreValue(5,scoreValue)
 
     # Step 4 : Sort into Suits
     hearts = []
@@ -273,7 +287,8 @@ def calculateScoreValue(currentCards):
             # Check for Royal Flush (10, J, Q, K, A in same suit)
             if suitNumbers == [10, 11, 12, 13, 14]:
                 print("Royal Flush in " + suitNames[i] + "!")
-                return  # Royal flush is the highest, no need to check further
+                scoreValue = updateScoreValue(10, scoreValue)
+                return scoreValue  # Royal flush is the highest, no need to check further
             
             # Check for Straight Flush (5 consecutive cards in same suit)
             straightFlushFound = False
@@ -285,8 +300,8 @@ def calculateScoreValue(currentCards):
                     suitNumbers[j+3] == suitNumbers[j] + 3 and
                     suitNumbers[j+4] == suitNumbers[j] + 4):
                     straightFlushFound = True
-                    print("Straight Flush in " + suitNames[i] + ": " + getCardNameByNumber(suitNumbers[j+4]) + " high")
-                    return  # Straight flush found, no need to check further
+                    scoreValue = updateScoreValue(9, scoreValue)
+                    return scoreValue  # Straight flush found, no need to check further
             
             # Check for Ace-low straight flush (A, 2, 3, 4, 5)
             if not straightFlushFound and 14 in suitNumbers:
@@ -295,9 +310,18 @@ def calculateScoreValue(currentCards):
                 
                 if aceLowSuit == [1, 2, 3, 4, 5]:
                     print("Straight Flush in " + suitNames[i] + ": 5 high (Ace-low)")
-                    return  # Ace-low straight flush found
+                    scoreValue = updateScoreValue(9, scoreValue)
+                    return scoreValue  # Ace-low straight flush found
             
             # If no royal flush or straight flush, it's a regular flush
             if not straightFlushFound:
                 print("Flush in " + suitNames[i])
-                return  # Flush found, no need to check other suits
+                scoreValue = updateScoreValue(6, scoreValue)
+                return scoreValue # Flush found, no need to check other suits
+
+    return scoreValue
+
+def updateScoreValue(value, score):
+    if value > score:
+        score = value
+    return score
