@@ -13,9 +13,9 @@ while 1 > 0:
     print("-------------------------------")
     print("Main Menu")
     print("1.) Test Deck Functions")
-    print("2.) Blackjack v1.1")
-    print("3.) Display Character Information")
-    print("11.) Texas Hold'em Poker(Coming Soon)")
+    print("2.) Blackjack v1.2 (Now with Achievements!)")
+    print("3.) Texas Hold'em Poker(V1.0)")
+    print("4.) Display Character Information")
     print("99.) Quit")
     x = input("Please enter your answer!\n")
     x = int(x)
@@ -25,9 +25,9 @@ while 1 > 0:
         case 2:
             blackjack.blackjackStart(characterData)
         case 3:
-            cm.displayCharacter(characterData)
-        case 11:
             poker.pokerStart(characterData)
+        case 4:
+            cm.displayCharacter(characterData)
         case 99:
             quit()
 
