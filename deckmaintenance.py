@@ -30,17 +30,6 @@ def faceOrNumber(value):
         case _:
              return value
 
-def getSuit(suit):
-    match suit:
-        case 'S':
-            return 'Spades'
-        case 'H':
-            return 'Hearts'
-        case 'C':
-            return 'Clubs'
-        case 'D':
-            return 'Diamonds'
-
 def discard(discard, card):
     countDiscard = discard.__len__()
     discard.insert(countDiscard, card)
@@ -51,9 +40,40 @@ def draw(currentDeck):
     return card
 
 def getCardName(card):
-    number = card[0:1]
-    suit = card[1:]
-    numberResult = faceOrNumber(number)
-    suitResult = getSuit(suit)
+    numberResult = getCardNumberString(card)
+    suitResult = getSuit(card)
     result = numberResult + ' of ' + suitResult
     return result
+
+def getCardNumberString(card):
+    number = card[0:1]
+    return faceOrNumber(number)
+
+def getSuit(card):
+    suit = card[1:]
+    match suit:
+        case 'S':
+            return 'Spades'
+        case 'H':
+            return 'Hearts'
+        case 'C':
+            return 'Clubs'
+        case 'D':
+            return 'Diamonds'
+
+# Used for Ranking Order, for example, Poker.
+# If a game needs to use their own version, they can adapt this as needed
+def getNumericValue(value):
+    match value:
+        case '1':
+            return 10
+        case 'J':
+            return 11
+        case 'Q':
+            return 12
+        case 'K':
+            return 13
+        case 'A':
+            return 14
+        case _:
+            return int(value)

@@ -136,6 +136,8 @@ def calculateSumOfHand(hand, dealerFlag):
         sum += getNumericValue(number, dealerFlag, sum)
     return sum
 
+#Specific Logic For BlackJack
+#TODO : Divorce The Ace Logic from Black Jack Logic and Use the new method in deckmaintenance
 def getNumericValue(value, dealerFlag, dealerHandValue):
     match value:
         case '1':
