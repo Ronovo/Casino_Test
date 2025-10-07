@@ -1,43 +1,52 @@
+import formatter
 from Helpers import handmaintenance as hm, deckmaintenance as dm
 from DAL import money_maintenance as mm
 from DAL import achievement_maintenance as am, character_maintenance as cm, blackjack_save as bjs
 
 
 def blackjackStart(characterName):
-    print("Welcome to the Blackjack v1.1")
-    print("----------------")
-    while 1 != 0:
-        print("1. Start Game(Deal In)")
-        print("2. Game Information")
-        print("3. Main Menu")
-        z = input("Enter your choice now!\n")
-        z = int(z)
-        match z:
-            case 1:
-                characterData = cm.load_character_by_name(characterName)
-                currentDeck = dm.restockDeck()
-                dealin(currentDeck, characterData)
-            case 2:
-                printBlackjackGameInfo()
-            case 3:
-                return
+    while 1 > 0:
+        formatter.clear()
+        formatter.drawMenuTopper("Welcome to the Blackjack v1.3")
+        print("1.) Start Game(Deal In)")
+        print("2.) Game Information")
+        print("3.) Main Menu")
+        menuInput = input(formatter.getInputText("Choice"))
+        if menuInput.isnumeric():
+            formatter.clear()
+            if 0 > int(menuInput) >= 3:
+                input(formatter.getInputText("Wrong Number"))
+            match menuInput:
+                case "1":
+                    characterData = cm.load_character_by_name(characterName)
+                    currentDeck = dm.restockDeck()
+                    dealin(currentDeck, characterData)
+                case "2":
+                    printBlackjackGameInfo()
+                case "3":
+                    return
+                case _:
+                    input(formatter.getInputText("NonNumber"))
+        else:
+            input(formatter.getInputText("NonNumber"))
 
 def printBlackjackGameInfo():
+    #Page 1
     print("The classic game of Blackjack sees you matching up against the house.")
     print("The goal of the game is to get as close to 21 as you can get without going over.")
     print("Winning payout 3:2, Dealer Stands on 17.")
-    print("-----------------------------------------")
+    input(formatter.getInputText("Enter"))
     print("You start by betting before the cards are dealt.")
     print("After cards are dealt, you can choose to Hit, or Stand")
     print("-Hit - Deal another card")
     print("-Stand - Keep the cards you have.")
     print("After your turn, the dealer will go.")
     print("At the end, whoever is the highest without going over 21 wins!")
-    print("-----------------------------------------")
+    input(formatter.getInputText("Enter"))
     print("Card Number Values")
     print("Face Cards (J,K,Q) = 10")
     print("Ace = 2 or 11 (You get to choose every time you calculate)")
-    input("Press any key to continue...\n")
+    input(formatter.getInputText("Enter Menu"))
     return
 
 def dealin(currentDeck, characterData):
@@ -47,6 +56,7 @@ def dealin(currentDeck, characterData):
 
     if characterData['credits'] == 0 :
         print("You have no money! Go back to the menu, bum!")
+        input(formatter.getInputText("Enter"))
         return
 
     bet = input("How much do you want to bet? You have " + str(characterData['credits']) + "\n")
@@ -60,41 +70,50 @@ def dealin(currentDeck, characterData):
         print("You drew a " + dm.getCardName(card))
         hand.append(card)
     sumOfHand = checkSumOfHand(hand)
+    input(formatter.getInputText("Enter"))
 
     for x in range(2):
         card = dm.draw(currentDeck)
         dealerHand.append(card)
     sumOfDealerHand = checkDealerSumOfHand(dealerHand, 1)
-    print("\n")
+    input(formatter.getInputText("Enter"))
 
     while sumOfHand <= 21:
-        print("Current Commands")
-        print("1. Check Table")
-        print("2. Draw")
-        print("3. Stay")
-        print("4. Blackjack Menu")
-        command = input("Enter your choice now\n")
-        command = int(command)
-        match command:
-            case 1:
-                hm.displayHand(hand)
-                checkDealerSumOfHand(dealerHand, 1)
-            case 2:
-                card = dm.draw(currentDeck)
-                hand.append(card)
-                print("You drew a " + dm.getCardName(card))
-            case 3:
-                print("You have chosen to stay. Let's see how you match up.")
-                break
-            case 4:
-                return
-        sumOfHand = checkSumOfHand(hand)
+        formatter.drawMenuTopper("Current Commands")
+        print("1. Draw")
+        print("2. Stay")
+        print("3. Blackjack Menu(Lose Bet)")
+        menuInput = input(formatter.getInputText("Choice"))
+        if menuInput.isnumeric():
+            formatter.clear()
+            if 0 > int(menuInput) >= 3:
+                input(formatter.getInputText("Wrong Number"))
+            match menuInput:
+                case "1":
+                    card = dm.draw(currentDeck)
+                    hand.append(card)
+                    print("You drew a " + dm.getCardName(card))
+                case "2":
+                    print("You have chosen to stay. Let's see how you match up.")
+                    break
+                case "3":
+                    mm.setBet(characterData,0)
+                    return
+                case _:
+                    input(formatter.getInputText("NonNumber"))
+        else:
+            input(formatter.getInputText("NonNumber"))
+        input(formatter.getInputText("Enter"))
+        formatter.clear()
+        hm.displayHand(hand)
+        checkDealerSumOfHand(dealerHand, 1)
 
     #Instant Lose
     if sumOfHand > 21:
         result = blackjack_lose(characterData)
         print(result)
-        input("Press any key to continue...")
+        input(formatter.getInputText("Enter"))
+        formatter.clear()
         return result
 
     checkDealerSumOfHand(dealerHand, 0)
@@ -183,6 +202,7 @@ def checkDealerSumOfHand(hand, cardIndex):
     return dealer
 
 def blackjack_win(characterData, sumOfHand):
+    formatter.clear()
     result = "You Win!"
     characterData = mm.payOut(characterData, 1, 1.5)
     if sumOfHand == 21:
@@ -193,13 +213,15 @@ def blackjack_win(characterData, sumOfHand):
     return result
 
 def blackjack_lose(characterData):
+    formatter.clear()
     result = "The House Wins!"
     characterData = mm.payOut(characterData, 0, 0)
     am.insert_achievement(characterData["name"], "Blackjack_Lose")
     return result
 
 def blackjack_draw(characterData):
-    result = "It's a draw!"
+    formatter.clear()
+    result = "It's a draw! All bets returned"
     characterData = mm.payOut(characterData, -1, 0)
     am.insert_achievement(characterData["name"], "Blackjack_Draw")
     return result

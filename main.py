@@ -1,3 +1,4 @@
+import formatter
 from Games import tester, blackjack, poker
 from DAL import character_maintenance as cm
 from Database import create_database_structure as dbcreate
@@ -15,32 +16,33 @@ filltables.load_achievements_from_json(filepath)
 characterName = cm.load_characters_at_start()
 
 while 1 > 0:
-    print("Welcome to Ronovo's Casino v0.3")
-    print("*******************************")
-    print("NOW WITH BETTING")
-    print("*******************************")
-    print("-------------------------------")
+    formatter.clear()
+    formatter.drawMenuTopper("Welcome to Ronovo's Casino v1.0")
     print("Main Menu")
-    print("1.) Test Deck Functions")
-    print("2.) Blackjack v1.2 (Now with Achievements!)")
-    print("3.) Texas Hold'em Poker(V1.0)")
-    print("4.) Display Character Information")
-    print("99.) Quit")
-    x = input("Please enter your answer!\n")
-    x = int(x)
-    match x:
-        case 1:
-            tester.testStart()
-        case 2:
-            blackjack.blackjackStart(characterName)
-            pass
-        case 3:
-            poker.pokerStart(characterName)
-            pass
-        case 4:
-            cm.display_character(characterName)
-            pass
-        case 99:
-            quit()
+    print("1.) Blackjack v1.3 (Database Update)")
+    print("2.) Texas Hold'em Poker(V0.6.9)")
+    print("3.) Display Character Information")
+    print("4.) Quit")
+    menuInput = input(formatter.getInputText("Choice"))
+    if menuInput.isnumeric():
+        formatter.clear()
+        if 0 > int(menuInput) >= 4:
+            input(formatter.getInputText("Wrong Number"))
+        match menuInput:
+            case "1":
+                blackjack.blackjackStart(characterName)
+                pass
+            case "2":
+                poker.pokerStart(characterName)
+                pass
+            case "3":
+                cm.display_character(characterName)
+                pass
+            case "4":
+                quit()
+            case _:
+                input(formatter.getInputText("NonNumber"))
+    else:
+        input(formatter.getInputText("NonNumber"))
 
 

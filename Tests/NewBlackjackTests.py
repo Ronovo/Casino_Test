@@ -94,7 +94,7 @@ class MyTestCase(unittest.TestCase):
         print("Test #1 : Player Wins With 21")
         print("----------------------------------")
         # Ace Value for Player, 3 for Stand
-        mocked_input.side_effect = ['1', '11', '3','']
+        mocked_input.side_effect = ['1', '11','','', '3','']
         deck = ['KS', 'AS', '1S', '6D', '4H']
         #Get that Test Data
         self.cursor.execute("SELECT * FROM Characters WHERE name = ?", ("Test User",))
@@ -108,7 +108,7 @@ class MyTestCase(unittest.TestCase):
         print("Test #2 : Dealer Wins With 21")
         print("----------------------------------")
         # 3 for Stand (no Ace input needed since no player Aces)
-        mocked_input.side_effect = ['1', '3', '']
+        mocked_input.side_effect = ['1', '','','3', '']
         deck = ['KS', 'QS', '1S', 'AD']
         #Get that Test Data
         self.cursor.execute("SELECT * FROM Characters WHERE name = ?", ("Test User",))
@@ -122,7 +122,7 @@ class MyTestCase(unittest.TestCase):
         print("Test #3 : Dealer Busts, Player Wins")
         print("----------------------------------")
         # 3 for Stand (no Ace input needed since no player Aces)
-        mocked_input.side_effect = mocked_input.side_effect = ['1', '11', '3', '']
+        mocked_input.side_effect = mocked_input.side_effect = ['1','','', '3', '']
         deck = ['KS', 'QS', '1S', '6D', '6H']
         #Get that Test Data
         self.cursor.execute("SELECT * FROM Characters WHERE name = ?", ("Test User",))
@@ -136,7 +136,7 @@ class MyTestCase(unittest.TestCase):
         print("Test #4 : Draw")
         print("----------------------------------")
         # Ace Value for Player, 3 for Stand
-        mocked_input.side_effect = ['1', '11', '3', '']
+        mocked_input.side_effect = ['1', '11', '','','3', '']
         deck = ['KS', 'AS', '1S', 'AD']
         #Get that Test Data
         self.cursor.execute("SELECT * FROM Characters WHERE name = ?", ("Test User",))
