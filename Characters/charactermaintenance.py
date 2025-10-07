@@ -127,6 +127,7 @@ def loadCharactersNames():
     cwd = os.getcwd()
     path = cwd + "/Characters/Saved Games"
     items = os.listdir(path)
+    os.makedirs(path, exist_ok=True)
     fileList = []
     for file in items:
         nameLength = len(file)
