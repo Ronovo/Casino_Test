@@ -15,7 +15,6 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE NOT NULL,
         credits INTEGER DEFAULT 0,
-        current_bet INTEGER DEFAULT 0,
         difficulty TEXT,
         blackjack_id INTEGER DEFAULT 0,
         gtn_id INTEGER DEFAULT 0,
@@ -25,15 +24,16 @@ def init_db():
     
     CREATE TABLE IF NOT EXISTS Blackjack (
         blackjack_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        current_bet INTEGER DEFAULT 0,
         wins INTEGER DEFAULT 0,
-        loses INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0,
         draws INTEGER DEFAULT 0
     );
     
     CREATE TABLE IF NOT EXISTS GuessTheNumber (
         gtn_id INTEGER PRIMARY KEY AUTOINCREMENT,
         wins INTEGER DEFAULT 0,
-        loses INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0,
         draws INTEGER DEFAULT 0
     );
 

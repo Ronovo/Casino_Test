@@ -1,38 +1,47 @@
+import formatter
 from Helpers import deckmaintenance as dm
 from DAL import character_maintenance as cm
 
 
 def pokerStart(characterName):
-    print("Welcome to the Texas Hold'em v0.0")
-    print("----------------")
-    while 1 != 0:
-        print("1. Start Game(Deal In)")
-        print("2. Game Information")
-        print("3. Betting Information")
-        print("4. Pay Tables")
-        print("5. Main Menu")
-        z = input("Enter your choice now!\n")
-        z = int(z)
-        match z:
-            case 1:
-                characterData = cm.load_character_by_name(characterName)
-                currentDeck = dm.restockDeck()
-                dealin(currentDeck, characterData)
-            case 2:
-                printPokerGameInfo()
-            case 3:
-                printBettingInformation()
-            case 4:
-                displayPaytables()
-            case 5:
-                return
+    while 1 > 0:
+        formatter.clear()
+        formatter.drawMenuTopper("Welcome to the Ultimate Texas Hold'em v0.6.9")
+        print("1.) Start Game(Deal In)")
+        print("2.) Game Information")
+        print("3.) Betting Information")
+        print("4.) Pay Tables")
+        print("5.) Main Menu")
+        menuInput = input(formatter.getInputText("Choice"))
+        if menuInput.isnumeric():
+            formatter.clear()
+            if 0 > int(menuInput) >= 5:
+                input(formatter.getInputText("Wrong Number"))
+            match menuInput:
+                case "1":
+                    characterData = cm.load_character_by_name(characterName)
+                    currentDeck = dm.restockDeck()
+                    dealin(currentDeck, characterData)
+                case "2":
+                    printPokerGameInfo()
+                case "3":
+                    printBettingInformation()
+                case "4":
+                    printPaytables()
+                case "5":
+                    return
+                case _:
+                    input(formatter.getInputText("NonNumber"))
+        else:
+            input(formatter.getInputText("NonNumber"))
 
 def printPokerGameInfo():
-    print("The High Stakes game of Texas Hold'em squares you off against the dealer")
+    print("The High Stakes game of Ultimate Texas Hold'em squares you off against the dealer")
     print("The one with the highest 'Score Value' wins")
-    print("Minimum Bet : TBD")
-    input("Press any key to continue...\n")
-    print("SCORE LIST (Ranked Lowest to Highest")
+    print("Minimum Bet : 1 Credit Ante + 1 Credit Blind = 2 credit total")
+    print("***High Roller Table Coming Soon***")
+    input(formatter.getInputText("Enter"))
+    formatter.drawMenuTopper("SCORE VALUE LIST (Ranked Lowest to Highest)")
     print("1 = High Card Value Only")
     print("2 = 2 of a Kind (Pair)")
     print("3 = 2 Pair (2 x 2 cards)")
@@ -43,116 +52,135 @@ def printPokerGameInfo():
     print("8 = 4 of a Kind (4-Card)")
     print("9 = Straight Flush (5 cards in a suit, in order)")
     print("10 = Royal Flush (10, Jack, Queen, King, and Aces in a suit)")
-    input("Press any key to continue...\n")
+    input(formatter.getInputText("Enter Menu"))
 
 def printBettingInformation():
+    #Page 1
     print("The betting style is based on the rules of 'Ultimate Texas Hold'em'")
     print("This is a style maximized for a 1v1 Showdown between you and the dealer")
-    print("Minimum Bet : 1 credit")
-    print("***High Roller Tables coming soon.***")
-    input("Press any key to continue...\n")
-    print("First round of betting: Ante + Blind")
-    print("-Minimum Bet * 2, since you are always the blind")
-    print("OPTIONAL - 'The Trips Bet'")
-    print("-Done during the first round, before you get your cards")
-    print("-You win this if you score a 3 of a kind or higher(Score Value 5)")
-    print("-See Game Information for Score Values")
-    print("OPTIONAL - 'Ultimate Pairs Bonus'")
-    print("-A 'progressive bet' that pays out the higher the pair in your starting hand")
-    print("-You are betting that your first hand will have a pair in it. Lost if you don't.")
-    input("Press any key to continue...\n")
-    print("Second Round of betting: The Flop")
-    print("-First three community cards are shown")
-    print("-You can choose to not bet(Check) or raise(3-4 credits minimum(3-4 * ante))")
-    input("Press any key to continue...\n")
-    print("Third Round of betting: The Turn and River")
-    print("-Last two community cards are shown")
-    print("-You can choose to not bet(Check) or raise(2 credits minimum(2 * ante))")
-    print("-You can also choose to Fold, and lose your ante. This exempts you from the showdown")
-    input("Press any key to continue...\n")
-    print("Reveal and Payout : The Showdown")
-    print("-Dealer reveals its hand. Outcomes based on score values of best hands possible.")
-    print("-OUTCOMES")
-    print("-Dealer has High Card Only (Score Value 1) = Push (All bets but Trips and Pairs Bonus returned)")
-    print("-Your Hand beats Dealer's Hand = You win, and are payed out based on the score value")
-    print("-Dealer's Hand beats Your Hand = You lose all your bets.")
-    print("-Dealer's Hand matches Your Hand = Push (All bets but Trips and Pairs Bonus returned)")
-    input("Press any key to continue...\n")
-    print("Reveal and Payout : The Showdown")
-    print("-Dealer reveals its hand. Outcomes based on score values of best hands possible.")
-    print("Bonus Betting : Trips Bonus and Ultimate Pairs Bonus")
-    print("-These are independent from the ante + blind. You can win even if you lose the hand.")
-    print("-Trip bonus - if your hand's score value > 5, you win a payout, based on how well you did.")
-    print("-Ultimate Pairs Bonus - if you had pairs in your starting hand, you get paid out, based on how high.")
-    print("-See Paytables on Poker Menu for more infomration")
-    input("Press any key to continue...\n")
+    print("Minimum Bet : 1 Credit Ante + 1 Credit Blind = 2 credit total")
+    print("***High Roller Table Coming Soon***")
+    input(formatter.getInputText("Enter"))
+    formatter.drawMenuTopper("First round of betting: Ante + Blind")
+    print("Minimum Bet * 2, since you are always the blind")
+    input(formatter.getInputText("Enter Page"))
+    formatter.clear()
+    #Page 2
+    formatter.drawMenuTopper("Bonus Bets")
+    formatter.drawMenuTopper("OPTIONAL - 'The Trips Bet'")
+    print("Done during the first round, before you get your cards")
+    print("Pays out if you score a 3 of a kind or higher(Score Value 5)")
+    print("See Game Information for Score Values")
+    print("See Pay Tables for payouts.")
+    input(formatter.getInputText("Enter"))
+    formatter.drawMenuTopper("OPTIONAL - Ultimate Pairs Bonus")
+    print("Done during the first round, before you get your cards")
+    print("Pays out the higher the pair in your starting hand")
+    print("Lost if you don't.")
+    print("See Pay Tables for payouts.")
+    input(formatter.getInputText("Enter Page"))
+    formatter.clear()
+    #Page 3
+    formatter.drawMenuTopper("Second Round of betting: The Flop")
+    print("First three community cards are shown")
+    print("You can choose to not bet(Check) or raise(3-4 credits minimum(3-4 * ante))")
+    input(formatter.getInputText("Enter"))
+    formatter.drawMenuTopper("Third Round of betting: The Turn and River")
+    print("Last two community cards are shown")
+    print("You can choose to not bet(Check) or raise(2 credits minimum(2 * ante))")
+    print("You can also choose to Fold, and lose your ante. This exempts you from the showdown")
+    input(formatter.getInputText("Enter Page"))
+    formatter.clear()
+    #Page 4
+    formatter.drawMenuTopper("Reveal and Payout : The Showdown")
+    print("Dealer reveals its hand. Outcomes based on score values of best hands possible.")
+    print("\nBonus Betting : Trips Bonus and Ultimate Pairs Bonus")
+    print("These are independent from the ante + blind. You can win even if you lose the hand.")
+    print("Trip bonus - if your hand's score value > 5, you win a payout based on modifier.")
+    print("Ultimate Pairs Bonus - if you had pairs in your hand, you win a payout based on modifier.")
+    print("See Pay tables on Poker Menu for more information")
+    input(formatter.getInputText("Enter Menu"))
 
-def displayPaytables():
-    while 1 != 0:
-        print("1. Winning Calculation Formula")
-        print("2. Ante and Play Bets")
-        print("3. Blind Bonus")
-        print("4. Trips Bonus")
-        print("5. Ultimate Pairs Bonus")
-        print("6. Poker Menu")
-        z = input("Enter your choice now!\n")
-        z = int(z)
-        match z:
-            case 1:
-                print("Calculating Winnings")
-                print("-Ante - 1:1")
-                print("-Play - 1:1")
-                print("-Blind - x if win, 1:1 if lost")
-                print("-'Trips' Bet - x regardless of win")
-                print("-'Pairs' Bet - x regardless of win")
-                print("LOSE")
-                print("-Loss = ante + play + blind")
-                print("WIN")
-                print("-Win = ante + play + (blind * x)")
-                print("BONUS")
-                print("-Bonus = (Trips * x) + (Pairs * x)")
-                print("FINAL")
-                print("total = (Win/Loss) + Bonus")
-                input("Press any key to continue...")
-            case 2:
-               print("These pay out at a 1:1 scale")
-               print("The Play Bet is all the money you raised.")
-               print("Standard Rules: Push if Draw, Win if Win, Lose if Lose")
-               input("Press any key to continue...")
-            case 3:
-                print("BLIND PAYOUT (Straight or better)")
-                print("-Royal Flush = 500:1")
-                print("-Straight Flush = 50:1")
-                print("-Four of a Kind = 10:1")
-                print("-Full House = 3:1")
-                print("-Flush = 3:2")
-                print("-Straight = 1:1")
-                print("-Score Value < 5 - push")
-                print("-Loss - Lose bet")
-                input("Press any key to continue...")
-            case 4:
-                print("TRIPS Payout (3 of a kind or better)")
-                print("-Royal Flush = 50:1")
-                print("-Straight Flush = 40:1")
-                print("-Four of a Kind = 30:1")
-                print("-Full House = 8:1")
-                print("-Flush = 6:1")
-                print("-Straight = 5:1")
-                print("-3 of a Kind = 3:1")
-                print("-Score Value < 4 - Lose Bet")
-                input("Press any key to continue...")
-            case 5:
-                print("ULTIMATE PAIRS BONUS Payout (Starting Hand Pair)")
-                print("-Pair of Aces = 25:1")
-                print("-Pair of Kings = 10:1")
-                print("-Pair of Queens = 8:1")
-                print("-Pair of Jacks = 6:1")
-                print("-Pair of 10s = 5:1")
-                print("-Pair of number cards < 10 = 3:1")
-                print("-All others- Lose Bet")
-                input("Press any key to continue...")
-            case 6:
-                return
+def printPaytables():
+    while 1 > 0:
+        formatter.clear()
+        formatter.drawMenuTopper("Pay Tables")
+        print("1.) Winning Calculation Formula")
+        print("2.) Ante and Play Bets")
+        print("3.) Blind Bonus")
+        print("4.) Trips Bonus")
+        print("5.) Ultimate Pairs Bonus")
+        print("6.) Poker Menu")
+        menuInput = input(formatter.getInputText("Choice"))
+        if menuInput.isnumeric():
+            formatter.clear()
+            if 0 > int(menuInput) >= 3:
+                input(formatter.getInputText("Wrong Number"))
+            match menuInput:
+                case "1":
+                    formatter.drawMenuTopper("Calculating Winnings")
+                    print("Ante - 1:1")
+                    print("Play - 1:1")
+                    print("Blind - x if win, 1:1 if lost")
+                    print("'Trips' Bet - x regardless of win")
+                    print("'Pairs' Bet - x regardless of win")
+                    formatter.drawMenuTopper("Loss")
+                    print("Loss = ante + play + blind")
+                    formatter.drawMenuTopper("Win")
+                    print("Win = ante + play + (blind * x)")
+                    formatter.drawMenuTopper("Bonus")
+                    print("Bonus = (Trips * x) + (Pairs * x)")
+                    formatter.drawMenuTopper("Final Total")
+                    print("total = (Win/Loss) + Bonus")
+                    formatter.drawMenuLine()
+                    input(formatter.getInputText("Enter Menu"))
+                case "2":
+                    formatter.drawMenuTopper("Ante and Play Bets")
+                    print("These pay out at a 1:1 scale")
+                    print("The Ante is your initial bet.")
+                    print("The Play Bet is all the money you raised on the Ante.")
+                    print("*Push if Draw*")
+                    print("*Win if Win*")
+                    print("*Lose if Lose*")
+                    input(formatter.getInputText("Enter Menu"))
+                case "3":
+                    formatter.drawMenuTopper("BLIND PAYOUT (Straight or better)")
+                    print("Royal Flush = 500:1")
+                    print("Straight Flush = 50:1")
+                    print("Four of a Kind = 10:1")
+                    print("Full House = 3:1")
+                    print("Flush = 3:2")
+                    print("Straight = 1:1")
+                    print("Score Value < 5 - push")
+                    print("Loss - Lose bet")
+                    input(formatter.getInputText("Enter Menu"))
+                case "4":
+                    formatter.drawMenuTopper("TRIPS Payout (3 of a kind or better)")
+                    print("Royal Flush = 50:1")
+                    print("Straight Flush = 40:1")
+                    print("Four of a Kind = 30:1")
+                    print("Full House = 8:1")
+                    print("Flush = 6:1")
+                    print("Straight = 5:1")
+                    print("3 of a Kind = 3:1")
+                    print("Score Value < 4 - Lose Bet")
+                    input(formatter.getInputText("Enter Menu"))
+                case "5":
+                    formatter.drawMenuTopper("ULTIMATE PAIRS BONUS Payout (Starting Hand Pair)")
+                    print("Pair of Aces = 25:1")
+                    print("Pair of Kings = 10:1")
+                    print("Pair of Queens = 8:1")
+                    print("Pair of Jacks = 6:1")
+                    print("Pair of 10s = 5:1")
+                    print("Pair of number cards < 10 = 3:1")
+                    print("All others- Lose Bet")
+                    input(formatter.getInputText("Enter Menu"))
+                case "6":
+                    return
+                case _:
+                    input(formatter.getInputText("NonNumber"))
+        else:
+            input(formatter.getInputText("NonNumber"))
 
 def dealin(currentDeck, characterData):
     # Set Up

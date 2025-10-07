@@ -4,11 +4,11 @@ import os
 inputText = {
     "NonNumber": "That is not a number. Please Try again...\n",
     "Wrong Number" : "Wrong Number. Plese Try Again...\n",
-    "Enter" : "Press Enter to continue...\n",
+    "Enter" : "\nPress Enter to continue...\n",
     "Choice" : "Please make your choice...\n",
     "x" : "Please select a number, not x...\n",
-    "Enter Page" : "Press Enter for next page...\n",
-    "Enter Menu" : "Press Enter to return to the menu...\n"
+    "Enter Page" : "\nPress Enter for next page...\n",
+    "Enter Menu" : "\nPress Enter to return to the menu...\n"
 }
 
 def getInputText(key):
@@ -18,7 +18,7 @@ def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def drawMenuLine():
-    print("------------------------------")
+    print("--------------------------------------")
 
 def drawMenuTopper(menuText):
     drawMenuLine()

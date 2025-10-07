@@ -12,4 +12,3 @@ def displayHand(hand):
             card = hand[handCount]
             print(str(handCount + 1) + ".) " + dm.getCardName(card) + "(" + card + ")")
             handCount += 1
-        formatter.drawMenuLine()

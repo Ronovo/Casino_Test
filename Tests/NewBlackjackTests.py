@@ -6,6 +6,8 @@ import sqlite3
 import unittest
 import os
 import tempfile
+import gc
+import time
 from unittest.mock import patch
 from Games import blackjack
 from DAL import character_maintenance as cm
@@ -14,7 +16,7 @@ from DAL import money_maintenance as mm
 from DAL import achievement_maintenance as am
 
 def build_character_data(rawCharacterData):
-    newCharacterData = {'name': rawCharacterData[1], 'credits': rawCharacterData[2], 'current_bet': rawCharacterData[3],
+    newCharacterData = {'name': rawCharacterData[1], 'credits': rawCharacterData[2], 'current_bet': 0,
                         'difficulty': rawCharacterData[4], 'blackjack_id': rawCharacterData[5]}
     return newCharacterData
 
@@ -34,7 +36,6 @@ class MyTestCase(unittest.TestCase):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE NOT NULL,
         credits INTEGER DEFAULT 0,
-        current_bet INTEGER DEFAULT 0,
         difficulty TEXT,
         blackjack_id INTEGER DEFAULT 0,
         gtn_id INTEGER DEFAULT 0,
@@ -44,8 +45,9 @@ class MyTestCase(unittest.TestCase):
         # Minimal additional tables used by game logic
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS Blackjack (
         blackjack_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        current_bet INTEGER DEFAULT 0,
         wins INTEGER DEFAULT 0,
-        loses INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0,
         draws INTEGER DEFAULT 0
         )''')
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS Achievements (
@@ -85,16 +87,38 @@ class MyTestCase(unittest.TestCase):
         self.conn.commit()
 
     def tearDown(self):
-        self.conn.close()
+        # Close cursor first, then connection
+        if hasattr(self, 'cursor'):
+            self.cursor.close()
+        if hasattr(self, 'conn'):
+            self.conn.close()
+        # Force garbage collection to ensure connections are released
+        gc.collect()
+        # Small delay to ensure file handles are released
+        time.sleep(0.1)
         if self.db_name != ":memory:" and os.path.exists(self.db_name):
-            os.remove(self.db_name)
+            try:
+                os.remove(self.db_name)
+            except PermissionError:
+                # If still locked, try again after a longer delay
+                time.sleep(0.5)
+                try:
+                    os.remove(self.db_name)
+                except PermissionError:
+                    # If still failing, just leave the file - it will be overwritten next time
+                    pass
+        # Clear references to help with garbage collection
+        if hasattr(self, 'cursor'):
+            del self.cursor
+        if hasattr(self, 'conn'):
+            del self.conn
 
     def test_PlayerWins_Blackjack(self, mocked_input):
         print("----------------------------------")
         print("Test #1 : Player Wins With 21")
         print("----------------------------------")
         # Ace Value for Player, 3 for Stand
-        mocked_input.side_effect = ['1', '11','','', '3','']
+        mocked_input.side_effect = ['1', '11','','', '2','','','']
         deck = ['KS', 'AS', '1S', '6D', '4H']
         #Get that Test Data
         self.cursor.execute("SELECT * FROM Characters WHERE name = ?", ("Test User",))
@@ -108,7 +132,7 @@ class MyTestCase(unittest.TestCase):
         print("Test #2 : Dealer Wins With 21")
         print("----------------------------------")
         # 3 for Stand (no Ace input needed since no player Aces)
-        mocked_input.side_effect = ['1', '','','3', '']
+        mocked_input.side_effect = ['1', '','','2', '','','']
         deck = ['KS', 'QS', '1S', 'AD']
         #Get that Test Data
         self.cursor.execute("SELECT * FROM Characters WHERE name = ?", ("Test User",))
@@ -122,7 +146,7 @@ class MyTestCase(unittest.TestCase):
         print("Test #3 : Dealer Busts, Player Wins")
         print("----------------------------------")
         # 3 for Stand (no Ace input needed since no player Aces)
-        mocked_input.side_effect = mocked_input.side_effect = ['1','','', '3', '']
+        mocked_input.side_effect = ['1','','', '2', '','','']
         deck = ['KS', 'QS', '1S', '6D', '6H']
         #Get that Test Data
         self.cursor.execute("SELECT * FROM Characters WHERE name = ?", ("Test User",))
@@ -136,14 +160,14 @@ class MyTestCase(unittest.TestCase):
         print("Test #4 : Draw")
         print("----------------------------------")
         # Ace Value for Player, 3 for Stand
-        mocked_input.side_effect = ['1', '11', '','','3', '']
+        mocked_input.side_effect = ['1', '11', '','','2', '','','']
         deck = ['KS', 'AS', '1S', 'AD']
         #Get that Test Data
         self.cursor.execute("SELECT * FROM Characters WHERE name = ?", ("Test User",))
         self.rawCharacterData = self.cursor.fetchone()
         self.characterData = build_character_data(self.rawCharacterData)
         result = blackjack.dealin(deck, self.characterData)
-        self.assertEqual(result, "It's a draw!")
+        self.assertEqual(result, "It's a draw! All bets returned")
 
 
     '''

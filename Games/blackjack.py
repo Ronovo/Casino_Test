@@ -7,7 +7,7 @@ from DAL import achievement_maintenance as am, character_maintenance as cm, blac
 def blackjackStart(characterName):
     while 1 > 0:
         formatter.clear()
-        formatter.drawMenuTopper("Welcome to the Blackjack v1.3")
+        formatter.drawMenuTopper("Welcome to the Blackjack v2.0")
         print("1.) Start Game(Deal In)")
         print("2.) Game Information")
         print("3.) Main Menu")
@@ -59,11 +59,11 @@ def dealin(currentDeck, characterData):
         input(formatter.getInputText("Enter"))
         return
 
-    bet = input("How much do you want to bet? You have " + str(characterData['credits']) + "\n")
-    characterData = mm.setBet(characterData,int(bet))
-    #Create a new Blackjack entry for the character if this is the first time
+    # Create a new Blackjack entry for the character if this is the first time
     if characterData['blackjack_id'] == 0:
         characterData = bjs.create_blackjack_connection(characterData)
+    bet = input("How much do you want to bet? You have " + str(characterData['credits']) + "\n")
+    characterData = mm.setBet(characterData,int(bet),'BJ')
 
     for x in range(2):
         card = dm.draw(currentDeck)
@@ -97,7 +97,7 @@ def dealin(currentDeck, characterData):
                     print("You have chosen to stay. Let's see how you match up.")
                     break
                 case "3":
-                    mm.setBet(characterData,0)
+                    mm.setBet(characterData,0,"BJ")
                     return
                 case _:
                     input(formatter.getInputText("NonNumber"))
@@ -106,6 +106,7 @@ def dealin(currentDeck, characterData):
         input(formatter.getInputText("Enter"))
         formatter.clear()
         hm.displayHand(hand)
+        sumOfHand = checkSumOfHand(hand)
         checkDealerSumOfHand(dealerHand, 1)
 
     #Instant Lose
@@ -121,6 +122,7 @@ def dealin(currentDeck, characterData):
     while sumOfDealerHand <= 21:
         if sumOfDealerHand >= 18:
             print("The Dealer Stands.")
+            input(formatter.getInputText("Enter"))
             break
         else:
             card = dm.draw(currentDeck)
@@ -128,6 +130,13 @@ def dealin(currentDeck, characterData):
             name = dm.getCardName(card)
             print("The dealer drew a " + name + "(" + card + ")")
             sumOfDealerHand = checkDealerSumOfHand(dealerHand, 2)
+            input(formatter.getInputText("Enter"))
+
+    formatter.clear()
+    formatter.drawMenuTopper("Final Totals")
+    print("Your Hand Total = " + str(sumOfHand))
+    print("Dealer Hand Total = " + str(sumOfDealerHand))
+    formatter.drawMenuLine()
     if sumOfDealerHand > 21:
         result = blackjack_win(characterData, sumOfHand)
     else:
@@ -137,9 +146,8 @@ def dealin(currentDeck, characterData):
            result = blackjack_win(characterData, sumOfHand)
         else:
            result = blackjack_draw(characterData)
-    #cm.saveCharacter(characterData)
     print(result)
-    input("Press any key to continue...")
+    input(formatter.getInputText("Enter"))
     return result
 
 def calculateSumOfHand(hand, dealerFlag):
@@ -150,7 +158,6 @@ def calculateSumOfHand(hand, dealerFlag):
     return sum
 
 #Specific Logic For BlackJack
-#TODO : Divorce The Ace Logic from Black Jack Logic and Use the new method in deckmaintenance
 def getNumericValue(value, dealerFlag, dealerHandValue):
     match value:
         case '1':
@@ -204,7 +211,8 @@ def checkDealerSumOfHand(hand, cardIndex):
 def blackjack_win(characterData, sumOfHand):
     formatter.clear()
     result = "You Win!"
-    characterData = mm.payOut(characterData, 1, 1.5)
+    characterData = mm.payOut(characterData, 1, 1.5, "BJ")
+    bjs.update_blackjack_wins(characterData['name'])
     if sumOfHand == 21:
         result = "You Win with 21!"
         am.insert_achievement(characterData["name"], "Blackjack_21")
@@ -215,14 +223,16 @@ def blackjack_win(characterData, sumOfHand):
 def blackjack_lose(characterData):
     formatter.clear()
     result = "The House Wins!"
-    characterData = mm.payOut(characterData, 0, 0)
+    characterData = mm.payOut(characterData, 0, 0, "BJ")
+    bjs.update_blackjack_losses(characterData['name'])
     am.insert_achievement(characterData["name"], "Blackjack_Lose")
     return result
 
 def blackjack_draw(characterData):
     formatter.clear()
     result = "It's a draw! All bets returned"
-    characterData = mm.payOut(characterData, -1, 0)
+    characterData = mm.payOut(characterData, -1, 0, "BJ")
+    bjs.update_blackjack_draws(characterData['name'])
     am.insert_achievement(characterData["name"], "Blackjack_Draw")
     return result
 
