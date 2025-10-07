@@ -1,7 +1,8 @@
-from Helpers import deckmaintenance as dm, charactermaintenance as cm
+from Helpers import deckmaintenance as dm
+from DAL import character_maintenance as cm
 
 
-def pokerStart(characterData):
+def pokerStart(characterName):
     print("Welcome to the Texas Hold'em v0.0")
     print("----------------")
     while 1 != 0:
@@ -12,7 +13,7 @@ def pokerStart(characterData):
         z = int(z)
         match z:
             case 1:
-                characterData = cm.loadCharacteByName(characterData['Name'])
+                characterData = cm.load_character_by_name(characterName)
                 currentDeck = dm.restockDeck()
                 dealin(currentDeck, characterData)
             case 2:

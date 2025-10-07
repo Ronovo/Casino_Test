@@ -1,4 +1,4 @@
-from Games import tester, blackjack
+from Games import tester, blackjack, poker
 from DAL import character_maintenance as cm
 from Database import create_database_structure as dbcreate
 from Database import populate_tables as filltables
@@ -35,7 +35,7 @@ while 1 > 0:
             blackjack.blackjackStart(characterName)
             pass
         case 3:
-            #poker.pokerStart(characterData)
+            poker.pokerStart(characterName)
             pass
         case 4:
             cm.display_character(characterName)
