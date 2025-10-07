@@ -1,9 +1,9 @@
-import deckmaintenance as dm
-import handmaintenance as hm
-import monymaintenance as mm
-from Characters import charactermaintenance as cm
+from Helpers import handmaintenance as hm, deckmaintenance as dm
+from DAL import money_maintenance as mm
+from DAL import achievement_maintenance as am, character_maintenance as cm, blackjack_save as bjs
 
-def blackjackStart(characterData):
+
+def blackjackStart(characterName):
     print("Welcome to the Blackjack v1.1")
     print("----------------")
     while 1 != 0:
@@ -14,7 +14,7 @@ def blackjackStart(characterData):
         z = int(z)
         match z:
             case 1:
-                characterData = cm.loadCharacteByName(characterData['Name'])
+                characterData = cm.load_character_by_name(characterName)
                 currentDeck = dm.restockDeck()
                 dealin(currentDeck, characterData)
             case 2:
@@ -45,8 +45,15 @@ def dealin(currentDeck, characterData):
     hand = []
     dealerHand = []
 
-    bet = input("How much do you want to bet? You have " + str(characterData['Credits']) + "\n")
+    if characterData['credits'] == 0 :
+        print("You have no money! Go back to the menu, bum!")
+        return
+
+    bet = input("How much do you want to bet? You have " + str(characterData['credits']) + "\n")
     characterData = mm.setBet(characterData,int(bet))
+    #Create a new Blackjack entry for the character if this is the first time
+    if characterData['blackjack_id'] == 0:
+        characterData = bjs.create_blackjack_connection(characterData)
 
     for x in range(2):
         card = dm.draw(currentDeck)
@@ -85,10 +92,10 @@ def dealin(currentDeck, characterData):
 
     #Instant Lose
     if sumOfHand > 21:
-        print("You Lose!")
-        characterData = mm.payOut(characterData, 0, 0)
-        cm.insertAchievement("Blackjack_Lose", characterData)
-        return
+        result = blackjack_lose(characterData)
+        print(result)
+        input("Press any key to continue...")
+        return result
 
     checkDealerSumOfHand(dealerHand, 0)
     #Dealer Ai (Stand at 18)
@@ -103,30 +110,17 @@ def dealin(currentDeck, characterData):
             print("The dealer drew a " + name + "(" + card + ")")
             sumOfDealerHand = checkDealerSumOfHand(dealerHand, 2)
     if sumOfDealerHand > 21:
-        result = "You win!"
-        characterData = mm.payOut(characterData,1,1.5)
-        if sumOfHand == 21:
-            cm.insertAchievement("Blackjack_21", characterData)
-        else:
-            cm.insertAchievement("Blackjack_Win", characterData)
+        result = blackjack_win(characterData, sumOfHand)
     else:
         if sumOfHand < sumOfDealerHand:
-            result = "The house wins!"
-            characterData = mm.payOut(characterData, 0, 0)
-            cm.insertAchievement("Blackjack_Lose", characterData)
+            result = blackjack_lose(characterData)
         elif sumOfHand > sumOfDealerHand:
-            result = "You win!"
-            characterData = mm.payOut(characterData, 1, 1.5)
-            if sumOfHand == 21:
-                cm.insertAchievement("Blackjack_21", characterData)
-            else:
-                cm.insertAchievement("Blackjack_Win", characterData)
+           result = blackjack_win(characterData, sumOfHand)
         else:
-            result = "It's a draw!"
-            characterData = mm.payOut(characterData, -1, 0)
-            cm.insertAchievement("Blackjack_Draw", characterData)
-    cm.saveCharacter(characterData)
+           result = blackjack_draw(characterData)
+    #cm.saveCharacter(characterData)
     print(result)
+    input("Press any key to continue...")
     return result
 
 def calculateSumOfHand(hand, dealerFlag):
@@ -187,4 +181,26 @@ def checkDealerSumOfHand(hand, cardIndex):
     if cardIndex == 2:
         print("The Dealer's hand is worth " + str(dealer))
     return dealer
+
+def blackjack_win(characterData, sumOfHand):
+    result = "You Win!"
+    characterData = mm.payOut(characterData, 1, 1.5)
+    if sumOfHand == 21:
+        result = "You Win with 21!"
+        am.insert_achievement(characterData["name"], "Blackjack_21")
+    else:
+        am.insert_achievement(characterData["name"], "Blackjack_Win")
+    return result
+
+def blackjack_lose(characterData):
+    result = "The House Wins!"
+    characterData = mm.payOut(characterData, 0, 0)
+    am.insert_achievement(characterData["name"], "Blackjack_Lose")
+    return result
+
+def blackjack_draw(characterData):
+    result = "It's a draw!"
+    characterData = mm.payOut(characterData, -1, 0)
+    am.insert_achievement(characterData["name"], "Blackjack_Draw")
+    return result
 

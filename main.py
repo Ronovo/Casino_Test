@@ -1,11 +1,20 @@
-from Games import tester, blackjack, poker
-from Characters import charactermaintenance as cm
+from Games import tester, blackjack
+from DAL import character_maintenance as cm
+from Database import create_database_structure as dbcreate
+from Database import populate_tables as filltables
+import os
 
+#Initialize Database
+dbcreate.init_db()
+#Load any new achievements added since last run
+# Load achievements
+cwd = os.getcwd()
+filepath = cwd + "/Database/achievements.json"
+filltables.load_achievements_from_json(filepath)
+#Run the character menu
+characterName = cm.load_characters_at_start()
 
-characterData = cm.loadCharactersAtStart()
-characterName = characterData['Name']
 while 1 > 0:
-    characterData = cm.loadCharacteByName(characterName)
     print("Welcome to Ronovo's Casino v0.3")
     print("*******************************")
     print("NOW WITH BETTING")
@@ -23,11 +32,14 @@ while 1 > 0:
         case 1:
             tester.testStart()
         case 2:
-            blackjack.blackjackStart(characterData)
+            blackjack.blackjackStart(characterName)
+            pass
         case 3:
-            poker.pokerStart(characterData)
+            #poker.pokerStart(characterData)
+            pass
         case 4:
-            cm.displayCharacter(characterData)
+            cm.display_character(characterName)
+            pass
         case 99:
             quit()
 

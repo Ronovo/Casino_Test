@@ -1,5 +1,5 @@
-import deckmaintenance as dm
-import handmaintenance as hm
+from Helpers import handmaintenance as hm, deckmaintenance as dm
+
 
 def testStart():
     currentDeck = dm.restockDeck()

@@ -1,5 +1,5 @@
-from Characters import  charactermaintenance as cm
-import deckmaintenance as dm
+from Helpers import deckmaintenance as dm, charactermaintenance as cm
+
 
 def pokerStart(characterData):
     print("Welcome to the Texas Hold'em v0.0")

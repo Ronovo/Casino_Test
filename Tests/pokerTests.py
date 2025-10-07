@@ -1,6 +1,7 @@
 import unittest
 from Games import poker
-import deckmaintenance as dm
+from Helpers import deckmaintenance as dm
+
 
 class MyTestCase(unittest.TestCase):
     def test_general(self):
