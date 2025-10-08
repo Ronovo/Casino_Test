@@ -1,5 +1,5 @@
 import sqlite3
-from DAL import character_maintenance as cm, achievement_maintenance as am, blackjack_save as bjs
+from DAL import character_maintenance as cm, achievement_maintenance as am, blackjack_maintenance as bjs
 
 DB_PATH = "casino.db"
 
@@ -7,6 +7,8 @@ DB_PATH = "casino.db"
 # STORAGE METHODS
 # --------------------------------------------------------
 def deductCredits(characterData, amount):
+    if amount < 0:
+        amount *= -1
     characterData['credits'] -= amount
     return storeCredits(characterData)
 

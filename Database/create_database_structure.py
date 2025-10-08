@@ -17,9 +17,9 @@ def init_db():
         credits INTEGER DEFAULT 0,
         difficulty TEXT,
         blackjack_id INTEGER DEFAULT 0,
-        gtn_id INTEGER DEFAULT 0,
+        poker_id INTEGER DEFAULT 0,
         FOREIGN KEY (blackjack_id) REFERENCES Blackjack (blackjack_id),
-        FOREIGN KEY (gtn_id) REFERENCES GuessTheNumber (gtn_id)
+        FOREIGN KEY (poker_id) REFERENCES GuessTheNumber (poker_id)
     );
     
     CREATE TABLE IF NOT EXISTS Blackjack (
@@ -30,8 +30,11 @@ def init_db():
         draws INTEGER DEFAULT 0
     );
     
-    CREATE TABLE IF NOT EXISTS GuessTheNumber (
-        gtn_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    CREATE TABLE IF NOT EXISTS Poker (
+        poker_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ante DEFAULT 0,
+        trips DEFAULT 0,
+        pairs DEFAULT 0,
         wins INTEGER DEFAULT 0,
         losses INTEGER DEFAULT 0,
         draws INTEGER DEFAULT 0
@@ -43,7 +46,31 @@ def init_db():
         display_name TEXT NOT NULL,
         description TEXT
     );
+    
+    CREATE TABLE IF NOT EXISTS PokerBlinds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        score_value INT NOT NULL,
+        odds TEXT NOT NULL,
+        modifier DOUBLE NOT NULL
+    );
+    
+    CREATE TABLE IF NOT EXISTS PokerTrips (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        score_value INT NOT NULL,
+        odds TEXT NOT NULL,
+        modifier DOUBLE NOT NULL
+    );
 
+    CREATE TABLE IF NOT EXISTS PokerPairs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        score_value TEXT NOT NULL,
+        odds TEXT NOT NULL,
+        modifier DOUBLE NOT NULL
+    );
+    
     CREATE TABLE IF NOT EXISTS CharacterAchievements (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         character_id INTEGER NOT NULL,

@@ -95,7 +95,6 @@ def update_blackjack_wins(name):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # Update the Current Bet
     cursor.execute("""
                    UPDATE Blackjack
                    SET wins = ?
@@ -114,7 +113,6 @@ def update_blackjack_losses(name):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # Update the Current Bet
     cursor.execute("""
                    UPDATE Blackjack
                    SET losses = ?
@@ -133,7 +131,6 @@ def update_blackjack_draws(name):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # Update the Current Bet
     cursor.execute("""
                    UPDATE Blackjack
                    SET draws = ?

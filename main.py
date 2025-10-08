@@ -1,17 +1,24 @@
 import formatter
-from Games import tester, blackjack, poker
+from Games import blackjack, poker
 from DAL import character_maintenance as cm
 from Database import create_database_structure as dbcreate
-from Database import populate_tables as filltables
+from Database import load_helper_methods as filltables
 import os
 
 #Initialize Database
 dbcreate.init_db()
-#Load any new achievements added since last run
-# Load achievements
+
+#Load achievements
 cwd = os.getcwd()
-filepath = cwd + "/Database/achievements.json"
-filltables.load_achievements_from_json(filepath)
+achievementpath = cwd + "/Database/achievements.json"
+filltables.load_achievements_from_json(achievementpath)
+#Load Paytables
+blindsPath = cwd + "/Paytables/blind_modifier.json"
+filltables.load_poker_blinds(blindsPath)
+tripsPath = cwd + "/Paytables/trips_modifier.json"
+filltables.load_poker_trips(tripsPath)
+pairsPath = cwd + "/Paytables/pairs_modifier.json"
+filltables.load_poker_pairs(pairsPath)
 #Run the character menu
 characterName = cm.load_characters_at_start()
 

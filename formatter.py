@@ -8,7 +8,8 @@ inputText = {
     "Choice" : "Please make your choice...\n",
     "x" : "Please select a number, not x...\n",
     "Enter Page" : "\nPress Enter for next page...\n",
-    "Enter Menu" : "\nPress Enter to return to the menu...\n"
+    "Enter Menu" : "\nPress Enter to return to the menu...\n",
+    "Set Bet" : "Set new bet amount...\n"
 }
 
 def getInputText(key):

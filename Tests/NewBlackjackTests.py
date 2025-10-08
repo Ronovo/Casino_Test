@@ -11,7 +11,7 @@ import time
 from unittest.mock import patch
 from Games import blackjack
 from DAL import character_maintenance as cm
-from DAL import blackjack_save as bjs
+from DAL import blackjack_maintenance as bjs
 from DAL import money_maintenance as mm
 from DAL import achievement_maintenance as am
 
