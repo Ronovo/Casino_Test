@@ -33,10 +33,15 @@
         "displayName": "...Into the Abyss",
         "description": "Lose a game of Poker"
       },
+      {
+        "name": "Poker_Lose_Walk1",
+        "displayName": "Best Bet Is To Not Play",
+        "description": "Walk Away From A Game Before You Bet"
+      },
        {
         "name": "Poker_Lose_Walk2",
         "displayName": "Coward's Win",
-        "description": "Walk Away From A Game of Poker"
+        "description": "Walk Away From A Game of Poker Just Before Showdown"
       },
       {
         "name": "Poker_Push_Dealer",
@@ -51,6 +56,11 @@
 
     ],
     "Money": [
+       {
+        "name": "Money_100",
+        "displayName": "Just Scraping By",
+        "description": "Make 100 Credits starting from 10"
+      },
       {
         "name": "Money_1000",
         "displayName": "...Now We Here",

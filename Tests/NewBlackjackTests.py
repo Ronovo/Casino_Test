@@ -36,7 +36,7 @@ class MyTestCase(unittest.TestCase):
         blackjack_id INTEGER DEFAULT 0,
         poker_id INTEGER DEFAULT 0,
         FOREIGN KEY (blackjack_id) REFERENCES Blackjack (blackjack_id),
-        FOREIGN KEY (gtn_id) REFERENCES GuessTheNumber (gtn_id)
+        FOREIGN KEY (poker_id) REFERENCES GuessTheNumber (poker_id)
         )''')
         # Minimal additional tables used by game logic
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS Blackjack (

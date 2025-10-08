@@ -63,6 +63,10 @@ def dealin(currentDeck, characterData):
     if characterData['blackjack_id'] == 0:
         characterData = bjs.create_blackjack_connection(characterData)
     bet = input("How much do you want to bet? You have " + str(characterData['credits']) + "\n")
+    bet = mm.checkBetNumber(bet)
+    if bet == 0:
+        bet = 1
+        print("Invalid Entry, defaulting to 1")
     characterData = mm.setBet(characterData,int(bet),'BJ')
 
     for x in range(2):

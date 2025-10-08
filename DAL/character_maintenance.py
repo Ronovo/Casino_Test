@@ -17,7 +17,8 @@ def create_new_character():
     print("Options (Default - Normal):")
     print("1. 10,000 Credits - Easy Mode")
     print("2. 1,000 Credits - Normal Mode")
-    print("3. 10 Credits - Hard Mode")
+    print("3. 100 Credits - Hard Mode")
+    print("4. 10 Credits - Very Hard Mode")
 
     try:
         difficulty = int(input("Enter your difficulty now (1-3):\n"))
@@ -27,7 +28,8 @@ def create_new_character():
     difficulty_map = {
         1: ("Easy", 10000),
         2: ("Medium", 1000),
-        3: ("Hard", 10)
+        3: ("Hard", 100),
+        4: ("Very Hard", 10)
     }
 
     difficulty_str, start_credits = difficulty_map.get(difficulty, ("Medium", 1000))

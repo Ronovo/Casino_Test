@@ -197,6 +197,12 @@ def dealin(currentDeck, characterData):
     if characterData['poker_id'] == 0:
         characterData = ps.create_poker_connection(characterData)
     totalInitialBet = initialBets(characterData)
+    if totalInitialBet == -1:
+        print("You have chosen to walk away.")
+        print("You did not bet anything yet.")
+        am.insert_achievement(characterData["name"], "Poker_Lose_Walk1")
+        input(formatter.getInputText("Enter"))
+        return
     characterData = mm.deductCredits(characterData, totalInitialBet)
     totalBet += totalInitialBet
     print("Bet is now " + str(totalBet))
@@ -268,6 +274,7 @@ def dealin(currentDeck, characterData):
         totalWinnings = lose(characterData, ante, raises, scoreValue, True)
         print("The total winnings w/o bonus is " + str(totalWinnings) + " credits.")
         print("You Walk Away. You Lose All Your Bets.")
+        am.insert_achievement(characterData["name"], "Poker_Lose_Walk2")
         return
 
     #Showdown
@@ -334,41 +341,31 @@ def initialBets(characterData):
                     print("Ante is currently " + str(ante) + " credits")
                     print("Blind is the same amount as the ante")
                     answer = input(formatter.getInputText("Set Bet"))
-                    if answer.isnumeric():
-                        answer = int(answer)
-                        if answer == 0:
-                            print("Must be at least 1, Defaulted to 1")
-                            ante = 1
-                        else:
-                            ante = int(answer)
-                        blind = ante
-                    else:
-                        print("Invalid entry, Defaulted to 1")
+                    ante = mm.checkBetNumber(answer)
+                    if ante == 0:
                         ante = 1
-                        blind = ante
+                        print("Invalid Entry. Defaulting to 1")
+                    blind = ante
                 case "2":
                     print("Trips bet is currently " + str(trips) + " credits")
                     print("Bet you are going to get a 3 of a Kind or Higher")
+                    print("Default : 0")
                     answer = input(formatter.getInputText("Set Bet"))
-                    if answer.isnumeric():
-                        trips = int(answer)
-                    else:
-                        print("Invalid entry, Defaulted to 0")
-                        trips = 0
+                    trips = mm.checkBetNumber(answer)
+                    print("Trips bet set to " + str(trips) + " credits.")
                 case "3":
                     print("Pairs bet is currently " + str(pairs) + " credits")
                     print("Bet your starting hand is a pair")
+                    print("Default : 0")
                     answer = input(formatter.getInputText("Set Bet"))
-                    if menuInput.isnumeric():
-                        pairs = int(answer)
-                    else:
-                        print("Invalid entry, Defaulted to 0")
-                        pairs = 0
+                    pairs = mm.checkBetNumber(answer)
+                    print("Pairs bet set to " + str(pairs) + " credits.")
                 case "4":
                     ps.update_poker_initial_bet(characterData['name'], ante, trips, pairs)
                     break
                 case "5":
-                    return characterData
+                    total = -1
+                    return total
                 case _:
                     input(formatter.getInputText("NonNumber"))
         else:
@@ -875,8 +872,6 @@ def calculateTotal(characterData, dealerScoreValue, scoreValue, ante, raises):
             totalWinnings = ante + raises + blind
             am.insert_achievement(characterData["name"], "Poker_Push_Tie")
             print("It's a tie!")
-    print("The total winnings w/o bonus is " + str(totalWinnings) + " credits.")
-    input("Press any key to continue...\n")
     return totalWinnings
 
 def calculateBonus(pairFlag, scoreValue, letterValue, name):

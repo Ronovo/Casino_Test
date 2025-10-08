@@ -8,7 +8,7 @@ from unittest.mock import patch
 import formatter
 
 from Games import poker
-from DAL import character_maintenance as cm, poker_maintenance as ps, money_maintenance as mm
+from DAL import character_maintenance as cm, poker_maintenance as ps, money_maintenance as mm, achievement_maintenance as am
 from Database import load_helper_methods as lhm
 
 def build_character_data(rawCharacterData):
@@ -69,6 +69,17 @@ class MyTestCase(unittest.TestCase):
                 odds TEXT NOT NULL,
                 modifier DOUBLE NOT NULL
                 )''')
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS Achievements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        display_name TEXT,
+        description TEXT
+        )''')
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS CharacterAchievements (
+        character_id INTEGER,
+        achievement_id INTEGER,
+        PRIMARY KEY (character_id, achievement_id)
+        )''')
         self.conn.commit()
 
         # Point DAL modules to this temp database
@@ -76,18 +87,36 @@ class MyTestCase(unittest.TestCase):
         ps.DB_PATH = self.db_name
         mm.DB_PATH = self.db_name
         lhm.DB_PATH = self.db_name
+        am.DB_PATH = self.db_name
 
         #Create Test Data
         self.cursor.execute("""
                 INSERT INTO Characters (name, credits, difficulty)
                 VALUES (?, ?, ?)
             """, ("Test User", 100, "Hard"))
+
+        # Insert achievements referenced by poker gameplay
+        self.cursor.executemany("""
+            INSERT OR IGNORE INTO Achievements (name, display_name, description)
+            VALUES (?, ?, ?)
+        """, [
+            ("Poker_Win", "Poker Winner", "Win a poker hand"),
+            ("Poker_Lose", "Poker Loss", "Lose a poker hand"),
+            ("Poker_Lose_Walk", "Poker Walk Away", "Walk away from a poker hand"),
+            ("Poker_Push_Dealer", "Poker Push (Dealer)", "Push when dealer doesn't qualify"),
+            ("Poker_Push_Tie", "Poker Push (Tie)", "Push when hands tie")
+        ])
         
         # Manually load paytables to avoid database locking issues
         import json
         
+        # Get the root directory where main.py is located
+        # Go up one level from Tests directory to reach the root
+        root_dir = os.path.dirname(os.path.dirname(__file__))
+        paytables_dir = os.path.join(root_dir, "Paytables")
+        
         # Load blinds
-        blindsPath = os.path.join(os.path.dirname(__file__), "Paytables_Test", "blind_modifier.json")
+        blindsPath = os.path.join(paytables_dir, "blind_modifier.json")
         with open(blindsPath, "r", encoding="utf-8") as f:
             blinds = json.load(f)
         for blind in blinds:
@@ -97,7 +126,7 @@ class MyTestCase(unittest.TestCase):
             """, (blind["name"], blind["score_value"], blind["odds"], blind["modifier"]))
         
         # Load trips
-        tripsPath = os.path.join(os.path.dirname(__file__), "Paytables_Test", "trips_modifier.json")
+        tripsPath = os.path.join(paytables_dir, "trips_modifier.json")
         with open(tripsPath, "r", encoding="utf-8") as f:
             trips = json.load(f)
         for trip in trips:
@@ -107,7 +136,7 @@ class MyTestCase(unittest.TestCase):
             """, (trip["name"], trip["score_value"], trip["odds"], trip["modifier"]))
         
         # Load pairs
-        pairsPath = os.path.join(os.path.dirname(__file__), "Paytables_Test", "pairs_modifier.json")
+        pairsPath = os.path.join(paytables_dir, "pairs_modifier.json")
         with open(pairsPath, "r", encoding="utf-8") as f:
             pairs = json.load(f)
         for pair in pairs:
@@ -160,18 +189,20 @@ class MyTestCase(unittest.TestCase):
             "10",
             # Lock in initial bet
             "4",
+            "",   # Enter after locking in bet
             # Pre-flop betting
             "3",  # Pre-flop: 4x ante
-            "",   # Enter after Pre-flor bet
+            "",   # Enter after Pre-flop bet
             # Post-flop betting
             "2",  # Post-flop: 2x ante
             "",   # Enter after post-flop bet
             "",   # Enter after card reveal
             # Pick Hand
             "1","1","1","1","1",
+            "",   # Enter after picking hand
             # Final betting
             "1",  # Final: Check (no additional bet)
-            "",   # Enter after final bet
+            "","","","",
         ]
 
         #Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -196,21 +227,30 @@ class MyTestCase(unittest.TestCase):
 
         mocked_input.side_effect = [
             # Initial betting sequence - Set ante and blind
-            "1", "10",
+            "1",
+            "10",
             # Set trips bet
-            "2", "10",
+            "2",
+            "10",
             # Set pairs bet
-            "3", "10",
+            "3",
+            "10",
             # Lock in initial bet
             "4",
+            "",   # Enter after locking in bet
             # Pre-flop betting
-            "3", "",  # Enter after Pre-flor bet
+            "3",  # Pre-flop: 4x ante
+            "",   # Enter after Pre-flop bet
             # Post-flop betting
-            "2", "", "",
+            "2",  # Post-flop: 2x ante
+            "",   # Enter after post-flop bet
+            "",   # Enter after card reveal
             # Pick Hand
             "1", "1", "1", "1", "1",
+            "",   # Enter after picking hand
             # Final betting
-            "1", "",
+            "1",  # Final: Check (no additional bet)
+            "","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -244,18 +284,20 @@ class MyTestCase(unittest.TestCase):
             "10",
             # Lock in initial bet
             "4",
+            "",   # Enter after locking in bet
             # Pre-flop betting
             "3",  # Pre-flop: 4x ante
-            "",  # Enter after Pre-flor bet
+            "",   # Enter after Pre-flop bet
             # Post-flop betting
             "2",  # Post-flop: 2x ante
-            "",  # Enter after post-flop bet
-            "",  # Enter after card reveal
+            "",   # Enter after post-flop bet
+            "",   # Enter after card reveal
             # Pick Hand
             "1", "1", "1", "1", "1",
+            "",   # Enter after picking hand
             # Final betting
             "1",  # Final: Check (no additional bet)
-            "",  # Enter after final bet
+            "","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -279,21 +321,30 @@ class MyTestCase(unittest.TestCase):
 
         mocked_input.side_effect = [
             # Initial betting sequence - Set ante and blind
-            "1", "10",
+            "1",
+            "10",
             # Set trips bet
-            "2", "10",
+            "2",
+            "10",
             # Set pairs bet
-            "3", "10",
+            "3",
+            "10",
             # Lock in initial bet
             "4",
+            "",   # Enter after locking in bet
             # Pre-flop betting
-            "3", "",  # Enter after Pre-flor bet
+            "3",  # Pre-flop: 4x ante
+            "",   # Enter after Pre-flop bet
             # Post-flop betting
-            "2", "", "",
+            "2",  # Post-flop: 2x ante
+            "",   # Enter after post-flop bet
+            "",   # Enter after card reveal
             # Pick Hand
             "1", "1", "1", "1", "1",
+            "",   # Enter after picking hand
             # Final betting
-            "1", "",
+            "1",  # Final: Check (no additional bet)
+            "","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -317,21 +368,30 @@ class MyTestCase(unittest.TestCase):
 
         mocked_input.side_effect = [
             # Initial betting sequence - Set ante and blind
-            "1","10",
+            "1",
+            "10",
             # Set trips bet
-            "2","10",
+            "2",
+            "10",
             # Set pairs bet
-            "3","10",
+            "3",
+            "10",
             # Lock in initial bet
             "4",
+            "",   # Enter after locking in bet
             # Pre-flop betting
-            "3","",  # Enter after Pre-flor bet
+            "3",  # Pre-flop: 4x ante
+            "",   # Enter after Pre-flop bet
             # Post-flop betting
-            "2","","",
+            "2",  # Post-flop: 2x ante
+            "",   # Enter after post-flop bet
+            "",   # Enter after card reveal
             # Pick Hand
             "1", "1", "1", "1", "1",
+            "",   # Enter after picking hand
             # Final betting
-            "1","",
+            "1",  # Final: Check (no additional bet)
+            "","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -355,21 +415,30 @@ class MyTestCase(unittest.TestCase):
 
         mocked_input.side_effect = [
             # Initial betting sequence - Set ante and blind
-            "1","10",
+            "1",
+            "10",
             # Set trips bet
-            "2","10",
+            "2",
+            "10",
             # Set pairs bet
-            "3","10",
+            "3",
+            "10",
             # Lock in initial bet
             "4",
+            "",   # Enter after locking in bet
             # Pre-flop betting
-            "3","",  # Enter after Pre-flor bet
+            "3",  # Pre-flop: 4x ante
+            "",   # Enter after Pre-flop bet
             # Post-flop betting
-            "2","","",
+            "2",  # Post-flop: 2x ante
+            "",   # Enter after post-flop bet
+            "",   # Enter after card reveal
             # Pick Hand
             "1", "1", "1", "1", "1",
+            "",   # Enter after picking hand
             # Final betting
-            "1","",
+            "1",  # Final: Check (no additional bet)
+            "","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -393,21 +462,30 @@ class MyTestCase(unittest.TestCase):
 
         mocked_input.side_effect = [
             # Initial betting sequence - Set ante and blind
-            "1","10",
+            "1",
+            "10",
             # Set trips bet
-            "2","10",
+            "2",
+            "10",
             # Set pairs bet
-            "3","10",
+            "3",
+            "10",
             # Lock in initial bet
             "4",
+            "",   # Enter after locking in bet
             # Pre-flop betting
-            "3","",  # Enter after Pre-flor bet
+            "3",  # Pre-flop: 4x ante
+            "",   # Enter after Pre-flop bet
             # Post-flop betting
-            "2","","",
+            "2",  # Post-flop: 2x ante
+            "",   # Enter after post-flop bet
+            "",   # Enter after card reveal
             # Pick Hand
             "1", "1", "1", "1", "1",
+            "",   # Enter after picking hand
             # Final betting
-            "1","",
+            "1",  # Final: Check (no additional bet)
+            "","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)

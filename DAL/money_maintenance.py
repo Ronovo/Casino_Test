@@ -42,11 +42,15 @@ def checkCreditsAchievements(characterData):
     elif currentCredits >= 100000:
         am.insert_achievement(name, "Money_100000")
     elif currentCredits >= 10000:
+        #Exlude Easy, since it's the starting amount
         if difficulty != "Easy":
             am.insert_achievement(name, "Money_10000")
     elif currentCredits >= 1000:
-        if difficulty == "Hard":
+        if difficulty == "Very Hard" or difficulty == "Hard":
             am.insert_achievement(name, "Money_1000")
+    elif currentCredits >= 100:
+        if difficulty == "Very Hard":
+            am.insert_achievement(name, "Money_100")
 
 # --------------------------------------------------------
 # MAIN METHODS
@@ -121,3 +125,10 @@ def getCurrentBlackjackBet(name):
     conn.commit()
     conn.close()
     return bet[0]
+
+def checkBetNumber(answer):
+    if answer.isnumeric():
+        bet = int(answer)
+    else:
+        bet = 0
+    return bet
