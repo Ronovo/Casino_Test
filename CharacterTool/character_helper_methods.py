@@ -2,31 +2,7 @@ import sqlite3
 import json
 import datetime
 
-DB_PATH = "casino.db"
-
-
-# --------------------------------------------------------
-# ACHIEVEMENTS
-# --------------------------------------------------------
-def load_achievements_from_json(path):
-    """Import static achievements from JSON into the database."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    with open(path, "r", encoding="utf-8") as f:
-        achievements_data = json.load(f)
-
-    # The JSON structure is a list with one object containing categories
-    for category_data in achievements_data:
-        for category_name, achievements in category_data.items():
-            for ach in achievements:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO Achievements (name, category, display_name, description)
-                    VALUES (?, ?, ?, ?)
-                """, (ach["name"], category_name, ach["displayName"], ach["description"]))
-
-    conn.commit()
-    conn.close()
+DB_PATH = "../casino.db"
 
 def export_character_to_json(character_name, export_path):
     """Export a character and all associated data to a JSON file."""

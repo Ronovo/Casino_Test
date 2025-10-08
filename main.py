@@ -24,12 +24,16 @@ characterName = cm.load_characters_at_start()
 
 while 1 > 0:
     formatter.clear()
-    formatter.drawMenuTopper("Welcome to Ronovo's Casino v1.0")
+    formatter.drawMenuTopper("Welcome to Ronovo's Casino v1.5")
     print("Main Menu")
     print("1.) Blackjack v2.0 (Production Ready)")
-    print("2.) Texas Hold'em Poker(V1.1 : Betting Update)")
-    print("3.) Display Character Information")
-    print("4.) Quit")
+    print("2.) Texas Hold'em Poker(V1.2 : Achievement Update)")
+    print("3.) Guess the Number - COMING SOON")
+    print("4.) Horse/Dog Racing - COMING SOON")
+    print("5.) Roulette - COMING SOON")
+    print("6.) Shooting Range Bets - COMING SOON")
+    print("7.) Display Character Information")
+    print("8.) Quit")
     menuInput = input(formatter.getInputText("Choice"))
     if menuInput.isnumeric():
         formatter.clear()
@@ -38,14 +42,23 @@ while 1 > 0:
         match menuInput:
             case "1":
                 blackjack.blackjackStart(characterName)
-                pass
             case "2":
                 poker.pokerStart(characterName)
-                pass
             case "3":
-                cm.display_character(characterName, True)
-                pass
+                print("Guess the Number - COMING SOON")
+                input(formatter.getInputText("Enter"))
             case "4":
+                print("Horse/Dog Racing - COMING SOON")
+                input(formatter.getInputText("Enter"))
+            case "5":
+                print("Roulette - COMING SOON")
+                input(formatter.getInputText("Enter"))
+            case "6":
+                print("Shooting Range Bets - COMING SOON")
+                input(formatter.getInputText("Enter"))
+            case "7":
+                cm.display_character(characterName, True)
+            case "8":
                 quit()
             case _:
                 input(formatter.getInputText("NonNumber"))

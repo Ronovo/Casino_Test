@@ -52,8 +52,17 @@
         "name": "Poker_Push_Tie",
         "displayName": "Eye To Eye",
         "description": "Push due to tie"
+      },
+      {
+        "name": "Poker_Trips",
+        "displayName": "What's Better Then 3 of a Kind?",
+        "description": "Win a Trips Bet"
+      },
+      {
+        "name": "Poker_Pairs",
+        "displayName": "Do What You Must, I Have Already Won",
+        "description": "Win a Pairs Bet"
       }
-
     ],
     "Money": [
        {
@@ -64,7 +73,7 @@
       {
         "name": "Money_1000",
         "displayName": "...Now We Here",
-        "description": "Make 1000 Credits starting from 10"
+        "description": "Make 1000 Credits starting with less"
       },
       {
         "name": "Money_10000",
@@ -73,12 +82,12 @@
       },
       {
         "name": "Money_100000",
-        "displayName": "Becoming the 1%",
+        "displayName": "We're in the Money!",
         "description": "Reach 100,000"
       },
       {
         "name": "Money_1000000",
-        "displayName": "We're in the Money!",
+        "displayName": "Becoming the 1%",
         "description": "Reach 1,000,000"
       }
     ]

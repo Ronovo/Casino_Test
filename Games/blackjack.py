@@ -217,11 +217,9 @@ def blackjack_win(characterData, sumOfHand):
     result = "You Win!"
     characterData = mm.payOut(characterData, 1, 1.5, "BJ")
     bjs.update_blackjack_wins(characterData['name'])
+    am.insert_achievement(characterData["name"], "Blackjack_Win")
     if sumOfHand == 21:
-        result = "You Win with 21!"
         am.insert_achievement(characterData["name"], "Blackjack_21")
-    else:
-        am.insert_achievement(characterData["name"], "Blackjack_Win")
     return result
 
 def blackjack_lose(characterData):

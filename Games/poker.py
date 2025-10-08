@@ -881,6 +881,8 @@ def calculateBonus(pairFlag, scoreValue, letterValue, name):
         trips = ps.get_poker_trips(name)
         trips_modifier = ps.get_trips_modifier(scoreValue)
         trips_bonus = trips * trips_modifier
+        if trips_bonus > 0:
+            am.insert_achievement(name, "Poker_Trips")
         print("Your Trips Bet Bonus is " + str(trips_bonus) + " credits.")
     #Pairs Bonus
     pairs_bonus = 0
@@ -888,6 +890,8 @@ def calculateBonus(pairFlag, scoreValue, letterValue, name):
         pairs = ps.get_poker_pairs(name)
         pairs_modifier = ps.get_pairs_modifier(letterValue)
         pairs_bonus = pairs * pairs_modifier
+        if pairs_bonus > 0:
+            am.insert_achievement(name, "Poker_Pairs")
         print("Your Pairs Bet Bonus is " + str(pairs_bonus) + " credits.")
     #Total Bonus
     totalBonus = trips_bonus + pairs_bonus

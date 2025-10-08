@@ -89,16 +89,13 @@ def display_character(name, menuFlag):
 def achievement_menu(character_name):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
-    # Get categories that have achievements for this character
+
+    # Get all categories from achievements table
     cursor.execute("""
-        SELECT DISTINCT A.category
-        FROM Achievements A
-        JOIN CharacterAchievements CA ON A.id = CA.achievement_id
-        JOIN Characters C ON C.id = CA.character_id
-        WHERE C.name = ?
-        ORDER BY A.category
-    """, (character_name,))
+        SELECT DISTINCT category
+        FROM Achievements
+        ORDER BY category
+    """)
     categories = [row[0] for row in cursor.fetchall()]
     conn.close()
     
@@ -135,38 +132,48 @@ def achievement_menu(character_name):
 def show_category_achievements(character_name, category):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
+    # Get all achievements in this category
     cursor.execute("""
-        SELECT A.display_name, A.description
+        SELECT id, display_name, description
+        FROM Achievements
+        WHERE category = ?
+        ORDER BY id
+    """, (category,))
+    all_achievements = cursor.fetchall()
+
+    # Get character's unlocked achievements in this category
+    cursor.execute("""
+        SELECT A.id
         FROM Achievements A
         JOIN CharacterAchievements CA ON A.id = CA.achievement_id
         JOIN Characters C ON C.id = CA.character_id
         WHERE C.name = ? AND A.category = ?
-        ORDER BY A.display_name
     """, (character_name, category))
-    achievements = cursor.fetchall()
+    unlocked_ids = {row[0] for row in cursor.fetchall()}
+
     conn.close()
+
+    # Prepare achievements list with hidden/unlocked status
+    achievements = []
+    for achievement_id, display_name, description in all_achievements:
+        if achievement_id in unlocked_ids:
+            achievements.append((display_name, description))
+        else:
+            achievements.append(("Hidden Achievement", "Hidden Achievement"))
     
     while 1 > 0:
         formatter.clear()
         formatter.drawMenuTopper(f"{category} Achievements")
-        x = 1
         if not achievements:
-            print("No achievements in this category yet!")
+            print("No achievements found in this category!")
         else:
             for i, (display_name, description) in enumerate(achievements, 1):
                 print(f"{i}.) {display_name}")
                 print(f"   {description}")
                 formatter.drawMenuLine()
-                x += 1
-        print(str(x) + ".) Return to Achievement Menu")
-        menuInput = input(formatter.getInputText("Choice"))
-        if menuInput.isnumeric():
-            choice = int(menuInput)
-            if choice == 1:
-                return
-            else:
-                input(formatter.getInputText("Wrong Number"))
+        input(formatter.getInputText("Enter"))
+        return
 
 def load_all_characters():
     conn = sqlite3.connect(DB_PATH)

@@ -75,10 +75,10 @@ class MyTestCase(unittest.TestCase):
             INSERT INTO Achievements (name, display_name, description)
             VALUES (?, ?, ?)
         """, [
-            ("Blackjack_21", "Blackjack: 21!", "Win with 21"),
-            ("Blackjack_Win", "Blackjack Winner", "Win a hand"),
-            ("Blackjack_Lose", "Blackjack Loss", "Lose a hand"),
-            ("Blackjack_Draw", "Blackjack Draw", "Draw a hand")
+            ("Blackjack_21", "21!", "Get a Blackjack"),
+            ("Blackjack_Win", "Baby's First Win", "Win a game of Blackjack"),
+            ("Blackjack_Lose", "The House Always Wins", "Lose a game of Blackjack"),
+            ("Blackjack_Draw", "What are the chances?", "Draw a game of Blackjack")
         ])
         self.conn.commit()
 
@@ -121,7 +121,7 @@ class MyTestCase(unittest.TestCase):
         self.rawCharacterData = self.cursor.fetchone()
         self.characterData = build_character_data(self.rawCharacterData)
         result = blackjack.dealin(deck, self.characterData)
-        self.assertEqual(result, "You Win with 21!")
+        self.assertEqual(result, "You Win!")
 
     def test_DealerWins_Blackjack(self, mocked_input):
         print("----------------------------------")
