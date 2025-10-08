@@ -3,7 +3,7 @@ A test repo for me to learn how to program casino games, using a text interface
 
 ## Games Featured
 - Poker v1.1 : *Betting Update*
-  - Ulitmate Texas Hold'em Rules
+  - Ultimate Texas Hold'em Rules - You vs Dealer
   - See Paytables for payouts and odds
   - *Achievements Coming Soon*
 - Blackjack V2.0 : *Production Release*
