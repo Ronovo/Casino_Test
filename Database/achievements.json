@@ -1,42 +1,76 @@
 [
   {
-    "name": "Blackjack_Win",
-    "displayName" : "Baby's First Win",
-    "description": "Win a game of Blackjack"
-  },
-  {
-    "name": "Blackjack_Lose",
-    "displayName" : "The House Always Wins",
-    "description": "Lose a game of Blackjack"
-  },
-  {
-    "name": "Blackjack_Draw",
-    "displayName": "What are the chances?",
-    "description": "Draw a game of Blackjack"
-  },
-  {
-    "name": "Blackjack_21",
-    "displayName" : "21!",
-    "description": "Get a Blackjack"
-  },
-  {
-    "name": "Money_1000",
-    "displayName" : "...Now We Here",
-    "description": "Make 1000 Credits starting from 10"
-  },
-   {
-    "name": "Money_10000",
-    "displayName" : "Started from the Bottom...",
-    "description": "Reach 10,000 Credits, starting with less"
-  },
-  {
-    "name": "Money_100000",
-    "displayName" : "Becoming the 1%",
-    "description": "Reach 100,000"
-  },
-  {
-    "name": "Money_1000000",
-    "displayName" : "We're in the Money!",
-    "description": "Reach 1,000,000"
+    "Blackjack": [
+      {
+        "name": "Blackjack_Win",
+        "displayName": "Baby's First Win",
+        "description": "Win a game of Blackjack"
+      },
+      {
+        "name": "Blackjack_Lose",
+        "displayName": "The House Always Wins",
+        "description": "Lose a game of Blackjack"
+      },
+      {
+        "name": "Blackjack_Draw",
+        "displayName": "What are the chances?",
+        "description": "Draw a game of Blackjack"
+      },
+      {
+        "name": "Blackjack_21",
+        "displayName": "21!",
+        "description": "Get a Blackjack"
+      }
+    ],
+    "Poker" : [
+      {
+        "name": "Poker_Win",
+        "displayName": "First Step...",
+        "description": "Win a game of Poker"
+      },
+      {
+        "name": "Poker_Lose",
+        "displayName": "...Into the Abyss",
+        "description": "Lose a game of Poker"
+      },
+       {
+        "name": "Poker_Lose_Walk2",
+        "displayName": "Coward's Win",
+        "description": "Walk Away From A Game of Poker"
+      },
+      {
+        "name": "Poker_Push_Dealer",
+        "displayName": "Dealer's Fault",
+        "description": "Push by Dealer Not Qualifying"
+      },
+      {
+        "name": "Poker_Push_Tie",
+        "displayName": "Eye To Eye",
+        "description": "Push due to tie"
+      }
+
+    ],
+    "Money": [
+      {
+        "name": "Money_1000",
+        "displayName": "...Now We Here",
+        "description": "Make 1000 Credits starting from 10"
+      },
+      {
+        "name": "Money_10000",
+        "displayName": "Started from the Bottom...",
+        "description": "Reach 10,000 Credits, starting with less"
+      },
+      {
+        "name": "Money_100000",
+        "displayName": "Becoming the 1%",
+        "description": "Reach 100,000"
+      },
+      {
+        "name": "Money_1000000",
+        "displayName": "We're in the Money!",
+        "description": "Reach 1,000,000"
+      }
+    ]
   }
 ]

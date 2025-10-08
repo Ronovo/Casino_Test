@@ -43,7 +43,7 @@ while 1 > 0:
                 poker.pokerStart(characterName)
                 pass
             case "3":
-                cm.display_character(characterName)
+                cm.display_character(characterName, True)
                 pass
             case "4":
                 quit()

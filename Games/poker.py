@@ -1,6 +1,8 @@
+from xml.dom.minidom import CharacterData
+
 import formatter
 from Helpers import deckmaintenance as dm
-from DAL import character_maintenance as cm, poker_maintenance as ps, money_maintenance as mm
+from DAL import character_maintenance as cm, poker_maintenance as ps, money_maintenance as mm, achievement_maintenance as am
 
 
 def pokerStart(characterName):
@@ -198,7 +200,7 @@ def dealin(currentDeck, characterData):
     characterData = mm.deductCredits(characterData, totalInitialBet)
     totalBet += totalInitialBet
     print("Bet is now " + str(totalBet))
-    formatter.getInputText("Enter")
+    input(formatter.getInputText("Enter"))
 
     #Deal to Player
     for x in range(2):
@@ -251,7 +253,7 @@ def dealin(currentDeck, characterData):
     typeOfHand = decodeScoreValue(scoreValue)
     print("Your score value for this hand is " + str(scoreValue))
     print("Your hand type is : " + typeOfHand)
-    formatter.getInputText("Enter")
+    input(formatter.getInputText("Enter"))
 
     finalBetTotal = finalBet(characterData, totalBet)
     characterData = mm.deductCredits(characterData, finalBetTotal)
@@ -263,7 +265,7 @@ def dealin(currentDeck, characterData):
     raises = preFlopBetTotal + postFlopBetTotal + finalBetTotal
     #Walk Away Logic
     if finalBetTotal == -1:
-        totalWinnings = lose(ante, raises, scoreValue)
+        totalWinnings = lose(characterData, ante, raises, scoreValue, True)
         print("The total winnings w/o bonus is " + str(totalWinnings) + " credits.")
         print("You Walk Away. You Lose All Your Bets.")
         return
@@ -277,22 +279,22 @@ def dealin(currentDeck, characterData):
     dealerTypeOfHand = decodeScoreValue(dealerScoreValue)
     print("The dealer's score value for this hand is " + str(dealerScoreValue))
     print("The dealer's hand type is : " + dealerTypeOfHand)
-    formatter.getInputText("Enter")
+    input(formatter.getInputText("Enter"))
 
     #Phase 1 : Win Or Lose
-    totalWinnings = calculateTotal(dealerScoreValue, scoreValue, ante, raises)
+    totalWinnings = calculateTotal(characterData, dealerScoreValue, scoreValue, ante, raises)
     print("The total winnings w/o bonus is : " + str(totalWinnings) + " credits")
-    formatter.getInputText("Enter")
+    input(formatter.getInputText("Enter"))
 
     #Phase 2 : Bonus
     bonusWinnings = calculateBonus(pairFlag, scoreValue, letterValue, characterData['name'])
     print("The bonus winnings are : " + str(bonusWinnings) + " credits")
-    formatter.getInputText("Enter")
+    input(formatter.getInputText("Enter"))
 
     #Final Total
     finalWinnings = totalWinnings + bonusWinnings
     print("The final total winnings is : " + str(finalWinnings) + " credits")
-    formatter.getInputText("Enter")
+    input(formatter.getInputText("Enter"))
 
     print("Player Balance before Winnings = " + str(characterData['credits']))
     if finalWinnings > 0 :
@@ -811,7 +813,7 @@ def getStringValueOfHand(hand):
             result += ", " + x
     return result
 
-def win(ante, raises, scoreValue):
+def win(characterData, ante, raises, scoreValue):
     if scoreValue >= 5:
         blind_modifier = ps.get_blind_modifier(scoreValue)
         blindBonus = ante * blind_modifier
@@ -819,26 +821,59 @@ def win(ante, raises, scoreValue):
     else:
         blind = ante
     totalWinnings = ante + blind + raises
+    am.insert_achievement(characterData["name"], "Poker_Win")
     return totalWinnings
 
-def lose(ante, raises, scoreValue):
+def lose(characterData, ante, raises, scoreValue, walkFlag=False):
     blind = ante
     totalWinnings = 0 - (ante + blind + raises)
+    if walkFlag:
+        am.insert_achievement(characterData["name"], "Poker_Lose_Walk")
+    else:
+        am.insert_achievement(characterData["name"], "Poker_Lose")
     return totalWinnings
 
-def calculateTotal(dealerScoreValue, scoreValue, ante, raises):
+def calculateTotal(characterData, dealerScoreValue, scoreValue, ante, raises):
+    # Dealer Does Not Qualify
     if dealerScoreValue == 1:
-        totalWinnings = 0
-        print("Dealer doesn't qualify; Push")
+        # Get ante back
+        totalWinnings = ante
+        am.insert_achievement(characterData["name"], "Poker_Push_Dealer")
+        print("Dealer doesn't qualify; Push!")
+        # Raises logic : Get Back if you Win, Lose if you lose
+        if scoreValue > dealerScoreValue:
+            totalWinnings += raises
+            print("Your hand beats dealer. You get your raises back. (" + str(raises) + " credits)")
+        else:
+            print("Dealer beats your hand. You lose your raises. (" + str(raises) + " credits")
+        # Blind (If Straight or Better, payout, if )
+        blind = ante
+        if dealerScoreValue < scoreValue:
+            if scoreValue >= 5:
+                blind_modifier = ps.get_blind_modifier(scoreValue)
+                blindBonus = blind * blind_modifier
+                print("Your hand beats dealer, and is eligible for payout")
+                print("Your Blind Bonus Payout is " + str(blindBonus) + " credits.")
+                totalWinnings += blindBonus
+            elif scoreValue < 5:
+                if scoreValue > dealerScoreValue:
+                    print("Your hand beats dealer, and is not eligible for payout")
+                    print("You get your blind of (" + str(blind) + " credits back)")
+                else:
+                    print("Dealer beats your hand. You lose your blind of (" + str(blind) + " credits)")
+        else:
+            print("Dealer beats your hand. You lose your blind of (" + str(blind) + " credits)")
     else:
         if scoreValue > dealerScoreValue:
-            totalWinnings = win(ante, raises, scoreValue)
+            totalWinnings = win(characterData, ante, raises, scoreValue)
             print("You win!")
         elif scoreValue < dealerScoreValue:
-            totalWinnings = lose(ante, raises, scoreValue)
+            totalWinnings = lose(characterData, ante, raises, scoreValue)
             print("You lose!")
         else:
-            totalWinnings = 0
+            blind = ante
+            totalWinnings = ante + raises + blind
+            am.insert_achievement(characterData["name"], "Poker_Push_Tie")
             print("It's a tie!")
     print("The total winnings w/o bonus is " + str(totalWinnings) + " credits.")
     input("Press any key to continue...\n")

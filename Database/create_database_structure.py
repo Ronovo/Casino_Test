@@ -43,6 +43,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS Achievements (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE NOT NULL,
+        category TEXT NOT NULL,
         display_name TEXT NOT NULL,
         description TEXT
     );

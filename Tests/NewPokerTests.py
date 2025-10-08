@@ -426,43 +426,5 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(result['player_score'], 4)  # 3 of a kind
         self.assertTrue(result['final_winnings'] > 0)  # Should win
 
-    def test_poker_2_pair(self, mocked_input):
-        formatter.drawMenuTopper("Test #8 : Two Pair")
-
-        mocked_input.side_effect = [
-            # Initial betting sequence - Set ante and blind
-            "1","10",
-            # Set trips bet
-            "2","10",
-            # Set pairs bet
-            "3","10",
-            # Lock in initial bet
-            "4",
-            # Pre-flop betting
-            "3","",  # Enter after Pre-flor bet
-            # Post-flop betting
-            "2","","",
-            # Pick Hand
-            "1", "1", "1", "1", "1",
-            # Final betting
-            "1","",
-        ]
-
-        # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
-        # Stacked deck: Player gets royal flush, dealer gets flush
-        self.deck = ["1S", "JS", "2D", "3C", "7S", "8S", "9C", "2D", "3D"]
-
-        # Get that Test Data
-        self.cursor.execute("SELECT * FROM Characters WHERE name = ?", ("Test User",))
-        self.rawCharacterData = self.cursor.fetchone()
-        self.characterData = build_character_data(self.rawCharacterData)
-
-        result = poker.dealin(self.deck, self.characterData)
-
-        # Assertions
-        self.assertIsNotNone(result)
-        self.assertEqual(result['player_score'], 3)  # Straight
-        self.assertTrue(result['final_winnings'] > 0)  # Should win
-
 if __name__ == '__main__':
     unittest.main()

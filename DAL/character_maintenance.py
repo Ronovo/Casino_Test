@@ -1,5 +1,7 @@
 import sqlite3
 
+import formatter
+
 DB_PATH = "casino.db"
 
 # --------------------------------------------------------
@@ -40,13 +42,13 @@ def create_new_character():
     conn.close()
 
     print(f"Character '{name}' created with {start_credits} credits ({difficulty_str}).")
-    display_character(name)
+    display_character(name, False)
     return name
 
 # --------------------------------------------------------
 # CHARACTER LOADING
 # --------------------------------------------------------
-def display_character(name):
+def display_character(name, menuFlag):
     """Display a character's current stats and achievements."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -57,24 +59,112 @@ def display_character(name):
         print("Character not found.")
         conn.close()
         return
+    conn.close()
 
+    formatter.clear()
+    formatter.drawMenuTopper("Your character:")
+    print(f"Name: {char[1]}")
+    print(f"Credits: {char[2]}")
+    print(f"Difficulty: {char[3]}")
+    if menuFlag:
+        while 1 > 0:
+            formatter.drawMenuLine()
+            print("1.) Achievements Menu")
+            print("2.) Return to Menu")
+            menuInput = input(formatter.getInputText("Choice"))
+            if menuInput.isnumeric():
+                formatter.clear()
+                if 0 > int(menuInput) >= 2:
+                    input(formatter.getInputText("Wrong Number"))
+                match menuInput:
+                    case "1":
+                       achievement_menu(name)
+                    case "2":
+                        return
+    else :
+        input(formatter.getInputText("Enter"))
+
+def achievement_menu(character_name):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Get categories that have achievements for this character
     cursor.execute("""
-        SELECT A.display_name
+        SELECT DISTINCT A.category
         FROM Achievements A
         JOIN CharacterAchievements CA ON A.id = CA.achievement_id
         JOIN Characters C ON C.id = CA.character_id
         WHERE C.name = ?
-    """, (name,))
-    achievements = [row[0] for row in cursor.fetchall()]
+        ORDER BY A.category
+    """, (character_name,))
+    categories = [row[0] for row in cursor.fetchall()]
     conn.close()
+    
+    if not categories:
+        formatter.clear()
+        formatter.drawMenuTopper("Achievements")
+        print("No achievements unlocked yet!")
+        input(formatter.getInputText("Enter"))
+        return
+    
+    while 1 > 0:
+        formatter.clear()
+        formatter.drawMenuTopper("Achievements")
+        
+        # Display category options
+        for i, category in enumerate(categories, 1):
+            print(f"{i}.) {category}")
+        
+        # Return option
+        return_option = len(categories) + 1
+        print(f"{return_option}.) Return to Menu")
+        
+        menuInput = input(formatter.getInputText("Choice"))
+        if menuInput.isnumeric():
+            choice = int(menuInput)
+            if 1 <= choice <= len(categories):
+                # Show achievements in selected category
+                show_category_achievements(character_name, categories[choice - 1])
+            elif choice == return_option:
+                return
+            else:
+                input(formatter.getInputText("Wrong Number"))
 
-    print("\nYour character:")
-    print(f"Name: {char[1]}")
-    print(f"Credits: {char[2]}")
-    print(f"Difficulty: {char[4]}")
-    print("Achievements: " + (", ".join(achievements) if achievements else "None"))
-    print("------------------------------\n")
-    input("Press any key to continue to game...")
+def show_category_achievements(character_name, category):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT A.display_name, A.description
+        FROM Achievements A
+        JOIN CharacterAchievements CA ON A.id = CA.achievement_id
+        JOIN Characters C ON C.id = CA.character_id
+        WHERE C.name = ? AND A.category = ?
+        ORDER BY A.display_name
+    """, (character_name, category))
+    achievements = cursor.fetchall()
+    conn.close()
+    
+    while 1 > 0:
+        formatter.clear()
+        formatter.drawMenuTopper(f"{category} Achievements")
+        x = 1
+        if not achievements:
+            print("No achievements in this category yet!")
+        else:
+            for i, (display_name, description) in enumerate(achievements, 1):
+                print(f"{i}.) {display_name}")
+                print(f"   {description}")
+                formatter.drawMenuLine()
+                x += 1
+        print(str(x) + ".) Return to Achievement Menu")
+        menuInput = input(formatter.getInputText("Choice"))
+        if menuInput.isnumeric():
+            choice = int(menuInput)
+            if choice == 1:
+                return
+            else:
+                input(formatter.getInputText("Wrong Number"))
 
 def load_all_characters():
     conn = sqlite3.connect(DB_PATH)
@@ -101,8 +191,7 @@ def load_character_by_name(name):
 # --------------------------------------------------------
 def load_characters_at_start():
     names = load_all_characters()
-    print("Character Menu")
-    print("--------------")
+    formatter.drawMenuTopper("Character Menu")
     n = 1
     for option in names:
         print(f"{n}.) {option}")
@@ -125,7 +214,7 @@ def load_characters_at_start():
         index = choice - 1
         if 0 <= index < len(names):
             name = names[index]
-            display_character(name)
+            display_character(name, False)
             return name
         else:
             print("Invalid choice.")

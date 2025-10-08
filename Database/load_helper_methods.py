@@ -13,13 +13,16 @@ def load_achievements_from_json(path):
     cursor = conn.cursor()
 
     with open(path, "r", encoding="utf-8") as f:
-        achievements = json.load(f)
+        achievements_data = json.load(f)
 
-    for ach in achievements:
-        cursor.execute("""
-            INSERT OR IGNORE INTO Achievements (name, display_name, description)
-            VALUES (?, ?, ?)
-        """, (ach["name"], ach["displayName"], ach["description"]))
+    # The JSON structure is a list with one object containing categories
+    for category_data in achievements_data:
+        for category_name, achievements in category_data.items():
+            for ach in achievements:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO Achievements (name, category, display_name, description)
+                    VALUES (?, ?, ?, ?)
+                """, (ach["name"], category_name, ach["displayName"], ach["description"]))
 
     conn.commit()
     conn.close()
