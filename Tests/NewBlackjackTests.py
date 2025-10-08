@@ -1,7 +1,3 @@
-#Create Test User when the database is created
-#Grab the data here
-#Set to what I Need for the test
-#Run the test
 import sqlite3
 import unittest
 import os
@@ -38,7 +34,7 @@ class MyTestCase(unittest.TestCase):
         credits INTEGER DEFAULT 0,
         difficulty TEXT,
         blackjack_id INTEGER DEFAULT 0,
-        gtn_id INTEGER DEFAULT 0,
+        poker_id INTEGER DEFAULT 0,
         FOREIGN KEY (blackjack_id) REFERENCES Blackjack (blackjack_id),
         FOREIGN KEY (gtn_id) REFERENCES GuessTheNumber (gtn_id)
         )''')

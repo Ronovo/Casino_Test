@@ -27,7 +27,7 @@ while 1 > 0:
     formatter.drawMenuTopper("Welcome to Ronovo's Casino v1.0")
     print("Main Menu")
     print("1.) Blackjack v2.0 (Production Ready)")
-    print("2.) Texas Hold'em Poker(V0.6.9)")
+    print("2.) Texas Hold'em Poker(V1.1 : Betting Update)")
     print("3.) Display Character Information")
     print("4.) Quit")
     menuInput = input(formatter.getInputText("Choice"))

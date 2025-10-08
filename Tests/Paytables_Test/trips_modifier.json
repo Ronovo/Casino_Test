@@ -1,0 +1,50 @@
+[
+  {
+    "name": "Royal Flush",
+    "score_value" : "10",
+    "odds": "50:1",
+    "modifier" : 50
+  },
+  {
+    "name": "Straight Flush",
+    "score_value" : "9",
+    "odds": "40:1",
+    "modifier" : 40
+  },
+  {
+    "name": "Four of a Kind",
+    "score_value" : "8",
+    "odds": "30:1",
+    "modifier" : 30
+  },
+  {
+    "name": "Full House",
+    "score_value" : "7",
+    "odds": "8:1",
+    "modifier" : 8
+  },
+  {
+    "name": "Flush",
+    "score_value" : "6",
+    "odds": "6:1",
+    "modifier" : 6
+  },
+  {
+    "name": "Straight",
+    "score_value" : "5",
+    "odds": "5:1",
+    "modifier": 5
+  },
+  {
+    "name": "Three of a Kind",
+    "score_value" : "4",
+    "odds": "3:1",
+    "modifier": 3
+  },
+  {
+    "name": "Loss",
+    "score_value" : "0",
+    "odds": "N/A",
+    "modifier" : 0
+  }
+]

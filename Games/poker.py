@@ -6,7 +6,7 @@ from DAL import character_maintenance as cm, poker_maintenance as ps, money_main
 def pokerStart(characterName):
     while 1 > 0:
         formatter.clear()
-        formatter.drawMenuTopper("Welcome to the Ultimate Texas Hold'em v0.6.9")
+        formatter.drawMenuTopper("Welcome to the Ultimate Texas Hold'em v1.1")
         print("1.) Start Game(Deal In)")
         print("2.) Game Information")
         print("3.) Betting Information")
@@ -205,7 +205,6 @@ def dealin(currentDeck, characterData):
         card = dm.draw(currentDeck)
         print("You drew a " + dm.getCardName(card))
         hand.append(card)
-    hand = ["9S","9C"]
     pairFlag = checkOpeningHandForPairs(hand)
     letterValue = "0"
     if pairFlag:
@@ -299,6 +298,13 @@ def dealin(currentDeck, characterData):
     if finalWinnings > 0 :
         characterData = mm.addCredits(characterData,finalWinnings)
     print("Player Balance After Winnings = " + str(characterData['credits']))
+    
+    # Return simplified testable results
+    return {
+        'player_score': scoreValue,
+        'dealer_score': dealerScoreValue,
+        'final_winnings': finalWinnings
+    }
 
 def initialBets(characterData):
     ante = 1 #minimum bet

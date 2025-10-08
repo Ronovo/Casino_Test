@@ -1,0 +1,44 @@
+[
+  {
+    "name": "Pair of Aces",
+    "score_value" : "A",
+    "odds": "25:1",
+    "modifier" : 25
+  },
+   {
+    "name": "Pair of King",
+     "score_value" : "K",
+    "odds": "10:1",
+    "modifier" : 10
+  },
+   {
+    "name": "Pair of Queens",
+     "score_value" : "Q",
+    "odds": "8:1",
+    "modifier" : 8
+  },
+   {
+    "name": "Pair of Jacks",
+     "score_value" : "J",
+    "odds": "6:1",
+    "modifier" : 6
+  },
+  {
+    "name": "Pair of 10s",
+    "score_value" : "10",
+    "odds": "5:1",
+    "modifier" : 5
+  },
+  {
+    "name": "Pair of 9s-2s",
+    "score_value" : "2",
+    "odds": "3:1",
+    "modifier": 3
+  },
+  {
+    "name": "Loss",
+    "score_value" : "0",
+    "odds": "N/A",
+    "modifier" : 0
+  }
+]
