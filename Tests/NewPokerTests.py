@@ -202,7 +202,7 @@ class MyTestCase(unittest.TestCase):
             "",   # Enter after picking hand
             # Final betting
             "1",  # Final: Check (no additional bet)
-            "","","","",
+            "","","","","",
         ]
 
         #Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -250,7 +250,7 @@ class MyTestCase(unittest.TestCase):
             "",   # Enter after picking hand
             # Final betting
             "1",  # Final: Check (no additional bet)
-            "","","","",
+            "","","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -297,7 +297,7 @@ class MyTestCase(unittest.TestCase):
             "",   # Enter after picking hand
             # Final betting
             "1",  # Final: Check (no additional bet)
-            "","","","",
+            "","","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -344,7 +344,7 @@ class MyTestCase(unittest.TestCase):
             "",   # Enter after picking hand
             # Final betting
             "1",  # Final: Check (no additional bet)
-            "","","","",
+            "","","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -391,7 +391,7 @@ class MyTestCase(unittest.TestCase):
             "",   # Enter after picking hand
             # Final betting
             "1",  # Final: Check (no additional bet)
-            "","","","",
+            "","","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -438,7 +438,7 @@ class MyTestCase(unittest.TestCase):
             "",   # Enter after picking hand
             # Final betting
             "1",  # Final: Check (no additional bet)
-            "","","","",
+            "","","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
@@ -485,7 +485,7 @@ class MyTestCase(unittest.TestCase):
             "",   # Enter after picking hand
             # Final betting
             "1",  # Final: Check (no additional bet)
-            "","","","",
+            "","","","","",
         ]
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)

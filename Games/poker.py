@@ -275,6 +275,7 @@ def dealin(currentDeck, characterData):
         print("The total winnings w/o bonus is " + str(totalWinnings) + " credits.")
         print("You Walk Away. You Lose All Your Bets.")
         am.insert_achievement(characterData["name"], "Poker_Lose_Walk2")
+        input(formatter.getInputText("Enter"))
         return
 
     #Showdown
@@ -307,7 +308,8 @@ def dealin(currentDeck, characterData):
     if finalWinnings > 0 :
         characterData = mm.addCredits(characterData,finalWinnings)
     print("Player Balance After Winnings = " + str(characterData['credits']))
-    
+    input(formatter.getInputText("Enter"))
+
     # Return simplified testable results
     return {
         'player_score': scoreValue,
@@ -512,6 +514,7 @@ def pickHand(communityHand,playerHand):
         print(str(pickCards) + " cards remaining.")
         selection = input("Pick a card...\n")
         if int(selection) == itemOrder:
+            formatter.clear()
             calculateScoreValue(selectionList)
             input("Press any key to continue...")
         else:
