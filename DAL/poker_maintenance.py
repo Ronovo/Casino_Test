@@ -145,7 +145,7 @@ def get_pairs_modifier(scoreValue):
     modifier = cursor.fetchone()
     return modifier[0]
 # --------------------------------------------------------
-# BLACKJACK UPDATE METHODS
+# POKER UPDATE METHODS
 # --------------------------------------------------------
 def update_poker_initial_bet(name, ante, trips, pairs):
     poker_id = get_poker_id(name)
@@ -181,7 +181,7 @@ def update_poker_wins(name):
     conn.commit()
     conn.close()
 
-def update_blackjack_losses(name):
+def update_poker_losses(name):
     poker_id = get_poker_id(name)
     losses = get_poker_losses(poker_id)
     losses += 1
@@ -200,7 +200,7 @@ def update_blackjack_losses(name):
     conn.commit()
     conn.close()
 
-def update_blackjack_draws(name):
+def update_poker_draws(name):
     poker_id = get_poker_id(name)
     draws = get_poker_draws(poker_id)
     draws += 1

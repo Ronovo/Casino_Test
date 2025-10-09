@@ -228,7 +228,7 @@ def dealin(currentDeck, characterData):
         card = dm.draw(currentDeck)
         communityHand.append(card)
 
-    preFlopBetTotal = preFlopBet(characterData, totalBet)
+    preFlopBetTotal = preFlopBet(characterData, totalBet, hand)
     characterData = mm.deductCredits(characterData, preFlopBetTotal)
     print("The total before the Pre-Flop Bet was : " + str(totalBet))
     totalBet += preFlopBetTotal
@@ -252,16 +252,28 @@ def dealin(currentDeck, characterData):
     input("Press any key to choose your hand...\n")
 
     #Pick your "hand" to show from the community and your "pocket"
-    resultHand = pickHand(communityHand,hand)
-    result = getStringValueOfHand(resultHand)
-    print("Your selected hand is : " + result)
-    scoreValue = calculateScoreValue(resultHand, False)
-    typeOfHand = decodeScoreValue(scoreValue)
-    print("Your score value for this hand is " + str(scoreValue))
-    print("Your hand type is : " + typeOfHand)
+    x = 0
+    while x == 0:
+        resultHand = pickHand(communityHand,hand)
+        result = getStringValueOfHand(resultHand)
+        print("Your selected hand is : " + result)
+        scoreValue = calculateScoreValue(resultHand, False)
+        typeOfHand = decodeScoreValue(scoreValue)
+        print("Your score value for this hand is " + str(scoreValue))
+        print("Your hand type is : " + typeOfHand)
+        answer = input("Do you want to keep this hand (y/n)(Default y)?")
+        if isinstance(answer,str):
+            answer = str.lower(answer)
+            if answer == "n":
+                pass
+            else :
+                x = 1
+        else:
+            x = 1
+
     input(formatter.getInputText("Enter"))
 
-    finalBetTotal = finalBet(characterData, totalBet)
+    finalBetTotal = finalBet(characterData, totalBet, hand, communityHand)
     characterData = mm.deductCredits(characterData, finalBetTotal)
     print("The total before the Final Bet was : " + str(totalBet))
     totalBet += finalBetTotal
@@ -375,8 +387,10 @@ def initialBets(characterData):
     total = ante + blind + trips + pairs
     return total
 
-def preFlopBet(characterData, bet):
+def preFlopBet(characterData, bet, playerHand):
     while 1 > 0:
+        formatter.clear()
+        lookAtCards(playerHand,[])
         ante = ps.get_poker_ante(characterData['name'])
         formatter.drawMenuTopper("Pre-Flop Betting Menu")
         print("1.) Check (No Additional Bet)")
@@ -385,7 +399,6 @@ def preFlopBet(characterData, bet):
         formatter.drawMenuTopper("Total Current Bet = " + str(bet) + " credits")
         menuInput = input(formatter.getInputText("Choice"))
         if menuInput.isnumeric():
-            formatter.clear()
             if 0 > int(menuInput) >= 3:
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
@@ -406,6 +419,12 @@ def preFlopBet(characterData, bet):
 
 def postFlopBet(characterData, communityHand, playerHand, bet):
     while 1 > 0:
+        formatter.clear()
+        communityHandWork = list(communityHand)
+        playerHandWork = list(playerHand)
+        selectionList = [communityHandWork[0], communityHandWork[1], communityHandWork[2]]
+        lookAtCards(playerHandWork,selectionList)
+        formatter.clear()
         ante = ps.get_poker_ante(characterData['name'])
         formatter.drawMenuTopper("Post-Flop Betting Menu")
         print("1.) Check (No Additional Bet)")
@@ -414,7 +433,6 @@ def postFlopBet(characterData, communityHand, playerHand, bet):
         formatter.drawMenuTopper("Total Current Bet = " + str(bet) + " credits")
         menuInput = input(formatter.getInputText("Choice"))
         if menuInput.isnumeric():
-            formatter.clear()
             if 0 > int(menuInput) >= 3:
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
@@ -427,7 +445,6 @@ def postFlopBet(characterData, communityHand, playerHand, bet):
                 case "3":
                     communityHandWork = list(communityHand)
                     playerHandWork = list(playerHand)
-                    selectionList = [communityHandWork[0], communityHandWork[1] ,communityHandWork[2]]
                     selectionList += playerHandWork
                     calculateScoreValue(selectionList)
                     input("Press any key to continue...")
@@ -437,8 +454,12 @@ def postFlopBet(characterData, communityHand, playerHand, bet):
             input(formatter.getInputText("NonNumber"))
     return value
 
-def finalBet(characterData, bet):
+def finalBet(characterData, bet, playerHand, communityHand):
     while 1 > 0:
+        formatter.clear()
+        communityHandWork = list(communityHand)
+        playerHandWork = list(playerHand)
+        lookAtCards(playerHandWork, communityHandWork)
         ante = ps.get_poker_ante(characterData['name'])
         formatter.drawMenuTopper("Final Betting Menu")
         print("1.) Check (No Additional Bet)")
@@ -447,7 +468,6 @@ def finalBet(characterData, bet):
         formatter.drawMenuTopper("Total Current Bet = " + str(bet) + " credits")
         menuInput = input(formatter.getInputText("Choice"))
         if menuInput.isnumeric():
-            formatter.clear()
             if 0 > int(menuInput) >= 3:
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
@@ -467,6 +487,7 @@ def finalBet(characterData, bet):
     return value
 
 def pickHand(communityHand,playerHand):
+    formatter.clear()
     resultHand = []
     #Create Work versions of the hands, not references
     communityHandWork = list(communityHand)
@@ -513,8 +534,8 @@ def pickHand(communityHand,playerHand):
 
         print(str(pickCards) + " cards remaining.")
         selection = input("Pick a card...\n")
+        formatter.clear()
         if int(selection) == itemOrder:
-            formatter.clear()
             calculateScoreValue(selectionList)
             input("Press any key to continue...")
         else:
@@ -821,14 +842,16 @@ def win(characterData, ante, raises, scoreValue):
     else:
         blind = ante
     totalWinnings = ante + blind + raises
+    ps.update_poker_wins(characterData['name'])
     am.insert_achievement(characterData["name"], "Poker_Win")
     return totalWinnings
 
 def lose(characterData, ante, raises, scoreValue, walkFlag=False):
     blind = ante
     totalWinnings = 0 - (ante + blind + raises)
+    ps.update_poker_losses(characterData['name'])
     if walkFlag:
-        am.insert_achievement(characterData["name"], "Poker_Lose_Walk")
+        am.insert_achievement(characterData["name"], "Poker_Lose_Walk1")
     else:
         am.insert_achievement(characterData["name"], "Poker_Lose")
     return totalWinnings
@@ -839,6 +862,7 @@ def calculateTotal(characterData, dealerScoreValue, scoreValue, ante, raises):
         # Get ante back
         totalWinnings = ante
         am.insert_achievement(characterData["name"], "Poker_Push_Dealer")
+        ps.update_poker_draws(characterData['name'])
         print("Dealer doesn't qualify; Push!")
         # Raises logic : Get Back if you Win, Lose if you lose
         if scoreValue > dealerScoreValue:
@@ -857,7 +881,7 @@ def calculateTotal(characterData, dealerScoreValue, scoreValue, ante, raises):
                 totalWinnings += blindBonus
             elif scoreValue < 5:
                 if scoreValue > dealerScoreValue:
-                    print("Your hand beats dealer, and is not eligible for payout")
+                    print("Your hand beats dealer, and is not eligible for additional payout")
                     print("You get your blind of (" + str(blind) + " credits back)")
                 else:
                     print("Dealer beats your hand. You lose your blind of (" + str(blind) + " credits)")
@@ -874,6 +898,7 @@ def calculateTotal(characterData, dealerScoreValue, scoreValue, ante, raises):
             blind = ante
             totalWinnings = ante + raises + blind
             am.insert_achievement(characterData["name"], "Poker_Push_Tie")
+            ps.update_poker_draws(characterData['name'])
             print("It's a tie!")
     return totalWinnings
 
@@ -909,3 +934,23 @@ def checkOpeningHandForPairs(hand):
         return True
     else:
         return False
+
+def lookAtCards(playerHand, communityHand):
+    # Create Work versions of the hands, not references
+    communityHandWork = list(communityHand)
+    playerHandWork = list(playerHand)
+    displayCommunityHand = ""
+    displayPlayerHand = ""
+    for card in communityHandWork:
+        if displayCommunityHand == "":
+            displayCommunityHand += card
+        else:
+            displayCommunityHand += ", " + card
+    for card in playerHandWork:
+        if displayPlayerHand == "":
+            displayPlayerHand += card
+        else:
+            displayPlayerHand += ", " + card
+
+    print("Current Community Hand : " + displayCommunityHand)
+    print("Current Player Hand : " + displayPlayerHand)

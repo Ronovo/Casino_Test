@@ -16,6 +16,36 @@ def build_character_data(rawCharacterData):
                         'difficulty': rawCharacterData[4], 'poker_id': rawCharacterData[5]}
     return newCharacterData
 
+def get_poker_mocked_input():
+    """Returns the standard mocked input sequence used across all poker tests"""
+    return [
+        # Initial betting sequence - Set ante and blind
+        "1",
+        "10",
+        # Set trips bet
+        "2",
+        "10",
+        # Set pairs bet
+        "3",
+        "10",
+        # Lock in initial bet
+        "4",
+        "",   # Enter after locking in bet
+        # Pre-flop betting
+        "3",  # Pre-flop: 4x ante
+        "",   # Enter after Pre-flop bet
+        # Post-flop betting
+        "2",  # Post-flop: 2x ante
+        "",   # Enter after post-flop bet
+        "",   # Enter after card reveal
+        # Pick Hand
+        "1","1","1","1","1",
+        "y","",   # Enter after picking hand
+        # Final betting
+        "1",  # Final: Check (no additional bet)
+        "","","","","",
+    ]
+
 @patch('Games.poker.input', create=True)
 class MyTestCase(unittest.TestCase):
 
@@ -177,33 +207,7 @@ class MyTestCase(unittest.TestCase):
     def test_poker_royal_flush(self, mocked_input):
         formatter.drawMenuTopper("Test #1 : Royal Flush")
 
-        mocked_input.side_effect = [
-            # Initial betting sequence - Set ante and blind
-            "1",
-            "10",
-            # Set trips bet
-            "2",
-            "10",
-            # Set pairs bet
-            "3",
-            "10",
-            # Lock in initial bet
-            "4",
-            "",   # Enter after locking in bet
-            # Pre-flop betting
-            "3",  # Pre-flop: 4x ante
-            "",   # Enter after Pre-flop bet
-            # Post-flop betting
-            "2",  # Post-flop: 2x ante
-            "",   # Enter after post-flop bet
-            "",   # Enter after card reveal
-            # Pick Hand
-            "1","1","1","1","1",
-            "",   # Enter after picking hand
-            # Final betting
-            "1",  # Final: Check (no additional bet)
-            "","","","","",
-        ]
+        mocked_input.side_effect = get_poker_mocked_input()
 
         #Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
         # Stacked deck: Player gets royal flush, dealer gets flush
@@ -225,33 +229,7 @@ class MyTestCase(unittest.TestCase):
     def test_poker_straight_flush(self, mocked_input):
         formatter.drawMenuTopper("Test #2 : Straight Flush")
 
-        mocked_input.side_effect = [
-            # Initial betting sequence - Set ante and blind
-            "1",
-            "10",
-            # Set trips bet
-            "2",
-            "10",
-            # Set pairs bet
-            "3",
-            "10",
-            # Lock in initial bet
-            "4",
-            "",   # Enter after locking in bet
-            # Pre-flop betting
-            "3",  # Pre-flop: 4x ante
-            "",   # Enter after Pre-flop bet
-            # Post-flop betting
-            "2",  # Post-flop: 2x ante
-            "",   # Enter after post-flop bet
-            "",   # Enter after card reveal
-            # Pick Hand
-            "1", "1", "1", "1", "1",
-            "",   # Enter after picking hand
-            # Final betting
-            "1",  # Final: Check (no additional bet)
-            "","","","","",
-        ]
+        mocked_input.side_effect = get_poker_mocked_input()
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
         # Stacked deck: Player gets royal flush, dealer gets flush
@@ -272,33 +250,7 @@ class MyTestCase(unittest.TestCase):
     def test_poker_4_kind(self, mocked_input):
         formatter.drawMenuTopper("Test #3 : 4 of a Kind")
 
-        mocked_input.side_effect = [
-            # Initial betting sequence - Set ante and blind
-            "1",
-            "10",
-            # Set trips bet
-            "2",
-            "10",
-            # Set pairs bet
-            "3",
-            "10",
-            # Lock in initial bet
-            "4",
-            "",   # Enter after locking in bet
-            # Pre-flop betting
-            "3",  # Pre-flop: 4x ante
-            "",   # Enter after Pre-flop bet
-            # Post-flop betting
-            "2",  # Post-flop: 2x ante
-            "",   # Enter after post-flop bet
-            "",   # Enter after card reveal
-            # Pick Hand
-            "1", "1", "1", "1", "1",
-            "",   # Enter after picking hand
-            # Final betting
-            "1",  # Final: Check (no additional bet)
-            "","","","","",
-        ]
+        mocked_input.side_effect = get_poker_mocked_input()
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
         # Stacked deck: Player gets royal flush, dealer gets flush
@@ -319,33 +271,7 @@ class MyTestCase(unittest.TestCase):
     def test_poker_full_house(self, mocked_input):
         formatter.drawMenuTopper("Test #4 : Full House")
 
-        mocked_input.side_effect = [
-            # Initial betting sequence - Set ante and blind
-            "1",
-            "10",
-            # Set trips bet
-            "2",
-            "10",
-            # Set pairs bet
-            "3",
-            "10",
-            # Lock in initial bet
-            "4",
-            "",   # Enter after locking in bet
-            # Pre-flop betting
-            "3",  # Pre-flop: 4x ante
-            "",   # Enter after Pre-flop bet
-            # Post-flop betting
-            "2",  # Post-flop: 2x ante
-            "",   # Enter after post-flop bet
-            "",   # Enter after card reveal
-            # Pick Hand
-            "1", "1", "1", "1", "1",
-            "",   # Enter after picking hand
-            # Final betting
-            "1",  # Final: Check (no additional bet)
-            "","","","","",
-        ]
+        mocked_input.side_effect = get_poker_mocked_input()
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
         # Stacked deck: Player gets royal flush, dealer gets flush
@@ -366,33 +292,7 @@ class MyTestCase(unittest.TestCase):
     def test_poker_flush(self, mocked_input):
         formatter.drawMenuTopper("Test #5 : Flush")
 
-        mocked_input.side_effect = [
-            # Initial betting sequence - Set ante and blind
-            "1",
-            "10",
-            # Set trips bet
-            "2",
-            "10",
-            # Set pairs bet
-            "3",
-            "10",
-            # Lock in initial bet
-            "4",
-            "",   # Enter after locking in bet
-            # Pre-flop betting
-            "3",  # Pre-flop: 4x ante
-            "",   # Enter after Pre-flop bet
-            # Post-flop betting
-            "2",  # Post-flop: 2x ante
-            "",   # Enter after post-flop bet
-            "",   # Enter after card reveal
-            # Pick Hand
-            "1", "1", "1", "1", "1",
-            "",   # Enter after picking hand
-            # Final betting
-            "1",  # Final: Check (no additional bet)
-            "","","","","",
-        ]
+        mocked_input.side_effect = get_poker_mocked_input()
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
         # Stacked deck: Player gets royal flush, dealer gets flush
@@ -413,33 +313,7 @@ class MyTestCase(unittest.TestCase):
     def test_poker_straight(self, mocked_input):
         formatter.drawMenuTopper("Test #6 : Straight")
 
-        mocked_input.side_effect = [
-            # Initial betting sequence - Set ante and blind
-            "1",
-            "10",
-            # Set trips bet
-            "2",
-            "10",
-            # Set pairs bet
-            "3",
-            "10",
-            # Lock in initial bet
-            "4",
-            "",   # Enter after locking in bet
-            # Pre-flop betting
-            "3",  # Pre-flop: 4x ante
-            "",   # Enter after Pre-flop bet
-            # Post-flop betting
-            "2",  # Post-flop: 2x ante
-            "",   # Enter after post-flop bet
-            "",   # Enter after card reveal
-            # Pick Hand
-            "1", "1", "1", "1", "1",
-            "",   # Enter after picking hand
-            # Final betting
-            "1",  # Final: Check (no additional bet)
-            "","","","","",
-        ]
+        mocked_input.side_effect = get_poker_mocked_input()
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
         # Stacked deck: Player gets royal flush, dealer gets flush
@@ -460,33 +334,7 @@ class MyTestCase(unittest.TestCase):
     def test_poker_3_kind(self, mocked_input):
         formatter.drawMenuTopper("Test #7 : 3 of a Kind")
 
-        mocked_input.side_effect = [
-            # Initial betting sequence - Set ante and blind
-            "1",
-            "10",
-            # Set trips bet
-            "2",
-            "10",
-            # Set pairs bet
-            "3",
-            "10",
-            # Lock in initial bet
-            "4",
-            "",   # Enter after locking in bet
-            # Pre-flop betting
-            "3",  # Pre-flop: 4x ante
-            "",   # Enter after Pre-flop bet
-            # Post-flop betting
-            "2",  # Post-flop: 2x ante
-            "",   # Enter after post-flop bet
-            "",   # Enter after card reveal
-            # Pick Hand
-            "1", "1", "1", "1", "1",
-            "",   # Enter after picking hand
-            # Final betting
-            "1",  # Final: Check (no additional bet)
-            "","","","","",
-        ]
+        mocked_input.side_effect = get_poker_mocked_input()
 
         # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
         # Stacked deck: Player gets royal flush, dealer gets flush
