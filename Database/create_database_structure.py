@@ -81,6 +81,29 @@ def init_db():
         FOREIGN KEY (achievement_id) REFERENCES Achievements (id),
         UNIQUE (character_id, achievement_id)
     );
+    
+    CREATE TABLE IF NOT EXISTS Chips (
+        chip_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        color TEXT UNIQUE NOT NULL,
+        credit_value INTEGER NOT NULL,
+        easy_amount INTEGER NOT NULL,
+        medium_amount INTEGER NOT NULL,
+        hard_amount INTEGER NOT NULL,
+        vhard_amount INTEGER NOT NULL
+    );
+    
+    CREATE TABLE IF NOT EXISTS PlayerChips (
+        p_chip_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        character_id INTEGER NOT NULL,
+        white INTEGER NOT NULL DEFAULT 0,
+        red INTEGER NOT NULL DEFAULT 0,
+        green INTEGER NOT NULL DEFAULT 0,
+        black INTEGER NOT NULL DEFAULT 0,
+        purple INTEGER NOT NULL DEFAULT 0,
+        orange INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (character_id) REFERENCES Characters (id)
+    );
+    
     """)
 
     conn.commit()

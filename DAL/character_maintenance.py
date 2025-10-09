@@ -1,6 +1,7 @@
 import sqlite3
 
 import formatter
+from DAL import money_maintenance as mm
 
 DB_PATH = "casino.db"
 
@@ -44,6 +45,9 @@ def create_new_character():
     conn.close()
 
     print(f"Character '{name}' created with {start_credits} credits ({difficulty_str}).")
+
+    chips = mm.getStartingChips(name, difficulty_str, start_credits)
+    insertStartingChips(name,chips)
     display_character(name, False)
     return name
 
@@ -228,3 +232,38 @@ def load_characters_at_start():
         else:
             print("Invalid choice.")
             return load_characters_at_start()
+
+# --------------------------------------------------------
+# Chips
+# --------------------------------------------------------
+def insertStartingChips(name,chips):
+    """Insert starting chips for a character into PlayerChips table."""
+    # Get character_id for the given name
+    characterData = load_character_by_name(name)
+    if not characterData:
+        print(f"Character '{name}' not found.")
+        return
+
+    character_id = characterData['id']
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Insert chips data into PlayerChips table
+    # Map chip colors to their respective column names
+    cursor.execute("""
+        INSERT INTO PlayerChips (character_id, white, red, green, black, purple, orange)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        character_id,
+        chips.get('White', 0),
+        chips.get('Red', 0),
+        chips.get('Green', 0),
+        chips.get('Black', 0),
+        chips.get('Purple', 0),
+        chips.get('Orange', 0)
+    ))
+
+    conn.commit()
+    conn.close()
+    print(f"Starting chips assigned to character '{name}'.")

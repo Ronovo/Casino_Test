@@ -1,0 +1,50 @@
+[
+  {
+    "color": "White",
+    "credit_value": 1,
+    "easy_amount": 0,
+    "medium_amount": 25,
+    "hard_amount": 10,
+    "vhard_amount": 10
+  },
+  {
+    "color": "Red",
+    "credit_value": 5,
+    "easy_amount": 40,
+    "medium_amount": 10,
+    "hard_amount": 8,
+    "vhard_amount": 0
+  },
+  {
+    "color": "Green",
+    "credit_value": 25,
+    "easy_amount": 32,
+    "medium_amount": 5,
+    "hard_amount": 2,
+    "vhard_amount": 0
+  },
+  {
+    "color": "Black",
+    "credit_value": 100,
+    "easy_amount": 10,
+    "medium_amount": 3,
+    "hard_amount": 0,
+    "vhard_amount": 0
+  },
+  {
+    "color": "Purple",
+    "credit_value": 500,
+    "easy_amount": 8,
+    "medium_amount": 1,
+    "hard_amount": 0,
+    "vhard_amount": 0
+  },
+  {
+    "color": "Orange",
+    "credit_value": 500,
+    "easy_amount": 4,
+    "medium_amount": 0,
+    "hard_amount": 0,
+    "vhard_amount": 0
+  }
+]

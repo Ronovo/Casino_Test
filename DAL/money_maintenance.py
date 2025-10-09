@@ -1,4 +1,6 @@
 import sqlite3
+
+import formatter
 from DAL import character_maintenance as cm, achievement_maintenance as am, blackjack_maintenance as bjs
 
 DB_PATH = "casino.db"
@@ -132,3 +134,83 @@ def checkBetNumber(answer):
     else:
         bet = 0
     return bet
+
+# --------------------------------------------------------
+# Chips Logic
+# --------------------------------------------------------
+def getStartingChips(name,difficulty,total):
+    characterData = cm.load_character_by_name(name)
+    chips = {}
+    match difficulty:
+        case "Easy":
+            chips = getChipsByDifficulty("easy_amount")
+        case "Medium":
+            chips = getChipsByDifficulty("medium_amount")
+        case "Hard":
+            chips = getChipsByDifficulty("hard_amount")
+        case "Very Hard":
+            chips = getChipsByDifficulty("vhard_amount")
+    return chips
+
+def getChipsByDifficulty(difficulty):
+    startingChips = {}
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    sql_query = f"SELECT color, {difficulty} FROM Chips;"
+    # Update the Current Bet
+    cursor.execute(sql_query)
+    chips = cursor.fetchall()
+    for chip in chips:
+        startingChips[chip[0]] = chip[1]
+    conn.commit()
+    conn.close()
+    return startingChips
+
+def chipsMenu(name):
+    char = cm.load_character_by_name(name)
+    chips = get_chips_by_character_id(char["id"])
+    totals = get_chips_total(chips)
+    formatter.clear()
+    formatter.drawMenuTopper("Chips Menu")
+    print("White Chips ($1) : " + str(chips["White"]) + " = " + str(totals["White"]) + " credits")
+    print("Red Chips ($5) : " + str(chips["Red"]) + " = " + str(totals["Red"]) + " credits")
+    print("Green Chips ($25) : " + str(chips["Green"]) + " = " + str(totals["Green"]) + " credits")
+    print("Black Chips ($100) : " + str(chips["Black"]) + " = " + str(totals["Black"]) + " credits")
+    print("Purple Chips ($500) : " + str(chips["Purple"]) + " = " + str(totals["Purple"]) + " credits")
+    print("Orange Chips ($1000) : " + str(chips["Orange"]) + " = " + str(totals["Orange"]) + " credits")
+    print("Total = " + str(totals["Total"]) + " credits")
+    formatter.getInputText("Enter")
+    return
+
+def get_chips_by_character_id(id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    sql_query = f"SELECT * FROM PlayerChips WHERE character_id = {id};"
+
+    cursor.execute(sql_query)
+    chips = cursor.fetchone()
+    player_chips = {
+        "White": chips[2],
+        "Red": chips[3],
+        "Green": chips[4],
+        "Black": chips[5],
+        "Purple": chips[6],
+        "Orange": chips[7],
+    }
+    return player_chips
+
+def get_chips_total(chips):
+    whiteTotal = chips["White"]
+    redTotal = chips["Red"] * 5
+    greenTotal = chips["Green"] * 25
+    blackTotal = chips["Black"] * 100
+    purpleTotal = chips["Purple"] * 500
+    orangeTotal = chips["Orange"] * 1000
+    chipTotal = orangeTotal + purpleTotal + blackTotal + greenTotal + redTotal + chips["White"]
+    totals = {"White" : whiteTotal, "Red" : redTotal, "Green" : greenTotal,
+              "Black" : blackTotal, "Purple" : purpleTotal, "Orange" : orangeTotal,
+              "Total" : chipTotal}
+    return totals

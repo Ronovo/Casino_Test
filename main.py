@@ -1,24 +1,15 @@
 import formatter
 from Games import blackjack, poker, gtn
-from DAL import character_maintenance as cm
+from DAL import character_maintenance as cm, money_maintenance as mm
 from Database import create_database_structure as dbcreate
-from Database import load_helper_methods as filltables
+from Database import load_helper_methods as fillTables
 import os
 
 #Initialize Database
 dbcreate.init_db()
 
-#Load achievements
-cwd = os.getcwd()
-achievementpath = cwd + "/Database/achievements.json"
-filltables.load_achievements_from_json(achievementpath)
-#Load Paytables
-blindsPath = cwd + "/Paytables/blind_modifier.json"
-filltables.load_poker_blinds(blindsPath)
-tripsPath = cwd + "/Paytables/trips_modifier.json"
-filltables.load_poker_trips(tripsPath)
-pairsPath = cwd + "/Paytables/pairs_modifier.json"
-filltables.load_poker_pairs(pairsPath)
+fillTables.loadDatabaseJson()
+
 #Run the character menu
 characterName = cm.load_characters_at_start()
 
@@ -34,7 +25,8 @@ while 1 > 0:
     print("5.) Roulette - COMING SOON")
     print("6.) Shooting Range Bets - COMING SOON")
     print("7.) Display Character Information")
-    print("8.) Quit")
+    print("8.) Betting Chips Menu")
+    print("9.) Quit")
     menuInput = input(formatter.getInputText("Choice"))
     if menuInput.isnumeric():
         formatter.clear()
@@ -59,6 +51,8 @@ while 1 > 0:
             case "7":
                 cm.display_character(characterName, True)
             case "8":
+                mm.chipsMenu(characterName)
+            case "9":
                 quit()
             case _:
                 input(formatter.getInputText("NonNumber"))

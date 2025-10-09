@@ -1,10 +1,27 @@
+import os
 import sqlite3
 import json
 import datetime
 
 DB_PATH = "casino.db"
 
-
+#Initialize Database Before the Main Menu
+def loadDatabaseJson():
+    # Load achievements
+    cwd = os.getcwd()
+    cwd += "/Data/"
+    achievementpath = cwd + "achievements.json"
+    load_achievements_from_json(achievementpath)
+    # Load Paytables
+    blindsPath = cwd + "Paytables/blind_modifier.json"
+    load_poker_blinds(blindsPath)
+    tripsPath = cwd + "Paytables/trips_modifier.json"
+    load_poker_trips(tripsPath)
+    pairsPath = cwd + "Paytables/pairs_modifier.json"
+    load_poker_pairs(pairsPath)
+    #Chips (Color/value)
+    chipsPath = cwd + "Money/chips.json"
+    load_chips(chipsPath)
 # --------------------------------------------------------
 # ACHIEVEMENTS
 # --------------------------------------------------------
@@ -100,6 +117,25 @@ def export_character_to_json(character_name, export_path):
                 "date_unlocked": row[4]
             })
 
+        # Get player chips data
+        cursor.execute("""
+            SELECT white, red, green, black, purple, orange
+            FROM PlayerChips
+            WHERE character_id = ?
+        """, (char_id,))
+
+        chips_row = cursor.fetchone()
+        chips_data = None
+        if chips_row:
+            chips_data = {
+                "white": chips_row[0],
+                "red": chips_row[1],
+                "green": chips_row[2],
+                "black": chips_row[3],
+                "purple": chips_row[4],
+                "orange": chips_row[5]
+            }
+
         # Structure the export data
         export_data = {
             "character": {
@@ -109,6 +145,7 @@ def export_character_to_json(character_name, export_path):
             },
             "blackjack": blackjack_data,
             "poker": poker_data,
+            "chips": chips_data,
             "achievements": achievements,
             "export_info": {
                 "exported_at": datetime.datetime.now().isoformat(),
@@ -246,6 +283,48 @@ def import_character_from_json(import_path, character_name=None):
                         VALUES (?, ?, ?)
                     """, (char_id, achievement_id, achievement.get("date_unlocked", datetime.datetime.now().isoformat())))
 
+        # Handle chips data
+        chips_data = import_data.get("chips")
+        if chips_data:
+            # Check if character already has chips data
+            cursor.execute("""
+                SELECT p_chip_id FROM PlayerChips WHERE character_id = ?
+            """, (char_id,))
+
+            existing_chips = cursor.fetchone()
+
+            if existing_chips:
+                # Update existing chips data
+                cursor.execute("""
+                    UPDATE PlayerChips
+                    SET white = ?, red = ?, green = ?, black = ?, purple = ?, orange = ?
+                    WHERE character_id = ?
+                """, (
+                    chips_data.get("white", 0),
+                    chips_data.get("red", 0),
+                    chips_data.get("green", 0),
+                    chips_data.get("black", 0),
+                    chips_data.get("purple", 0),
+                    chips_data.get("orange", 0),
+                    char_id
+                ))
+                print(f"Updated existing chips data for '{name}'")
+            else:
+                # Insert new chips data
+                cursor.execute("""
+                    INSERT INTO PlayerChips (character_id, white, red, green, black, purple, orange)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    char_id,
+                    chips_data.get("white", 0),
+                    chips_data.get("red", 0),
+                    chips_data.get("green", 0),
+                    chips_data.get("black", 0),
+                    chips_data.get("purple", 0),
+                    chips_data.get("orange", 0)
+                ))
+                print(f"Created new chips data for '{name}'")
+
         conn.commit()
         print(f"Character '{name}' imported successfully")
 
@@ -266,7 +345,6 @@ def import_character_from_json(import_path, character_name=None):
 # Poker
 # --------------------------------------------------------
 def load_poker_blinds(path):
-    """Import static achievements from JSON into the database."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -283,7 +361,6 @@ def load_poker_blinds(path):
     conn.close()
 
 def load_poker_trips(path):
-    """Import static achievements from JSON into the database."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -300,7 +377,6 @@ def load_poker_trips(path):
     conn.close()
 
 def load_poker_pairs(path):
-    """Import static achievements from JSON into the database."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -312,6 +388,26 @@ def load_poker_pairs(path):
             INSERT OR IGNORE INTO PokerPairs (name, score_value, odds, modifier)
             VALUES (?, ?, ?, ?)
         """, (pair["name"], pair["score_value"], pair["odds"], pair["modifier"],))
+
+    conn.commit()
+    conn.close()
+
+# --------------------------------------------------------
+# Chips
+# --------------------------------------------------------
+def load_chips(path):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    with open(path, "r", encoding="utf-8") as f:
+        chips = json.load(f)
+
+    for chip in chips:
+        cursor.execute("""
+               INSERT OR IGNORE INTO Chips (color, credit_value, easy_amount, 
+               medium_amount,hard_amount,vhard_amount)
+               VALUES (?, ?, ?, ?, ?, ?)
+           """, (chip["color"], chip["credit_value"], chip["easy_amount"], chip["medium_amount"],chip["hard_amount"],chip["vhard_amount"],))
 
     conn.commit()
     conn.close()
