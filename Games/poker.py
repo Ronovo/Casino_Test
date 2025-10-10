@@ -355,7 +355,7 @@ def initialBets(characterData):
                     print("Ante is currently " + str(ante) + " credits")
                     print("Blind is the same amount as the ante")
                     answer = input(formatter.getInputText("Set Bet"))
-                    ante = mm.checkBetNumber(answer)
+                    ante = mm.checkNumber(answer)
                     if ante == 0:
                         ante = 1
                         print("Invalid Entry. Defaulting to 1")
@@ -365,14 +365,14 @@ def initialBets(characterData):
                     print("Bet you are going to get a 3 of a Kind or Higher")
                     print("Default : 0")
                     answer = input(formatter.getInputText("Set Bet"))
-                    trips = mm.checkBetNumber(answer)
+                    trips = mm.checkNumber(answer)
                     print("Trips bet set to " + str(trips) + " credits.")
                 case "3":
                     print("Pairs bet is currently " + str(pairs) + " credits")
                     print("Bet your starting hand is a pair")
                     print("Default : 0")
                     answer = input(formatter.getInputText("Set Bet"))
-                    pairs = mm.checkBetNumber(answer)
+                    pairs = mm.checkNumber(answer)
                     print("Pairs bet set to " + str(pairs) + " credits.")
                 case "4":
                     ps.update_poker_initial_bet(characterData['name'], ante, trips, pairs)
