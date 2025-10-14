@@ -74,9 +74,7 @@ def payOut(characterData,winFlag,winModifier, game):
             match winFlag:
                 #Win, Payout at Modifier
                 case 1:
-                    if characterData['credits'] == 1 or characterData['credits'] == 0:
-                        winnings = 2
-                    elif currentBet == 1:
+                    if currentBet == 1:
                         winnings = 2
                     else :
                         winnings = int(currentBet * winModifier)
