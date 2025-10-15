@@ -35,24 +35,27 @@ def storeCredits(characterData):
     conn.close()
     return cm.load_character_by_name(characterData['name'])
 
-def checkCreditsAchievements(characterData):
-    currentCredits = characterData['credits']
+def checkCreditsAchievements(characterName):
+    characterData = cm.load_character_by_name(characterName)
+    chips = get_chips_by_character_id(characterData['id'])
+    totals = get_chips_total(chips)
+    playerCredits = totals['Total']
+    characterData['credits'] = playerCredits
     difficulty = characterData['difficulty']
-    name = characterData['name']
-    if currentCredits >= 1000000:
-        am.insert_achievement(name,"Money_1000000")
-    elif currentCredits >= 100000:
-        am.insert_achievement(name, "Money_100000")
-    elif currentCredits >= 10000:
+    if playerCredits >= 1000000:
+        am.insert_achievement(characterName,"Money_1000000")
+    elif playerCredits >= 100000:
+        am.insert_achievement(characterName, "Money_100000")
+    elif playerCredits >= 10000:
         #Exlude Easy, since it's the starting amount
         if difficulty != "Easy":
-            am.insert_achievement(name, "Money_10000")
-    elif currentCredits >= 1000:
+            am.insert_achievement(characterName, "Money_10000")
+    elif playerCredits >= 1000:
         if difficulty == "Very Hard" or difficulty == "Hard":
-            am.insert_achievement(name, "Money_1000")
-    elif currentCredits >= 100:
+            am.insert_achievement(characterName, "Money_1000")
+    elif playerCredits >= 100:
         if difficulty == "Very Hard":
-            am.insert_achievement(name, "Money_100")
+            am.insert_achievement(characterName, "Money_100")
 
 # --------------------------------------------------------
 # MAIN METHODS
@@ -105,7 +108,7 @@ def payOut(characterData,winType, game, double_down_flag):
                 case -1:
                     totalWinnings = payoutHelper(1, totalBetAmount, currentBet, characterData['name'])
                     print("Draw! " + str(totalWinnings) + " credits in chips returned")
-            checkCreditsAchievements(characterData)
+            checkCreditsAchievements(characterData['name'])
 
 def payoutHelper(modifier, totalBetAmount, currentBet, characterName):
         # 3:1 = 4 total
@@ -266,8 +269,6 @@ def get_chips_total(chips):
               "Total" : chipTotal}
     return totals
 
-#TODO : Add Total Bet to top of the menu
-#TODO : Add Validation to inputs
 def select_bet_chips(chips):
     chipsWork = dict(chips)
     selectedChips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
@@ -297,17 +298,17 @@ def select_bet_chips(chips):
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
                 case "1":
-                    selectedChipsWork = place_bet_chips("White",selectedChipsWork)
+                    selectedChipsWork = place_bet_chips("White",selectedChipsWork, chipsWork)
                 case "2":
-                    selectedChipsWork = place_bet_chips("Red",selectedChipsWork)
+                    selectedChipsWork = place_bet_chips("Red",selectedChipsWork, chipsWork)
                 case "3":
-                    selectedChipsWork = place_bet_chips("Green",selectedChipsWork)
+                    selectedChipsWork = place_bet_chips("Green",selectedChipsWork, chipsWork)
                 case "4":
-                    selectedChipsWork = place_bet_chips("Black",selectedChipsWork)
+                    selectedChipsWork = place_bet_chips("Black",selectedChipsWork, chipsWork)
                 case "5":
-                    selectedChipsWork = place_bet_chips("Purple",selectedChipsWork)
+                    selectedChipsWork = place_bet_chips("Purple",selectedChipsWork, chipsWork)
                 case "6":
-                    selectedChipsWork = place_bet_chips("Orange",selectedChipsWork)
+                    selectedChipsWork = place_bet_chips("Orange",selectedChipsWork, chipsWork)
                 case "7":
                      for x in chipsWork:
                          selectedChipsWork[x] = chipsWork[x]
@@ -322,15 +323,70 @@ def select_bet_chips(chips):
             selectedChips[x] += selectedChipsWork[x]
             chipsWork[x] -= selectedChipsWork[x]
 
-def place_bet_chips(color, selectedChips):
+def place_bet_chips(color, selectedChips, availableChips=None):
     numberOfChips = input("How many " + color + " chips do you want to add to bet?\n")
     numberOfChips = checkNumber(numberOfChips)
+    
+    # Handle negative numbers - set to 0
+    if numberOfChips < 0:
+        numberOfChips = 0
+    
+    # Validate against available chips if provided
+    if availableChips is not None:
+        available = availableChips.get(color, 0)
+        if numberOfChips > available:
+            print(f"You only have {available} {color} chips available. Setting to maximum available.")
+            numberOfChips = available
+    
     selectedChips[color] += numberOfChips
     return selectedChips
 
-def add_chips(color, chips):
+def add_chips(color, chips, availableChips=None):
     numberOfChips = input("How many " + color + " chips do you want to add to exchange?\n")
     numberOfChips = checkNumber(numberOfChips)
+    
+    # Handle negative numbers - set to 0
+    if numberOfChips < 0:
+        numberOfChips = 0
+    
+    # Validate against available chips if provided
+    if availableChips is not None:
+        available = availableChips.get(color, 0)
+        if numberOfChips > available:
+            print(f"You only have {available} {color} chips available. Setting to maximum available.")
+            numberOfChips = available
+    
+    chips[color] += numberOfChips
+    return chips
+
+def add_chips_from_credits(color, chips, availableCredits):
+    """Add chips to exchange, validating against available credits."""
+    # Get the chip value based on color
+    chip_values = {
+        "White": 1,
+        "Red": 5,
+        "Green": 25,
+        "Black": 100,
+        "Purple": 500,
+        "Orange": 1000
+    }
+    
+    numberOfChips = input("How many " + color + " chips do you want to add to exchange?\n")
+    numberOfChips = checkNumber(numberOfChips)
+    
+    # Handle negative numbers - set to 0
+    if numberOfChips < 0:
+        numberOfChips = 0
+    
+    # Calculate cost and validate against available credits
+    chip_value = chip_values.get(color, 0)
+    total_cost = numberOfChips * chip_value
+    
+    if total_cost > availableCredits:
+        max_chips = availableCredits // chip_value
+        print(f"You only have {availableCredits} credits available. Maximum {color} chips you can get: {max_chips}. Setting to maximum.")
+        numberOfChips = max_chips
+    
     chips[color] += numberOfChips
     return chips
 
@@ -410,24 +466,23 @@ def add_exchange_credits(finalExchangeChipsIn, finalPlayerChips):
        print("Exchange : " + str(exchangeChips["Orange"]) + " | Total : " + str(exchangeTotals["Orange"]) + " credits")
        print("\n7.) Reset The Current Exchange")
        print("8.) Lock In Exchange")
-       print("NOTE : You can quit on the Chip Exchange menu to restart the exchange process.")
        menuInput = input(formatter.getInputText("Choice"))
        if menuInput.isnumeric():
            if 0 > int(menuInput) >= 7:
                input(formatter.getInputText("Wrong Number"))
            match menuInput:
                case "1":
-                   exchangeChipsWork = add_chips("White", exchangeChipsWork)
+                   exchangeChipsWork = add_chips("White", exchangeChipsWork, playerChips)
                case "2":
-                   exchangeChipsWork = add_chips("Red", exchangeChipsWork)
+                   exchangeChipsWork = add_chips("Red", exchangeChipsWork, playerChips)
                case "3":
-                   exchangeChipsWork = add_chips("Green", exchangeChipsWork)
+                   exchangeChipsWork = add_chips("Green", exchangeChipsWork, playerChips)
                case "4":
-                   exchangeChipsWork = add_chips("Black", exchangeChipsWork)
+                   exchangeChipsWork = add_chips("Black", exchangeChipsWork, playerChips)
                case "5":
-                   exchangeChipsWork = add_chips("Purple", exchangeChipsWork)
+                   exchangeChipsWork = add_chips("Purple", exchangeChipsWork, playerChips)
                case "6":
-                   exchangeChipsWork = add_chips("Orange", exchangeChipsWork)
+                   exchangeChipsWork = add_chips("Orange", exchangeChipsWork, playerChips)
                case "7":
                    exchangeChips = dict(finalExchangeChipsStart)
                    playerChips = dict(playerChipsStart)
@@ -446,12 +501,6 @@ def add_exchange_credits(finalExchangeChipsIn, finalPlayerChips):
 
 
 def add_chips_from_total(finalExchangeChipsOut, displayCreditTotal):
-    # Get Total From final exchange chips
-    # List all the colors
-    # Total to Exchange = 0 Start
-    # Pick From List and Add to Total chips to exchange
-    # At the end, the final chips to update for the player are returned
-
     # Intialzie The Start Variables
     displayCreditTotalStart = int(displayCreditTotal)
     exchangeChipsWorkStart = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
@@ -476,24 +525,23 @@ def add_chips_from_total(finalExchangeChipsOut, displayCreditTotal):
         print("Exchange : " + str(exchangeChips["Orange"]) + " | Total : " + str(exchangeTotals["Orange"]) + " credits")
         print("\n7.) Reset The Current Exchange")
         print("8.) Lock In Exchange")
-        print("NOTE : You can quit on the Chip Exchange menu to restart the exchange process.")
         menuInput = input(formatter.getInputText("Choice"))
         if menuInput.isnumeric():
             if 0 > int(menuInput) >= 7:
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
                 case "1":
-                    exchangeChipsWork = add_chips("White", exchangeChipsWork)
+                    exchangeChipsWork = add_chips_from_credits("White", exchangeChipsWork, displayCreditTotal)
                 case "2":
-                    exchangeChipsWork = add_chips("Red", exchangeChipsWork)
+                    exchangeChipsWork = add_chips_from_credits("Red", exchangeChipsWork, displayCreditTotal)
                 case "3":
-                    exchangeChipsWork = add_chips("Green", exchangeChipsWork)
+                    exchangeChipsWork = add_chips_from_credits("Green", exchangeChipsWork, displayCreditTotal)
                 case "4":
-                    exchangeChipsWork = add_chips("Black", exchangeChipsWork)
+                    exchangeChipsWork = add_chips_from_credits("Black", exchangeChipsWork, displayCreditTotal)
                 case "5":
-                    exchangeChipsWork = add_chips("Purple", exchangeChipsWork)
+                    exchangeChipsWork = add_chips_from_credits("Purple", exchangeChipsWork, displayCreditTotal)
                 case "6":
-                    exchangeChipsWork = add_chips("Orange", exchangeChipsWork)
+                    exchangeChipsWork = add_chips_from_credits("Orange", exchangeChipsWork, displayCreditTotal)
                 case "7":
                     exchangeChips = dict(finalExchangeChipsStart)
                     finalExchangeChipsOut = dict(finalExchangeChipsStart)

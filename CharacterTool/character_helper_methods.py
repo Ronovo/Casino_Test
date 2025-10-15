@@ -27,7 +27,7 @@ def export_character_to_json(character_name, export_path):
         blackjack_data = None
         if blackjack_id and blackjack_id > 0:
             cursor.execute("""
-                SELECT current_bet, wins, losses, draws
+                SELECT current_bet, wins, losses, draws, white, red, green, black, purple, orange
                 FROM Blackjack WHERE blackjack_id = ?
             """, (blackjack_id,))
             blackjack_row = cursor.fetchone()
@@ -36,7 +36,15 @@ def export_character_to_json(character_name, export_path):
                     "current_bet": blackjack_row[0],
                     "wins": blackjack_row[1],
                     "losses": blackjack_row[2],
-                    "draws": blackjack_row[3]
+                    "draws": blackjack_row[3],
+                    "bet_chips": {
+                        "white": blackjack_row[4],
+                        "red": blackjack_row[5],
+                        "green": blackjack_row[6],
+                        "black": blackjack_row[7],
+                        "purple": blackjack_row[8],
+                        "orange": blackjack_row[9]
+                    }
                 }
 
         # Get poker data if exists
@@ -168,22 +176,34 @@ def import_character_from_json(import_path, character_name=None):
         # Handle blackjack data
         blackjack_data = import_data.get("blackjack")
         if blackjack_data:
+            # Get bet chips if they exist, otherwise use defaults
+            bet_chips = blackjack_data.get("bet_chips", {})
+            white = bet_chips.get("white", 0)
+            red = bet_chips.get("red", 0)
+            green = bet_chips.get("green", 0)
+            black = bet_chips.get("black", 0)
+            purple = bet_chips.get("purple", 0)
+            orange = bet_chips.get("orange", 0)
+            
             if existing_char and char_data.get("blackjack_id"):
                 # Update existing blackjack record
                 blackjack_id = char_data["blackjack_id"]
                 cursor.execute("""
                     UPDATE Blackjack
-                    SET current_bet = ?, wins = ?, losses = ?, draws = ?
+                    SET current_bet = ?, wins = ?, losses = ?, draws = ?, 
+                        white = ?, red = ?, green = ?, black = ?, purple = ?, orange = ?
                     WHERE blackjack_id = ?
                 """, (blackjack_data["current_bet"], blackjack_data["wins"],
-                      blackjack_data["losses"], blackjack_data["draws"], blackjack_id))
+                      blackjack_data["losses"], blackjack_data["draws"],
+                      white, red, green, black, purple, orange, blackjack_id))
             else:
                 # Insert new blackjack record
                 cursor.execute("""
-                    INSERT INTO Blackjack (current_bet, wins, losses, draws)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO Blackjack (current_bet, wins, losses, draws, white, red, green, black, purple, orange)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (blackjack_data["current_bet"], blackjack_data["wins"],
-                      blackjack_data["losses"], blackjack_data["draws"]))
+                      blackjack_data["losses"], blackjack_data["draws"],
+                      white, red, green, black, purple, orange))
                 blackjack_id = cursor.lastrowid
 
                 # Update character with blackjack_id

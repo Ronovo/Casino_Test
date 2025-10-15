@@ -6,8 +6,15 @@ from DAL import achievement_maintenance as am, character_maintenance as cm, blac
 
 def blackjackStart(characterName):
     while 1 > 0:
+        # Check if player has any chips for game over state
+        characterData = cm.load_character_by_name(characterName)
+        chips = mm.get_chips_by_character_id(characterData["id"])
+        chipTotal = mm.get_chips_total(chips)
+
+        if chipTotal["Total"] == 0:
+            return "GAME_OVER"
         formatter.clear()
-        formatter.drawMenuTopper("Welcome to the Blackjack v2.1")
+        formatter.drawMenuTopper("Welcome to the Blackjack v2.2")
         print("1.) Start Game(Deal In)")
         print("2.) Game Information")
         print("3.) Pay Table")

@@ -1,0 +1,71 @@
+{
+  "character": {
+    "name": "Ronovo Ronove",
+    "credits": 10,
+    "difficulty": "Very Hard"
+  },
+  "blackjack": {
+    "current_bet": 0,
+    "wins": 139,
+    "losses": 166,
+    "draws": 26,
+    "bet_chips": {
+      "white": 0,
+      "red": 0,
+      "green": 0,
+      "black": 0,
+      "purple": 0,
+      "orange": 0
+    }
+  },
+  "poker": null,
+  "chips": {
+    "white": 11,
+    "red": 0,
+    "green": 4,
+    "black": 0,
+    "purple": 0,
+    "orange": 0
+  },
+  "achievements": [
+    {
+      "achievement_name": "Blackjack_Lose",
+      "category": "Blackjack",
+      "display_name": "The House Always Wins",
+      "description": "Lose a game of Blackjack",
+      "date_unlocked": "2025-10-15 21:12:24"
+    },
+    {
+      "achievement_name": "Blackjack_Win",
+      "category": "Blackjack",
+      "display_name": "Baby's First Win",
+      "description": "Win a game of Blackjack",
+      "date_unlocked": "2025-10-15 21:12:32"
+    },
+    {
+      "achievement_name": "Blackjack_21",
+      "category": "Blackjack",
+      "display_name": "21!",
+      "description": "Get a Blackjack",
+      "date_unlocked": "2025-10-15 21:12:32"
+    },
+    {
+      "achievement_name": "Blackjack_Draw",
+      "category": "Blackjack",
+      "display_name": "What are the chances?",
+      "description": "Draw a game of Blackjack",
+      "date_unlocked": "2025-10-15 21:13:10"
+    },
+    {
+      "achievement_name": "Money_100",
+      "category": "Money",
+      "display_name": "Just Scraping By",
+      "description": "Make 100 Credits starting from 10",
+      "date_unlocked": "2025-10-15 22:50:24"
+    }
+  ],
+  "export_info": {
+    "exported_at": "2025-10-15T17:57:22.687702",
+    "version": "1.0"
+  }
+}

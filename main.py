@@ -17,7 +17,7 @@ while 1 > 0:
     formatter.drawMenuTopper("Welcome to Ronovo's Casino v1.6")
     print("Main Menu")
     formatter.drawMenuLine()
-    print("1.) Blackjack v2.1 (Chips Update)")
+    print("1.) Blackjack v2.2 (Double Down Update)")
     print("2.) Texas Hold'em Poker(V1.2 : Achievement Update)")
     print("3.) Guess the Number - V0.0 Planning")
     print("4.) Baccarat - COMING SOON")
@@ -34,7 +34,11 @@ while 1 > 0:
             input(formatter.getInputText("Wrong Number"))
         match menuInput:
             case "1":
-                blackjack.blackjackStart(characterName)
+                flag = blackjack.blackjackStart(characterName)
+                if flag == "GAME_OVER":
+                    print("You have no chips left. Game Over!")
+                    input(formatter.getInputText("Enter"))
+                    quit()
             case "2":
                 poker.pokerStart(characterName)
             case "3":
