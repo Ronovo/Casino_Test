@@ -25,7 +25,7 @@ while 1 > 0:
     print("6.) Roulette - COMING SOON")
     print("7.) Shooting Range Bets - COMING SOON")
     print("8.) Display Character Information")
-    print("9.) Betting Chips Menu")
+    print("9.) Chips Exchange")
     print("10.) Quit")
     menuInput = input(formatter.getInputText("Choice"))
     if menuInput.isnumeric():
@@ -51,7 +51,7 @@ while 1 > 0:
             case "8":
                 cm.display_character(characterName, True)
             case "9":
-                mm.chipsMenu(characterName)
+                mm.exhangeChips(characterName)
             case "10":
                 quit()
             case _:

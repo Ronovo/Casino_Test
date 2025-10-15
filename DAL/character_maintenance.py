@@ -55,37 +55,34 @@ def create_new_character():
 # CHARACTER LOADING
 # --------------------------------------------------------
 def display_character(name, menuFlag):
-    """Display a character's current stats and achievements."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM Characters WHERE name = ?", (name,))
-    char = cursor.fetchone()
-    if not char:
-        print("Character not found.")
-        conn.close()
-        return
-    conn.close()
+    #Get the total amount from chips for the total net worth
+    characterData = load_character_by_name(name)
+    chipsToTotal = mm.get_chips_by_character_id(characterData["id"])
+    chipTotal = mm.get_chips_total(chipsToTotal)
+    total = chipTotal["Total"]
 
     formatter.clear()
     formatter.drawMenuTopper("Your character:")
-    print(f"Name: {char[1]}")
-    print(f"Credits: {char[2]}")
-    print(f"Difficulty: {char[3]}")
+    print(f"Name: {characterData['name']}")
+    print(f"Total Net Worth: {total}")
+    print(f"Difficulty: {characterData['difficulty']}")
     if menuFlag:
         while 1 > 0:
             formatter.drawMenuLine()
             print("1.) Achievements Menu")
-            print("2.) Return to Menu")
+            print("2.) Chips Information")
+            print("3.) Return to Menu")
             menuInput = input(formatter.getInputText("Choice"))
             if menuInput.isnumeric():
                 formatter.clear()
-                if 0 > int(menuInput) >= 2:
+                if 0 > int(menuInput) >= 3:
                     input(formatter.getInputText("Wrong Number"))
                 match menuInput:
                     case "1":
                        achievement_menu(name)
                     case "2":
+                        mm.chipsMenu(name)
+                    case "3":
                         return
     else :
         input(formatter.getInputText("Enter"))
@@ -268,7 +265,30 @@ def insertStartingChips(name,chips):
     conn.close()
     print(f"Starting chips assigned to character '{name}'.")
 
-def update_player_chips(name, chips):
+def update_player_chips(chips, character_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Insert chips data into PlayerChips table
+    # Map chip colors to their respective column names
+    cursor.execute("""
+                UPDATE PlayerChips
+                SET white = ?, red = ?, green = ?, black = ?, purple = ?, orange = ?
+                WHERE character_id = ?
+            """, (
+        chips.get('White', 0),
+        chips.get('Red', 0),
+        chips.get('Green', 0),
+        chips.get('Black', 0),
+        chips.get('Purple', 0),
+        chips.get('Orange', 0),
+        character_id,
+    ))
+
+    conn.commit()
+    conn.close()
+
+def update_player_chips_add(name, chips):
     # Get character_id for the given name
     characterData = load_character_by_name(name)
     if not characterData:
@@ -279,29 +299,8 @@ def update_player_chips(name, chips):
     characterChips = mm.get_chips_by_character_id(character_id)
     for x in chips:
         characterChips[x] += chips[x]
+    update_player_chips(characterChips, character_id)
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    # Insert chips data into PlayerChips table
-    # Map chip colors to their respective column names
-    cursor.execute("""
-            UPDATE PlayerChips
-            SET white = ?, red = ?, green = ?, black = ?, purple = ?, orange = ?
-            WHERE character_id = ?
-        """, (
-        characterChips.get('White', 0),
-        characterChips.get('Red', 0),
-        characterChips.get('Green', 0),
-        characterChips.get('Black', 0),
-        characterChips.get('Purple', 0),
-        characterChips.get('Orange', 0),
-        character_id,
-    ))
-
-    conn.commit()
-    conn.close()
-    print(f"Payout Chips assigned to character '{name}'.")
 
 def remove_player_chips(name, chips):
     # Get character_id for the given name
@@ -337,5 +336,4 @@ def remove_player_chips(name, chips):
 
     conn.commit()
     conn.close()
-    print(f"Payout Chips assigned to character '{name}'.")
 

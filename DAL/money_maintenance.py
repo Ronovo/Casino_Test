@@ -62,67 +62,66 @@ def setChipBet(characterData,chips,game):
         case "BJ":
             #Update Character's Current Bet
             updateBlackjackBet(characterData['name'],chips)
-            #Remove Credits from Character
-            deductCredits(characterData,chips["Total"])
             #Return updated character data
             return cm.load_character_by_name(characterData['name'])
 
-def payOut(characterData,winFlag, game):
+def payOut(characterData,winType, game, double_down_flag):
     match game:
         case "BJ":
+            #Current Bet in Chips
             currentBet = getCurrentBlackjackBet(characterData['name'])
             # Get the total bet amount from the dictionary
             totalBetAmount = currentBet["Total"] if currentBet else 0
-            match winFlag:
-                #Blackjack - 3:2 payout (1.5x winnings + original bet = 2.5x total)
-                case 21:
-                    if currentBet:
-                        # Calculate 3:2 payout: bet + (bet × 1.5) = bet × 2.5, rounded up for integer credits
-                        winnings = int((totalBetAmount * 2.5) + 0.999)  # Round up
-
-                        # Apply 3:2 multiplier to each chip type and round up
-                        blackjackChips = {
-                            "White": int((currentBet["White"] * 2.5) + 0.999),
-                            "Red": int((currentBet["Red"] * 2.5) + 0.999),
-                            "Green": int((currentBet["Green"] * 2.5) + 0.999),
-                            "Black": int((currentBet["Black"] * 2.5) + 0.999),
-                            "Purple": int((currentBet["Purple"] * 2.5) + 0.999),
-                            "Orange": int((currentBet["Orange"] * 2.5) + 0.999)
-                        }
-                        # Add blackjack chips to player's inventory
-                        cm.update_player_chips(characterData['name'], blackjackChips)
-
-                        # Also add total winnings as credits
-                        characterData = addCredits(characterData, winnings)
-                        print("Blackjack! You won " + str(winnings) + " credits! (3:2 payout - bet chips × 2.5)")
+            match winType:
+                #Blackjack - 3:1 (4x payout = 3 win + 1 start)
+                case 3:
+                    #5x payout = 3 win + 2 start (double down)
+                    if double_down_flag:
+                        totalWinnings = payoutHelper(5,totalBetAmount, currentBet, characterData['name'])
+                        print("Blackjack! You won " + str(totalWinnings) + " credits! (3:1 payout w/ Double Down)")
                     else:
-                        print("No bet found for blackjack payout.")
+                        totalWinnings = payoutHelper(4,totalBetAmount, currentBet, characterData['name'])
+                        print("Blackjack! You won " + str(totalWinnings) + " credits! (3:1 payout)")
+                #21 - 2:1 (3x payout - 2 win + 1 start
+                case 2:
+                    # 4x payout = 2 win + 2 start (double down)
+                    if double_down_flag:
+                        totalWinnings = payoutHelper(4, totalBetAmount, currentBet, characterData['name'])
+                        print("21! You won " + str(totalWinnings) + " credits! (2:1 payout w/ Double Down)")
+                    else:
+                        totalWinnings = payoutHelper(3, totalBetAmount, currentBet, characterData['name'])
+                        print("21! You won " + str(totalWinnings) + " credits! (2:1 payout)")
                 #Win, 1 to 1 - double the bet chips and add to player inventory
                 case 1:
-                    if currentBet:
-                        # Double all the bet chips and add to player inventory
-                        doubledChips = {
-                            "White": currentBet["White"] * 2,
-                            "Red": currentBet["Red"] * 2,
-                            "Green": currentBet["Green"] * 2,
-                            "Black": currentBet["Black"] * 2,
-                            "Purple": currentBet["Purple"] * 2,
-                            "Orange": currentBet["Orange"] * 2
-                        }
-                        # Add doubled chips to player's inventory
-                        cm.update_player_chips(characterData['name'], doubledChips)
-
-                        # Also add total winnings as credits (equivalent value)
-                        winnings = totalBetAmount * 2
-                        characterData = addCredits(characterData, winnings)
-                        print("You won " + str(winnings) + " credits! (Bet chips doubled and added to inventory)")
+                    # 3x payout = 1 win + 2 start (double down)
+                    if double_down_flag:
+                        totalWinnings = payoutHelper(3, totalBetAmount, currentBet, characterData['name'])
+                        print("You won " + str(totalWinnings) + " credits! (Double Downed!)")
                     else:
-                        print("No bet found to double.")
+                        totalWinnings = payoutHelper(2, totalBetAmount, currentBet, characterData['name'])
+                        print("You won " + str(totalWinnings) + " credits! (Bet chips doubled and added to inventory)")
                 #Draw, Add Back current bet to Credits
+                #Double Down does not matter
                 case -1:
-                    characterData = addCredits(characterData,totalBetAmount)
+                    totalWinnings = payoutHelper(1, totalBetAmount, currentBet, characterData['name'])
+                    print("Draw! " + str(totalWinnings) + " credits in chips returned")
             checkCreditsAchievements(characterData)
 
+def payoutHelper(modifier, totalBetAmount, currentBet, characterName):
+        # 3:1 = 4 total
+        blackjackChips = {
+            "White": currentBet["White"] * modifier,
+            "Red": currentBet["Red"] * modifier,
+            "Green": currentBet["Green"] * modifier,
+            "Black": currentBet["Black"] * modifier,
+            "Purple": currentBet["Purple"] * modifier,
+            "Orange": currentBet["Orange"] * modifier
+        }
+        # Add blackjack chips to player's inventory
+        cm.update_player_chips_add(characterName, blackjackChips)
+        #Get Total to return
+        totalWinningChips = get_chips_total(blackjackChips)
+        return totalWinningChips["Total"]
 # --------------------------------------------------------
 # BLACKJACK METHODS
 # --------------------------------------------------------
@@ -171,12 +170,12 @@ def getCurrentBlackjackBet(name):
     if bet:
         return {
             "Total": bet[0],    # current_bet value
-            "White": bet[1],    # white chip count
-            "Red": bet[2],      # red chip count
-            "Green": bet[3],    # green chip count
-            "Black": bet[4],    # black chip count
-            "Purple": bet[5],   # purple chip count
-            "Orange": bet[6]    # orange chip count
+            "White": int(bet[1]/1),    # white chip count
+            "Red": int(bet[2]/5),      # red chip count
+            "Green": int(bet[3]/25),    # green chip count
+            "Black": int(bet[4]/100),    # black chip count
+            "Purple": int(bet[5]/500),   # purple chip count
+            "Orange": int(bet[6]/1000)    # orange chip count
         }
 
 def checkNumber(answer):
@@ -329,79 +328,198 @@ def place_bet_chips(color, selectedChips):
     selectedChips[color] += numberOfChips
     return selectedChips
 
-def cashout_chips(color, chips):
-    numberOfChips = input("How many " + color + " chips do you want to add to payout?\n")
+def add_chips(color, chips):
+    numberOfChips = input("How many " + color + " chips do you want to add to exchange?\n")
     numberOfChips = checkNumber(numberOfChips)
     chips[color] += numberOfChips
     return chips
 
-#TODO : Add Validation to inputs
-def payOutChips(name, winnings):
-    winningsBackup = int(winnings)
-    charData = cm.load_character_by_name(name)
-    cashoutChips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+def exhangeChips(name):
+    displayCreditTotal = 0
+    finalExchangeChipsIn = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+    finalExchangeChipsOut = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+    characterData = cm.load_character_by_name(name)
+    finalPlayerChips = get_chips_by_character_id(characterData["id"])
     while 1 != 0:
         formatter.clear()
-        cashoutChipsWork = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
-        totalPayout = get_chips_total(cashoutChips)
-        formatter.drawMenuTopper("Total of chips remaining to cash out: " + str(winnings) + " credits")
+        formatter.drawMenuTopper("Chip Exchange")
+        #Add the Total
+        print("Exchange Credits = " + str(displayCreditTotal))
+        print("1.) Add Credits to Exchange")
+        print("2.) Add Chips from Exchange credits")
+        print("3.) Lock In Chip Exchange")
+        print("4.) Quit to Main Menu (No Saving)")
+        menuInput = input(formatter.getInputText("Choice"))
+        if menuInput.isnumeric():
+            formatter.clear()
+            if 0 > int(menuInput) >= 4:
+                input(formatter.getInputText("Wrong Number"))
+            match menuInput:
+                case "1":
+                    finalExchangeChipsIn, finalPlayerChips = add_exchange_credits(finalExchangeChipsIn, finalPlayerChips)
+                    finalExchangeCreditTotals = get_chips_total(finalExchangeChipsIn)
+                    displayCreditTotal = finalExchangeCreditTotals["Total"]
+                case "2":
+                    finalExchangeChipsOut, displayCreditTotal = add_chips_from_total(finalExchangeChipsOut, displayCreditTotal)
+                case "3":
+                    characterData = cm.load_character_by_name(name)
+                    playerChips = get_chips_by_character_id(characterData["id"])
+                    for x in finalExchangeChipsIn:
+                        playerChips[x] -= finalExchangeChipsIn[x]
+                    for x in finalExchangeChipsOut:
+                        playerChips[x] += finalExchangeChipsOut[x]
+                    cm.update_player_chips(playerChips, characterData["id"])
+                    return
+                case "4":
+                    return
+                case _:
+                    input(formatter.getInputText("NonNumber"))
+        else:
+            input(formatter.getInputText("NonNumber"))
+
+def add_exchange_credits(finalExchangeChipsIn, finalPlayerChips):
+   #Intialzie The Start Variables
+   exchangeChipsWorkStart = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+   finalExchangeChipsStart = dict(finalExchangeChipsIn)
+   exchangeChips = dict(finalExchangeChipsStart)
+   playerChipsStart = dict(finalPlayerChips)
+   playerChips = dict(finalPlayerChips)
+   while 1 != 0:
+       playerTotals = get_chips_total(playerChips)
+       exchangeTotals = get_chips_total(exchangeChips)
+       exchangeChipsWork = dict(exchangeChipsWorkStart)
+       formatter.clear()
+       formatter.drawMenuTopper("Total of chips remaining: " + str(exchangeTotals["Total"]) + " credits")
+       print("1.) White Chips ($1)")
+       print("Player : " + str(playerChips["White"]) + " | Total : " + str(playerTotals["White"]) + " credits")
+       print("Exchange : " + str(exchangeChips["White"]) + " | Total : " + str(exchangeTotals["White"]) + " credits")
+       print("\n2.) Red Chips ($5)")
+       print("Player : " + str(playerChips["Red"]) + " | Total : " + str(playerTotals["Red"]) + " credits")
+       print("Exchange : " + str(exchangeChips["Red"]) + " | Total : " + str(exchangeTotals["Red"]) + " credits")
+       print("\n3.) Green Chips ($25)")
+       print("Player : " + str(playerChips["Green"]) + " | Total : " + str(playerTotals["Green"]) + " credits")
+       print("Exchange : " + str(exchangeChips["Green"]) + " | Total : " + str(exchangeTotals["Green"]) + " credits")
+       print("\n4.) Black Chips ($100)")
+       print("Player : " + str(playerChips["Black"]) + " | Total : " + str(playerTotals["Black"]) + " credits")
+       print("Exchange : " + str(exchangeChips["Black"]) + " | Total : " + str(exchangeTotals["Black"]) + " credits")
+       print("\n5.) Purple Chips ($500)")
+       print("Player : " + str(playerChips["Purple"]) + " | Total : " + str(playerTotals["Purple"]) + " credits")
+       print("Exchange : " + str(exchangeChips["Purple"]) + " | Total : " + str(exchangeTotals["Purple"]) + " credits")
+       print("\n6.) Orange Chips ($1000)")
+       print("Player : " + str(playerChips["Orange"]) + " | Total : " + str(playerTotals["Orange"]) + " credits")
+       print("Exchange : " + str(exchangeChips["Orange"]) + " | Total : " + str(exchangeTotals["Orange"]) + " credits")
+       print("\n7.) Reset The Current Exchange")
+       print("8.) Lock In Exchange")
+       print("NOTE : You can quit on the Chip Exchange menu to restart the exchange process.")
+       menuInput = input(formatter.getInputText("Choice"))
+       if menuInput.isnumeric():
+           if 0 > int(menuInput) >= 7:
+               input(formatter.getInputText("Wrong Number"))
+           match menuInput:
+               case "1":
+                   exchangeChipsWork = add_chips("White", exchangeChipsWork)
+               case "2":
+                   exchangeChipsWork = add_chips("Red", exchangeChipsWork)
+               case "3":
+                   exchangeChipsWork = add_chips("Green", exchangeChipsWork)
+               case "4":
+                   exchangeChipsWork = add_chips("Black", exchangeChipsWork)
+               case "5":
+                   exchangeChipsWork = add_chips("Purple", exchangeChipsWork)
+               case "6":
+                   exchangeChipsWork = add_chips("Orange", exchangeChipsWork)
+               case "7":
+                   exchangeChips = dict(finalExchangeChipsStart)
+                   playerChips = dict(playerChipsStart)
+                   finalExchangeChipsIn = dict(finalExchangeChipsStart)
+               case "8":
+                   return finalExchangeChipsIn, finalPlayerChips
+       else:
+           input(formatter.getInputText("Enter"))
+       for x in exchangeChips:
+           #
+           if playerChips[x] != 0:
+               playerChips[x] -= exchangeChipsWork[x]
+               finalPlayerChips[x] -= exchangeChipsWork[x]
+               exchangeChips[x] += exchangeChipsWork[x]
+               finalExchangeChipsIn[x] += exchangeChipsWork[x]
+
+
+def add_chips_from_total(finalExchangeChipsOut, displayCreditTotal):
+    # Get Total From final exchange chips
+    # List all the colors
+    # Total to Exchange = 0 Start
+    # Pick From List and Add to Total chips to exchange
+    # At the end, the final chips to update for the player are returned
+
+    # Intialzie The Start Variables
+    displayCreditTotalStart = int(displayCreditTotal)
+    exchangeChipsWorkStart = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+    finalExchangeChipsStart = dict(finalExchangeChipsOut)
+    exchangeChips = dict(finalExchangeChipsStart)
+    while 1 != 0:
+        exchangeTotals = get_chips_total(exchangeChips)
+        exchangeChipsWork = dict(exchangeChipsWorkStart)
+        formatter.clear()
+        formatter.drawMenuTopper("Total Credits To Assign: " + str(displayCreditTotal) + " credits")
         print("1.) White Chips ($1)")
-        print("Cashout : " + str(cashoutChips["White"]) + " | Total : " + str(totalPayout["White"]) + " credits")
+        print("Exchange : " + str(exchangeChips["White"]) + " | Total : " + str(exchangeTotals["White"]) + " credits")
         print("\n2.) Red Chips ($5)")
-        print("Cashout : " + str(cashoutChips["Red"]) + " | Remaining : " + str(totalPayout["Red"]) + " credits")
+        print("Exchange : " + str(exchangeChips["Red"]) + " | Total : " + str(exchangeTotals["Red"]) + " credits")
         print("\n3.) Green Chips ($25)")
-        print("Cashout : " + str(cashoutChips["Green"]) + " | Remaining : " + str(totalPayout["Green"]) + " credits")
+        print("Exchange : " + str(exchangeChips["Green"]) + " | Total : " + str(exchangeTotals["Green"]) + " credits")
         print("\n4.) Black Chips ($100)")
-        print("Cashout : " + str(cashoutChips["Black"]) + " | Remaining : " + str(totalPayout["Black"]) + " credits")
+        print("Exchange : " + str(exchangeChips["Black"]) + " | Total : " + str(exchangeTotals["Black"]) + " credits")
         print("\n5.) Purple Chips ($500)")
-        print("Cashout : " + str(cashoutChips["Purple"]) + " | Remaining : " + str(totalPayout["Purple"]) + " credits")
+        print("Exchange : " + str(exchangeChips["Purple"]) + " | Total : " + str(exchangeTotals["Purple"]) + " credits")
         print("\n6.) Orange Chips ($1000)")
-        print("Cashout : " + str(cashoutChips["Orange"]) + " | Remaining : " + str(totalPayout["Orange"]) + " credits")
-        print("\n7.) Reset Cashouts")
-        print("8.) Lock In Payout(Remaining Balance Deleted)")
+        print("Exchange : " + str(exchangeChips["Orange"]) + " | Total : " + str(exchangeTotals["Orange"]) + " credits")
+        print("\n7.) Reset The Current Exchange")
+        print("8.) Lock In Exchange")
+        print("NOTE : You can quit on the Chip Exchange menu to restart the exchange process.")
         menuInput = input(formatter.getInputText("Choice"))
         if menuInput.isnumeric():
             if 0 > int(menuInput) >= 7:
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
                 case "1":
-                    selectedChipsWork = cashout_chips("White", cashoutChipsWork)
+                    exchangeChipsWork = add_chips("White", exchangeChipsWork)
                 case "2":
-                    selectedChipsWork = cashout_chips("Red", cashoutChipsWork)
+                    exchangeChipsWork = add_chips("Red", exchangeChipsWork)
                 case "3":
-                    selectedChipsWork = cashout_chips("Green", cashoutChipsWork)
+                    exchangeChipsWork = add_chips("Green", exchangeChipsWork)
                 case "4":
-                    selectedChipsWork = cashout_chips("Black", cashoutChipsWork)
+                    exchangeChipsWork = add_chips("Black", exchangeChipsWork)
                 case "5":
-                    selectedChipsWork = cashout_chips("Purple", cashoutChipsWork)
+                    exchangeChipsWork = add_chips("Purple", exchangeChipsWork)
                 case "6":
-                    selectedChipsWork = cashout_chips("Orange", cashoutChipsWork)
+                    exchangeChipsWork = add_chips("Orange", exchangeChipsWork)
                 case "7":
-                    cashoutChips = dict(cashoutChipsWork)
-                    winnings = winningsBackup
+                    exchangeChips = dict(finalExchangeChipsStart)
+                    finalExchangeChipsOut = dict(finalExchangeChipsStart)
+                    displayCreditTotal = int(displayCreditTotalStart)
                 case "8":
-                    return cashoutChips
+                    return finalExchangeChipsOut, displayCreditTotal
         else:
             input(formatter.getInputText("Enter"))
-        cashoutTotals = get_chips_total(cashoutChipsWork)
-        for x in cashoutChipsWork:
-            winnings -= cashoutTotals[x]
-            cashoutChips[x] += cashoutChipsWork[x]
+        for x in exchangeChipsWork:
+            finalExchangeChipsOut[x] += exchangeChipsWork[x]
+            exchangeChips[x] += exchangeChipsWork[x]
+        workTotals = get_chips_total(exchangeChipsWork)
+        displayCreditTotal -= workTotals["Total"]
+
 
 def get_bet_chips_total(name):
     characterData = cm.load_character_by_name(name)
     chips = get_chips_by_character_id(characterData['id'])
     selectedChips = select_bet_chips(chips)
-    selectedChipsTotal = get_chips_total(selectedChips)
-    print("Selected Chip Totals is : " + str(selectedChipsTotal["Total"]))
-    input(formatter.getInputText("Enter"))
-    return selectedChipsTotal
+    return selectedChips
 
 def chips_pay_out_menu(name, winnings):
     characterData = cm.load_character_by_name(name)
-    cashoutChips = payOutChips(characterData["name"], winnings)
+    cashoutChips = select_bet_chips(characterData["name"])
     payoutTotals = get_chips_total(cashoutChips)
     print("Payout Credit Total is : " + str(payoutTotals["Total"]))
-    cm.update_player_chips(name, cashoutChips)
+    cm.update_player_chips_add(name, cashoutChips)
     print("Chips saved to character")
     return payoutTotals["Total"]
