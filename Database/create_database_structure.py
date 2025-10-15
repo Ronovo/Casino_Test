@@ -27,7 +27,13 @@ def init_db():
         current_bet INTEGER DEFAULT 0,
         wins INTEGER DEFAULT 0,
         losses INTEGER DEFAULT 0,
-        draws INTEGER DEFAULT 0
+        draws INTEGER DEFAULT 0,
+        white INTEGER DEFAULT 0,
+        red INTEGER DEFAULT 0,
+        green INTEGER DEFAULT 0,
+        black INTEGER DEFAULT 0,
+        purple INTEGER DEFAULT 0,
+        orange INTEGER DEFAULT 0
     );
     
     CREATE TABLE IF NOT EXISTS Poker (

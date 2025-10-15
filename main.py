@@ -3,7 +3,6 @@ from Games import blackjack, poker, gtn
 from DAL import character_maintenance as cm, money_maintenance as mm
 from Database import create_database_structure as dbcreate
 from Database import load_helper_methods as fillTables
-import os
 
 #Initialize Database
 dbcreate.init_db()
@@ -15,10 +14,10 @@ characterName = cm.load_characters_at_start()
 
 while 1 > 0:
     formatter.clear()
-    formatter.drawMenuTopper("Welcome to Ronovo's Casino v1.5")
+    formatter.drawMenuTopper("Welcome to Ronovo's Casino v1.6")
     print("Main Menu")
     formatter.drawMenuLine()
-    print("1.) Blackjack v2.0 (Production Ready)")
+    print("1.) Blackjack v2.1 (Chips Update)")
     print("2.) Texas Hold'em Poker(V1.2 : Achievement Update)")
     print("3.) Guess the Number - V0.0 Planning")
     print("4.) Baccarat - COMING SOON")

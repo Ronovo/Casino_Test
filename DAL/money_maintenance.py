@@ -57,35 +57,72 @@ def checkCreditsAchievements(characterData):
 # --------------------------------------------------------
 # MAIN METHODS
 # --------------------------------------------------------
-def setBet(characterData,amount,game):
+def setChipBet(characterData,chips,game):
     match game:
         case "BJ":
             #Update Character's Current Bet
-            updateBlackjackBet(characterData['name'],amount)
+            updateBlackjackBet(characterData['name'],chips)
             #Remove Credits from Character
-            deductCredits(characterData,amount)
+            deductCredits(characterData,chips["Total"])
             #Return updated character data
             return cm.load_character_by_name(characterData['name'])
 
-def payOut(characterData,winFlag,winModifier, game):
+def payOut(characterData,winFlag, game):
     match game:
         case "BJ":
             currentBet = getCurrentBlackjackBet(characterData['name'])
+            # Get the total bet amount from the dictionary
+            totalBetAmount = currentBet["Total"] if currentBet else 0
             match winFlag:
-                #Win, Payout at Modifier
+                #Blackjack - 3:2 payout (1.5x winnings + original bet = 2.5x total)
+                case 21:
+                    if currentBet:
+                        # Calculate 3:2 payout: bet + (bet × 1.5) = bet × 2.5, rounded up for integer credits
+                        winnings = int((totalBetAmount * 2.5) + 0.999)  # Round up
+
+                        # Apply 3:2 multiplier to each chip type and round up
+                        blackjackChips = {
+                            "White": int((currentBet["White"] * 2.5) + 0.999),
+                            "Red": int((currentBet["Red"] * 2.5) + 0.999),
+                            "Green": int((currentBet["Green"] * 2.5) + 0.999),
+                            "Black": int((currentBet["Black"] * 2.5) + 0.999),
+                            "Purple": int((currentBet["Purple"] * 2.5) + 0.999),
+                            "Orange": int((currentBet["Orange"] * 2.5) + 0.999)
+                        }
+                        # Add blackjack chips to player's inventory
+                        cm.update_player_chips(characterData['name'], blackjackChips)
+
+                        # Also add total winnings as credits
+                        characterData = addCredits(characterData, winnings)
+                        print("Blackjack! You won " + str(winnings) + " credits! (3:2 payout - bet chips × 2.5)")
+                    else:
+                        print("No bet found for blackjack payout.")
+                #Win, 1 to 1 - double the bet chips and add to player inventory
                 case 1:
-                    if currentBet == 1:
-                        winnings = 2
-                    else :
-                        winnings = int(currentBet * winModifier)
-                    characterData = addCredits(characterData,winnings)
-                    print("You won " + str(winnings) + " credits!")
+                    if currentBet:
+                        # Double all the bet chips and add to player inventory
+                        doubledChips = {
+                            "White": currentBet["White"] * 2,
+                            "Red": currentBet["Red"] * 2,
+                            "Green": currentBet["Green"] * 2,
+                            "Black": currentBet["Black"] * 2,
+                            "Purple": currentBet["Purple"] * 2,
+                            "Orange": currentBet["Orange"] * 2
+                        }
+                        # Add doubled chips to player's inventory
+                        cm.update_player_chips(characterData['name'], doubledChips)
+
+                        # Also add total winnings as credits (equivalent value)
+                        winnings = totalBetAmount * 2
+                        characterData = addCredits(characterData, winnings)
+                        print("You won " + str(winnings) + " credits! (Bet chips doubled and added to inventory)")
+                    else:
+                        print("No bet found to double.")
                 #Draw, Add Back current bet to Credits
                 case -1:
-                    characterData = addCredits(characterData,currentBet)
-            setBet(characterData, 0, "BJ")
+                    characterData = addCredits(characterData,totalBetAmount)
             checkCreditsAchievements(characterData)
-            return cm.load_character_by_name(characterData['name'])
+
 # --------------------------------------------------------
 # BLACKJACK METHODS
 # --------------------------------------------------------
@@ -98,10 +135,16 @@ def updateBlackjackBet(name, currentBet):
     # Update the Current Bet
     cursor.execute("""
                UPDATE Blackjack
-               SET current_bet = ?
+               SET current_bet = ?, white = ?, red = ?, green = ?, black = ?, purple = ?, orange = ?
                WHERE blackjack_id = ?
             """, (
-        currentBet,
+        currentBet["Total"],
+        currentBet["White"],
+        currentBet["Red"],
+        currentBet["Green"],
+        currentBet["Black"],
+        currentBet["Purple"],
+        currentBet["Orange"],
         bjid
     ))
     conn.commit()
@@ -113,9 +156,9 @@ def getCurrentBlackjackBet(name):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # Update the Current Bet
+    # Get current bet and chip values
     cursor.execute("""
-                  SELECT current_bet
+                  SELECT current_bet, white, red, green, black, purple, orange
                   FROM Blackjack
                   WHERE blackjack_id = ?
                """, (
@@ -124,7 +167,17 @@ def getCurrentBlackjackBet(name):
     bet = cursor.fetchone()
     conn.commit()
     conn.close()
-    return bet[0]
+
+    if bet:
+        return {
+            "Total": bet[0],    # current_bet value
+            "White": bet[1],    # white chip count
+            "Red": bet[2],      # red chip count
+            "Green": bet[3],    # green chip count
+            "Black": bet[4],    # black chip count
+            "Purple": bet[5],   # purple chip count
+            "Orange": bet[6]    # orange chip count
+        }
 
 def checkNumber(answer):
     if answer.isnumeric():
@@ -334,3 +387,21 @@ def payOutChips(name, winnings):
         for x in cashoutChipsWork:
             winnings -= cashoutTotals[x]
             cashoutChips[x] += cashoutChipsWork[x]
+
+def get_bet_chips_total(name):
+    characterData = cm.load_character_by_name(name)
+    chips = get_chips_by_character_id(characterData['id'])
+    selectedChips = select_bet_chips(chips)
+    selectedChipsTotal = get_chips_total(selectedChips)
+    print("Selected Chip Totals is : " + str(selectedChipsTotal["Total"]))
+    input(formatter.getInputText("Enter"))
+    return selectedChipsTotal
+
+def chips_pay_out_menu(name, winnings):
+    characterData = cm.load_character_by_name(name)
+    cashoutChips = payOutChips(characterData["name"], winnings)
+    payoutTotals = get_chips_total(cashoutChips)
+    print("Payout Credit Total is : " + str(payoutTotals["Total"]))
+    cm.update_player_chips(name, cashoutChips)
+    print("Chips saved to character")
+    return payoutTotals["Total"]

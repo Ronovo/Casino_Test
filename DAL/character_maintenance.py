@@ -302,3 +302,40 @@ def update_player_chips(name, chips):
     conn.commit()
     conn.close()
     print(f"Payout Chips assigned to character '{name}'.")
+
+def remove_player_chips(name, chips):
+    # Get character_id for the given name
+    characterData = load_character_by_name(name)
+    if not characterData:
+        print(f"Character '{name}' not found.")
+        return
+
+    character_id = characterData['id']
+    characterChips = mm.get_chips_by_character_id(character_id)
+    for color in ['White', 'Red', 'Green', 'Black', 'Purple', 'Orange']:
+        if color in characterChips and color in chips:
+            characterChips[color] -= chips[color]
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Insert chips data into PlayerChips table
+    # Map chip colors to their respective column names
+    cursor.execute("""
+            UPDATE PlayerChips
+            SET white = ?, red = ?, green = ?, black = ?, purple = ?, orange = ?
+            WHERE character_id = ?
+        """, (
+        characterChips.get('White', 0),
+        characterChips.get('Red', 0),
+        characterChips.get('Green', 0),
+        characterChips.get('Black', 0),
+        characterChips.get('Purple', 0),
+        characterChips.get('Orange', 0),
+        character_id,
+    ))
+
+    conn.commit()
+    conn.close()
+    print(f"Payout Chips assigned to character '{name}'.")
+

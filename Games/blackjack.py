@@ -7,7 +7,7 @@ from DAL import achievement_maintenance as am, character_maintenance as cm, blac
 def blackjackStart(characterName):
     while 1 > 0:
         formatter.clear()
-        formatter.drawMenuTopper("Welcome to the Blackjack v2.0")
+        formatter.drawMenuTopper("Welcome to the Blackjack v2.1")
         print("1.) Start Game(Deal In)")
         print("2.) Game Information")
         print("3.) Main Menu")
@@ -34,7 +34,9 @@ def printBlackjackGameInfo():
     #Page 1
     print("The classic game of Blackjack sees you matching up against the house.")
     print("The goal of the game is to get as close to 21 as you can get without going over.")
-    print("Winning payout 3:2, Dealer Stands on 17.")
+    print("Dealer Stands on 17.")
+    print("Winning payout 1:1")
+    print("Blackjack payout 3:2 (Any 21 combo)")
     input(formatter.getInputText("Enter"))
     print("You start by betting before the cards are dealt.")
     print("After cards are dealt, you can choose to Hit, or Stand")
@@ -54,20 +56,12 @@ def dealin(currentDeck, characterData):
     hand = []
     dealerHand = []
 
-    if characterData['credits'] == 0 :
-        print("You have no money! Go back to the menu, bum!")
-        input(formatter.getInputText("Enter"))
-        return
-
     # Create a new Blackjack entry for the character if this is the first time
     if characterData['blackjack_id'] == 0:
         characterData = bjs.create_blackjack_connection(characterData)
-    bet = input("How much do you want to bet? You have " + str(characterData['credits']) + "\n")
-    bet = mm.checkNumber(bet)
-    if bet == 0:
-        bet = 1
-        print("Invalid Entry, defaulting to 1")
-    characterData = mm.setBet(characterData,int(bet),'BJ')
+    totalBetChips = mm.get_bet_chips_total(characterData["name"])
+    cm.remove_player_chips(characterData["name"], totalBetChips)
+    characterData = mm.setChipBet(characterData,totalBetChips,'BJ')
 
     for x in range(2):
         card = dm.draw(currentDeck)
@@ -101,7 +95,8 @@ def dealin(currentDeck, characterData):
                     print("You have chosen to stay. Let's see how you match up.")
                     break
                 case "3":
-                    mm.setBet(characterData,0,"BJ")
+                    chips = {"White" : 0, "Red" : 0, "Green" : 0, "Black" : 0, "Purple" : 0, "Orange" : 0, "Total" : 0}
+                    mm.setChipBet(characterData,chips,"BJ")
                     return
                 case _:
                     input(formatter.getInputText("NonNumber"))
@@ -150,6 +145,9 @@ def dealin(currentDeck, characterData):
            result = blackjack_win(characterData, sumOfHand)
         else:
            result = blackjack_draw(characterData)
+    #Reset the Blackjack Chips count
+    chips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0, "Total": 0}
+    mm.setChipBet(characterData, chips, "BJ")
     print(result)
     input(formatter.getInputText("Enter"))
     return result
@@ -215,17 +213,19 @@ def checkDealerSumOfHand(hand, cardIndex):
 def blackjack_win(characterData, sumOfHand):
     formatter.clear()
     result = "You Win!"
-    characterData = mm.payOut(characterData, 1, 1.5, "BJ")
+
     bjs.update_blackjack_wins(characterData['name'])
     am.insert_achievement(characterData["name"], "Blackjack_Win")
     if sumOfHand == 21:
+        mm.payOut(characterData, 21, "BJ")
         am.insert_achievement(characterData["name"], "Blackjack_21")
+    else :
+        mm.payOut(characterData, 1, "BJ")
     return result
 
 def blackjack_lose(characterData):
     formatter.clear()
     result = "The House Wins!"
-    characterData = mm.payOut(characterData, 0, 0, "BJ")
     bjs.update_blackjack_losses(characterData['name'])
     am.insert_achievement(characterData["name"], "Blackjack_Lose")
     return result
@@ -233,7 +233,7 @@ def blackjack_lose(characterData):
 def blackjack_draw(characterData):
     formatter.clear()
     result = "It's a draw! All bets returned"
-    characterData = mm.payOut(characterData, -1, 0, "BJ")
+    mm.payOut(characterData, -1, "BJ")
     bjs.update_blackjack_draws(characterData['name'])
     am.insert_achievement(characterData["name"], "Blackjack_Draw")
     return result
