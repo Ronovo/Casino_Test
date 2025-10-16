@@ -1,9 +1,9 @@
 import formatter
-from Helpers import handmaintenance as hm, deckmaintenance as dm
+from Helpers import deckmaintenance as dm
 from DAL import money_maintenance as mm
 from DAL import achievement_maintenance as am, character_maintenance as cm, blackjack_maintenance as bjs
 
-
+# TODO : Balance Difficulty (Fix Paytable, only use current table on very hard
 def blackjackStart(characterName):
     while 1 > 0:
         # Check if player has any chips for game over state
@@ -74,6 +74,7 @@ def dealin(currentDeck, characterData):
     hand = []
     dealerHand = []
 
+    # TODO : If current bet is 0, return
     # Create a new Blackjack entry for the character if this is the first time
     if characterData['blackjack_id'] == 0:
         characterData = bjs.create_blackjack_connection(characterData)

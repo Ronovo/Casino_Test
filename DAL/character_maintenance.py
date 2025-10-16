@@ -288,9 +288,9 @@ def update_player_chips(chips, character_id):
     chipTotal = mm.get_chips_total(chips)
     # Update Character Credits
     cursor.execute("""
-                    UPDATE Character
+                    UPDATE Characters
                     SET credits = ?
-                    WHERE character_id = ?
+                    WHERE id = ?
                 """, (
         chipTotal["Total"],
         character_id,

@@ -23,7 +23,7 @@ while 1 > 0:
     print("4.) Baccarat - COMING SOON")
     print("5.) Horse Racing - COMING SOON")
     print("6.) Roulette - COMING SOON")
-    print("7.) Shooting Range Bets - COMING SOON")
+    print("7.) Day Trading - COMING SOON")
     print("8.) Display Character Information")
     print("9.) Chips Exchange")
     print("10.) Quit")
