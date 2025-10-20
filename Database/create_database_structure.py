@@ -38,12 +38,57 @@ def init_db():
     
     CREATE TABLE IF NOT EXISTS Poker (
         poker_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ante DEFAULT 0,
-        trips DEFAULT 0,
-        pairs DEFAULT 0,
+        ante_bet_id INTEGER DEFAULT 0,
+        blind_bet_id INTEGER DEFAULT 0,
+        trips_bet_id DEFAULT 0,
+        pairs_bet_id DEFAULT 0,
         wins INTEGER DEFAULT 0,
         losses INTEGER DEFAULT 0,
-        draws INTEGER DEFAULT 0
+        draws INTEGER DEFAULT 0,
+        FOREIGN KEY (ante_bet_id) REFERENCES Poker_Bet_Ante (ante_bet_id),
+        FOREIGN KEY (blind_bet_id) REFERENCES Poker_Bet_Blind (blind_bet_id),
+        FOREIGN KEY (trips_bet_id) REFERENCES Poker_Bet_Trips (trips_bet_id),
+        FOREIGN KEY (pairs_bet_id) REFERENCES Poker_Bet_Pairs (pairs_bet_id)
+    );
+    
+    CREATE TABLE IF NOT EXISTS Poker_Bet_Ante (
+        ante_bet_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        white INTEGER DEFAULT 0,
+        red INTEGER DEFAULT 0,
+        green INTEGER DEFAULT 0,
+        black INTEGER DEFAULT 0,
+        purple INTEGER DEFAULT 0,
+        orange INTEGER DEFAULT 0
+    );
+    
+        CREATE TABLE IF NOT EXISTS Poker_Bet_Blind (
+        blind_bet_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        white INTEGER DEFAULT 0,
+        red INTEGER DEFAULT 0,
+        green INTEGER DEFAULT 0,
+        black INTEGER DEFAULT 0,
+        purple INTEGER DEFAULT 0,
+        orange INTEGER DEFAULT 0
+    );
+    
+        CREATE TABLE IF NOT EXISTS Poker_Bet_Trips (
+        trips_bet_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        white INTEGER DEFAULT 0,
+        red INTEGER DEFAULT 0,
+        green INTEGER DEFAULT 0,
+        black INTEGER DEFAULT 0,
+        purple INTEGER DEFAULT 0,
+        orange INTEGER DEFAULT 0
+    );
+    
+        CREATE TABLE IF NOT EXISTS Poker_Bet_Pairs (
+        pairs_bet_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        white INTEGER DEFAULT 0,
+        red INTEGER DEFAULT 0,
+        green INTEGER DEFAULT 0,
+        black INTEGER DEFAULT 0,
+        purple INTEGER DEFAULT 0,
+        orange INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS Achievements (

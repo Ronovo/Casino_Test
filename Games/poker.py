@@ -1,5 +1,3 @@
-from xml.dom.minidom import CharacterData
-
 import formatter
 from Helpers import deckmaintenance as dm
 from DAL import character_maintenance as cm, poker_maintenance as ps, money_maintenance as mm, achievement_maintenance as am
@@ -22,7 +20,10 @@ def pokerStart(characterName):
             match menuInput:
                 case "1":
                     characterData = cm.load_character_by_name(characterName)
-                    currentDeck = dm.restockDeck()
+                    #currentDeck = dm.restockDeck()
+                    # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
+                    # Stacked deck: Player gets royal flush, dealer gets flush
+                    currentDeck = ["1S", "JS", "2S", "3S", "QS", "KS", "AS", "2D", "3D"]
                     dealin(currentDeck, characterData)
                 case "2":
                     printPokerGameInfo()
@@ -186,6 +187,7 @@ def printPaytables():
 
 def dealin(currentDeck, characterData):
     # Set Up
+    scoreValue = 0
     # The "Pocket" (Player's Hand)
     hand = []
     # Dealer's Hand (Won't be shown until reveal)
@@ -196,17 +198,31 @@ def dealin(currentDeck, characterData):
 
     if characterData['poker_id'] == 0:
         characterData = ps.create_poker_connection(characterData)
-    totalInitialBet = initialBets(characterData)
-    if totalInitialBet == -1:
+    # TODO : If current bet is 0, return
+    # Create a new Poker entry for the character if this is the first time
+    print("When choosing chips, you are choosing 2 at a time.")
+    print("This is because you are the ante and the blind.")
+    print("Your total bet must be in multiples of 2 (minimum 2 credits).")
+    input(formatter.getInputText("Enter"))
+    selectedChips = mm.get_bet_chips_total(characterData["name"], True)
+    #Split into blind and ante chips
+    blindChips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+    anteChips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+    raisedChips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+    for x in selectedChips:
+        ante = int(selectedChips[x]/2)
+        blindChips[x] = ante
+        anteChips[x] = ante
+    cm.remove_player_chips(characterData["name"], selectedChips)
+    ps.updateAnteAndBlindStart(characterData["name"],blindChips,anteChips)
+    # Store the selected chips for poker (not using setChipBet since it's blackjack-specific)
+    walk_away_flag = mm.setChipBet(characterData,selectedChips,"Poker")
+    if walk_away_flag:
         print("You have chosen to walk away.")
-        print("You did not bet anything yet.")
+        print("Anything you bet up to know is forfeit")
         am.insert_achievement(characterData["name"], "Poker_Lose_Walk1")
         input(formatter.getInputText("Enter"))
         return
-    characterData = mm.deductCredits(characterData, totalInitialBet)
-    totalBet += totalInitialBet
-    print("Bet is now " + str(totalBet))
-    input(formatter.getInputText("Enter"))
 
     #Deal to Player
     for x in range(2):
@@ -228,23 +244,48 @@ def dealin(currentDeck, characterData):
         card = dm.draw(currentDeck)
         communityHand.append(card)
 
-    preFlopBetTotal = preFlopBet(characterData, totalBet, hand)
-    characterData = mm.deductCredits(characterData, preFlopBetTotal)
-    print("The total before the Pre-Flop Bet was : " + str(totalBet))
-    totalBet += preFlopBetTotal
-    print("The total after the Pre-Flop Bet is : " + str(totalBet))
 
+    preFlopAnte = preFlopBet(characterData, hand)
+    anteChips = ps.get_ante_chips(characterData['name'])
+    match preFlopAnte:
+        case 1:
+            pass
+        case 3:
+            for color in ("White","Red","Green","Black","Purple","Orange"):
+                raise3 = blindChips[color] * 3
+                anteChips[color] += raise3
+                raisedChips[color] += raise3
+            print("Ante raised by 3x")
+            ps.update_ante_chip(characterData['name'],anteChips)
+        case 4:
+            for color in ("White", "Red", "Green", "Black", "Purple", "Orange"):
+                raise4 = blindChips[color] * 4
+                anteChips[color] += raise4
+                raisedChips[color] += raise4
+            print("Ante raised by 4x")
+            ps.update_ante_chip(characterData['name'], anteChips)
+    preFlopTotal = ps.get_total_bet(characterData['name'])
+    print("Preflop Total bet is : " + str(preFlopTotal) + " credits")
     input("Press any key to flip the flop(first 3 cards)...\n")
     flipCommunityCard(communityHand,0)
     flipCommunityCard(communityHand,1)
     flipCommunityCard(communityHand, 2)
 
-    postFlopBetTotal = postFlopBet(characterData, communityHand, hand, totalBet)
-    characterData = mm.deductCredits(characterData, postFlopBetTotal)
-    print("The total before the Post-Flop Bet was : " + str(totalBet))
-    totalBet += postFlopBetTotal
-    print("The total after the Post-Flop Bet is : " + str(totalBet))
+    postFlopAnte = postFlopBet(characterData, communityHand, hand)
+    anteChips = ps.get_ante_chips(characterData['name'])
+    match postFlopAnte:
+        case 0:
+            pass
+        case 2:
+            for color in ("White", "Red", "Green", "Black", "Purple", "Orange"):
+                raise2 = blindChips[color] * 2
+                anteChips[color] += raise2
+                raisedChips[color] += raise2
+            print("Ante raised by 2x")
+            ps.update_ante_chip(characterData['name'], anteChips)
 
+    postFlopTotal = ps.get_total_bet(characterData['name'])
+    print("Postflop Total bet is : " + str(postFlopTotal) + " credits")
     input("Press any key to flip the next 2 card...\n")
     flipCommunityCard(communityHand, 3)
     flipCommunityCard(communityHand, 4)
@@ -261,7 +302,7 @@ def dealin(currentDeck, characterData):
         typeOfHand = decodeScoreValue(scoreValue)
         print("Your score value for this hand is " + str(scoreValue))
         print("Your hand type is : " + typeOfHand)
-        answer = input("Do you want to keep this hand (y/n)(Default y)?")
+        answer = input("Do you want to keep this hand (y/n)(Default y)?\n")
         if isinstance(answer,str):
             answer = str.lower(answer)
             if answer == "n":
@@ -273,23 +314,26 @@ def dealin(currentDeck, characterData):
 
     input(formatter.getInputText("Enter"))
 
-    finalBetTotal = finalBet(characterData, totalBet, hand, communityHand)
-    characterData = mm.deductCredits(characterData, finalBetTotal)
-    print("The total before the Final Bet was : " + str(totalBet))
-    totalBet += finalBetTotal
-    print("The total after the Final Bet is : " + str(totalBet))
-
-    ante = ps.get_poker_ante(characterData['name'])
-    raises = preFlopBetTotal + postFlopBetTotal + finalBetTotal
-    #Walk Away Logic
-    if finalBetTotal == -1:
-        totalWinnings = lose(characterData, ante, raises, scoreValue, True)
-        print("The total winnings w/o bonus is " + str(totalWinnings) + " credits.")
-        print("You Walk Away. You Lose All Your Bets.")
-        am.insert_achievement(characterData["name"], "Poker_Lose_Walk2")
-        input(formatter.getInputText("Enter"))
-        return
-
+    finalBetAnte = finalBet(characterData, hand, communityHand)
+    anteChips = ps.get_ante_chips(characterData['name'])
+    match finalBetAnte:
+        case 0:
+            pass
+        case 1:
+            for color in ("White", "Red", "Green", "Black", "Purple", "Orange"):
+                anteChips[color] += blindChips[color]
+                raisedChips[color] += blindChips[color]
+            print("Ante raised by 1x")
+            ps.update_ante_chip(characterData['name'], anteChips)
+        case -1:
+            lose(characterData)
+            print("You Walk Away. You Lose All Your Bets. Still left before the Showdown!")
+            am.insert_achievement(characterData["name"], "Poker_Lose_Walk2")
+            input(formatter.getInputText("Enter"))
+            return
+    ante = ps.get_ante_chips(characterData['name'])
+    preShowdownBet = ps.get_total_bet(characterData['name'])
+    print("Bet going into showdown: " + str(preShowdownBet) + " credits.")
     #Showdown
     dealerChoice = communityHand + dealerHand
     dealerHand = findBestHand(dealerChoice)
@@ -302,24 +346,18 @@ def dealin(currentDeck, characterData):
     input(formatter.getInputText("Enter"))
 
     #Phase 1 : Win Or Lose
-    totalWinnings = calculateTotal(characterData, dealerScoreValue, scoreValue, ante, raises)
+    totalWinnings = calculateTotal(characterData, dealerScoreValue, scoreValue, ante, raisedChips)
     print("The total winnings w/o bonus is : " + str(totalWinnings) + " credits")
     input(formatter.getInputText("Enter"))
 
     #Phase 2 : Bonus
-    bonusWinnings = calculateBonus(pairFlag, scoreValue, letterValue, characterData['name'])
+    bonusWinnings = calculateBonus(pairFlag, scoreValue, letterValue, characterData)
     print("The bonus winnings are : " + str(bonusWinnings) + " credits")
     input(formatter.getInputText("Enter"))
 
     #Final Total
     finalWinnings = totalWinnings + bonusWinnings
     print("The final total winnings is : " + str(finalWinnings) + " credits")
-    input(formatter.getInputText("Enter"))
-
-    print("Player Balance before Winnings = " + str(characterData['credits']))
-    if finalWinnings > 0 :
-        characterData = mm.addCredits(characterData,finalWinnings)
-    print("Player Balance After Winnings = " + str(characterData['credits']))
     input(formatter.getInputText("Enter"))
 
     # Return simplified testable results
@@ -329,69 +367,14 @@ def dealin(currentDeck, characterData):
         'final_winnings': finalWinnings
     }
 
-def initialBets(characterData):
-    ante = 1 #minimum bet
-    blind = ante #minimum bet
-    trips = 0
-    pairs = 0
+def preFlopBet(charData, playerHand):
     while 1 > 0:
-        pot = ante + blind
-        total = pot + trips + pairs
-        formatter.clear()
-        formatter.drawMenuTopper("Initial Betting Menu")
-        print("1.) Set Ante and Blind (Currently " + str(pot) + " credits)")
-        print("2.) OPTIONAL - Trips Bet (Currently " + str(trips) + " credits)")
-        print("3.) OPTIONAL - Pairs Bet(Currently " + str(pairs) + " credits)")
-        print("4.) Lock-in Initial bet")
-        print("5.) Walk Away")
-        formatter.drawMenuTopper("Total Initial Bet = " + str(total) + " credits")
-        menuInput = input(formatter.getInputText("Choice"))
-        if menuInput.isnumeric():
-            formatter.clear()
-            if 0 > int(menuInput) >= 5:
-                input(formatter.getInputText("Wrong Number"))
-            match menuInput:
-                case "1":
-                    print("Ante is currently " + str(ante) + " credits")
-                    print("Blind is the same amount as the ante")
-                    answer = input(formatter.getInputText("Set Bet"))
-                    ante = mm.checkNumber(answer)
-                    if ante == 0:
-                        ante = 1
-                        print("Invalid Entry. Defaulting to 1")
-                    blind = ante
-                case "2":
-                    print("Trips bet is currently " + str(trips) + " credits")
-                    print("Bet you are going to get a 3 of a Kind or Higher")
-                    print("Default : 0")
-                    answer = input(formatter.getInputText("Set Bet"))
-                    trips = mm.checkNumber(answer)
-                    print("Trips bet set to " + str(trips) + " credits.")
-                case "3":
-                    print("Pairs bet is currently " + str(pairs) + " credits")
-                    print("Bet your starting hand is a pair")
-                    print("Default : 0")
-                    answer = input(formatter.getInputText("Set Bet"))
-                    pairs = mm.checkNumber(answer)
-                    print("Pairs bet set to " + str(pairs) + " credits.")
-                case "4":
-                    ps.update_poker_initial_bet(characterData['name'], ante, trips, pairs)
-                    break
-                case "5":
-                    total = -1
-                    return total
-                case _:
-                    input(formatter.getInputText("NonNumber"))
-        else:
-            input(formatter.getInputText("NonNumber"))
-    total = ante + blind + trips + pairs
-    return total
-
-def preFlopBet(characterData, bet, playerHand):
-    while 1 > 0:
+        bet = ps.get_total_bet(charData['name'])
         formatter.clear()
         lookAtCards(playerHand,[])
-        ante = ps.get_poker_ante(characterData['name'])
+        blindChips = ps.get_blind_chips(charData['name'])
+        blindTotals = mm.get_chips_total(blindChips)
+        ante = blindTotals["Total"]
         formatter.drawMenuTopper("Pre-Flop Betting Menu")
         print("1.) Check (No Additional Bet)")
         print("2.) 3 x Ante (" + str(ante * 3) + " credits)")
@@ -403,13 +386,13 @@ def preFlopBet(characterData, bet, playerHand):
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
                 case "1":
-                    value = 0
+                    value = 1
                     break
                 case "2":
-                    value = ante * 3
+                    value = 3
                     break
                 case "3":
-                    value = ante * 4
+                    value = 4
                     break
                 case _:
                     input(formatter.getInputText("NonNumber"))
@@ -417,15 +400,18 @@ def preFlopBet(characterData, bet, playerHand):
             input(formatter.getInputText("NonNumber"))
     return value
 
-def postFlopBet(characterData, communityHand, playerHand, bet):
+def postFlopBet(charData, communityHand, playerHand):
     while 1 > 0:
+        bet = ps.get_total_bet(charData['name'])
         formatter.clear()
         communityHandWork = list(communityHand)
         playerHandWork = list(playerHand)
         selectionList = [communityHandWork[0], communityHandWork[1], communityHandWork[2]]
         lookAtCards(playerHandWork,selectionList)
         formatter.clear()
-        ante = ps.get_poker_ante(characterData['name'])
+        blindChips = ps.get_blind_chips(charData['name'])
+        blindTotals = mm.get_chips_total(blindChips)
+        ante = blindTotals["Total"]
         formatter.drawMenuTopper("Post-Flop Betting Menu")
         print("1.) Check (No Additional Bet)")
         print("2.) 2 x Ante (" + str(ante * 2) + " credits)")
@@ -437,13 +423,10 @@ def postFlopBet(characterData, communityHand, playerHand, bet):
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
                 case "1":
-                    value = 0
-                    break
+                    return 0
                 case "2":
-                    value = ante * 2
-                    break
+                    return 2
                 case "3":
-                    communityHandWork = list(communityHand)
                     playerHandWork = list(playerHand)
                     selectionList += playerHandWork
                     calculateScoreValue(selectionList)
@@ -452,18 +435,19 @@ def postFlopBet(characterData, communityHand, playerHand, bet):
                     input(formatter.getInputText("NonNumber"))
         else:
             input(formatter.getInputText("NonNumber"))
-    return value
 
-def finalBet(characterData, bet, playerHand, communityHand):
+def finalBet(charData, playerHand, communityHand):
     while 1 > 0:
+        bet = ps.get_total_bet(charData['name'])
         formatter.clear()
         communityHandWork = list(communityHand)
         playerHandWork = list(playerHand)
         lookAtCards(playerHandWork, communityHandWork)
-        ante = ps.get_poker_ante(characterData['name'])
+        ante = ps.get_blind_chips(charData['name'])
+        anteTotals = mm.get_chips_total(ante)
         formatter.drawMenuTopper("Final Betting Menu")
         print("1.) Check (No Additional Bet)")
-        print("2.) Raise Ante (" + str(ante) + " credits)")
+        print("2.) Raise Ante (" + str(anteTotals["Total"]) + " credits)")
         print("3.) Fold (Walk Away, Lose All Bets)")
         formatter.drawMenuTopper("Total Current Bet = " + str(bet) + " credits")
         menuInput = input(formatter.getInputText("Choice"))
@@ -472,19 +456,15 @@ def finalBet(characterData, bet, playerHand, communityHand):
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
                 case "1":
-                    value = 0
-                    break
+                    return 0
                 case "2":
-                    value = ante
-                    break
+                    return 1
                 case "3":
-                    value = -1
-                    break
+                    return -1
                 case _:
                     input(formatter.getInputText("NonNumber"))
         else:
             input(formatter.getInputText("NonNumber"))
-    return value
 
 def pickHand(communityHand,playerHand):
     formatter.clear()
@@ -534,12 +514,28 @@ def pickHand(communityHand,playerHand):
 
         print(str(pickCards) + " cards remaining.")
         selection = input("Pick a card...\n")
+
+        # Validate that input is numeric
+        try:
+            selection_num = int(selection)
+        except ValueError:
+            formatter.clear()
+            print("Invalid input! Please enter a number corresponding to your choice.")
+            input("Press any key to continue...")
+            continue
+
         formatter.clear()
-        if int(selection) == itemOrder:
+        if selection_num == itemOrder:
             calculateScoreValue(selectionList)
             input("Press any key to continue...")
         else:
-            selectedCard = selectionList[(int(selection) - 1)]
+            # Validate that the number is within valid range
+            if selection_num < 1 or selection_num > len(selectionList):
+                print("Invalid selection! Please choose a number from the list.")
+                input("Press any key to continue...")
+                continue
+
+            selectedCard = selectionList[(selection_num - 1)]
             for x in communityHandWork:
                 if selectedCard == x:
                     resultHand.append(selectedCard)
@@ -834,95 +830,152 @@ def getStringValueOfHand(hand):
             result += ", " + x
     return result
 
-def win(characterData, ante, raises, scoreValue):
+def win(characterData, scoreValue):
+    playerChips = mm.get_chips_by_character_id(characterData['id'])
+    blindChips = ps.get_blind_chips(characterData['name'])
+    anteChips = ps.get_ante_chips(characterData['name'])
+    anteTotals = mm.get_chips_total(anteChips)
+    #Pay Out Blind
     if scoreValue >= 5:
         blind_modifier = ps.get_blind_modifier(scoreValue)
-        blindBonus = ante * blind_modifier
-        blind = blindBonus
+        for x in playerChips:
+            bonusChip = int(blindChips[x] * blind_modifier)
+            blindChips[x] += bonusChip
+            playerChips[x] += bonusChip
     else:
-        blind = ante
-    totalWinnings = ante + blind + raises
+        for x in blindChips:
+            playerChips[x] += blindChips[x]
+    #Ante Payout
+    for x in anteChips:
+        playerChips[x] += anteChips[x]
+    ante = anteTotals["Total"]
+    blindTotals = mm.get_chips_total(blindChips)
+    blind = blindTotals["Total"]
+    totalWinnings = ante + blind
+    cm.update_player_chips(playerChips,characterData['id'])
     ps.update_poker_wins(characterData['name'])
     am.insert_achievement(characterData["name"], "Poker_Win")
     return totalWinnings
 
-def lose(characterData, ante, raises, scoreValue, walkFlag=False):
-    blind = ante
-    totalWinnings = 0 - (ante + blind + raises)
+def lose(characterData):
     ps.update_poker_losses(characterData['name'])
-    if walkFlag:
-        am.insert_achievement(characterData["name"], "Poker_Lose_Walk1")
-    else:
-        am.insert_achievement(characterData["name"], "Poker_Lose")
-    return totalWinnings
+    am.insert_achievement(characterData["name"], "Poker_Lose")
 
-def calculateTotal(characterData, dealerScoreValue, scoreValue, ante, raises):
+def calculateTotal(characterData, dealerScoreValue, scoreValue, ante, raisedChips):
+    totalWinnings = 0
     # Dealer Does Not Qualify
     if dealerScoreValue == 1:
+        playerChips = mm.get_chips_by_character_id(characterData['id'])
         # Get ante back
-        totalWinnings = ante
+        anteChips = ps.get_ante_chips(characterData['name'])
+        blindChips = ps.get_blind_chips(characterData['name'])
+        anteTotals = mm.get_chips_total(anteChips)
+        totalWinnings = anteTotals["Total"]
+        #Return chips
+        for x in playerChips:
+            playerChips[x] += blindChips[x]
+        cm.update_player_chips(playerChips,characterData['id'])
         am.insert_achievement(characterData["name"], "Poker_Push_Dealer")
         ps.update_poker_draws(characterData['name'])
         print("Dealer doesn't qualify; Push!")
         # Raises logic : Get Back if you Win, Lose if you lose
+        raisedTotal = mm.get_chips_total(raisedChips)
+        totalWinnings += raisedTotal["Total"]
         if scoreValue > dealerScoreValue:
-            totalWinnings += raises
-            print("Your hand beats dealer. You get your raises back. (" + str(raises) + " credits)")
+            for x in playerChips:
+                playerChips[x] += raisedChips[x]
+            print("Your hand beats dealer. You get your raises back. (" + str(raisedTotal["Total"]) + " credits)")
         else:
-            print("Dealer beats your hand. You lose your raises. (" + str(raises) + " credits")
+            print("Dealer beats your hand. You lose your raises. (" + str(raisedTotal) + " credits")
         # Blind (If Straight or Better, payout, if )
-        blind = ante
+        blindTotals = mm.get_chips_total(blindChips)
+        blind = blindTotals["Total"]
         if dealerScoreValue < scoreValue:
             if scoreValue >= 5:
                 blind_modifier = ps.get_blind_modifier(scoreValue)
-                blindBonus = blind * blind_modifier
-                print("Your hand beats dealer, and is eligible for payout")
+                for x in playerChips:
+                    bonusChip = int(blindChips[x] * blind_modifier)
+                    blindChips[x] += bonusChip
+                    playerChips[x] += blindChips
+                blindTotals = mm.get_chips_total(blindChips)
+                blindBonus = blindTotals["Total"]
+                print("Your hand beats dealer, and your blind is eligible for payout")
                 print("Your Blind Bonus Payout is " + str(blindBonus) + " credits.")
                 totalWinnings += blindBonus
             elif scoreValue < 5:
                 if scoreValue > dealerScoreValue:
-                    print("Your hand beats dealer, and is not eligible for additional payout")
+                    for x in playerChips:
+                        playerChips[x] += blindChips[x]
+                    print("Your hand beats dealer, and is not eligible for blind payout")
                     print("You get your blind of (" + str(blind) + " credits back)")
                 else:
                     print("Dealer beats your hand. You lose your blind of (" + str(blind) + " credits)")
         else:
             print("Dealer beats your hand. You lose your blind of (" + str(blind) + " credits)")
+        cm.update_player_chips(playerChips, characterData['id'])
     else:
         if scoreValue > dealerScoreValue:
-            totalWinnings = win(characterData, ante, raises, scoreValue)
+            totalWinnings = win(characterData, scoreValue)
             print("You win!")
         elif scoreValue < dealerScoreValue:
-            totalWinnings = lose(characterData, ante, raises, scoreValue)
+            lose(characterData)
             print("You lose!")
         else:
-            blind = ante
-            totalWinnings = ante + raises + blind
+            playerChips = mm.get_chips_by_character_id(characterData['id'])
+            anteChips = ps.get_ante_chips(characterData['name'])
+            anteTotals = mm.get_chips_total(anteChips)
+            blindChips = ps.get_blind_chips(characterData['name'])
+            blindTotals = mm.get_chips_total(blindChips)
+            for x in playerChips:
+                playerChips[x] += blindChips[x]
+                playerChips[x] += anteChips[x]
+
+            totalWinnings = anteTotals["Total"]  + blindTotals["Total"]
             am.insert_achievement(characterData["name"], "Poker_Push_Tie")
             ps.update_poker_draws(characterData['name'])
             print("It's a tie!")
     return totalWinnings
 
-def calculateBonus(pairFlag, scoreValue, letterValue, name):
+'''
+blind_modifier = ps.get_blind_modifier(scoreValue)
+                for x in playerChips:
+                    bonusChip = int(blindChips[x] * blind_modifier)
+                    blindChips[x] += bonusChip
+                    playerChips[x] += blindChips
+                blindTotals = mm.get_chips_total(blindChips)
+                blindBonus = blindTotals["Total"]
+'''
+
+
+def calculateBonus(pairFlag, scoreValue, letterValue, charData):
+    playerChips = mm.get_chips_by_character_id(charData['id'])
+    tripsPayout = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+    pairsPayout = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
     #Trips Bonus
-    trips_bonus = 0
     if scoreValue >= 4:
-        trips = ps.get_poker_trips(name)
+        tripsChips = ps.get_trips_chips(charData['name'])
         trips_modifier = ps.get_trips_modifier(scoreValue)
-        trips_bonus = trips * trips_modifier
-        if trips_bonus > 0:
-            am.insert_achievement(name, "Poker_Trips")
-        print("Your Trips Bet Bonus is " + str(trips_bonus) + " credits.")
+        for x in tripsChips:
+            tripsPayout[x] = int(tripsChips[x] * trips_modifier)
+            playerChips[x] += tripsPayout[x]
     #Pairs Bonus
-    pairs_bonus = 0
     if pairFlag:
-        pairs = ps.get_poker_pairs(name)
+        pairsChips = ps.get_pairs_chips(charData['name'])
         pairs_modifier = ps.get_pairs_modifier(letterValue)
-        pairs_bonus = pairs * pairs_modifier
-        if pairs_bonus > 0:
-            am.insert_achievement(name, "Poker_Pairs")
-        print("Your Pairs Bet Bonus is " + str(pairs_bonus) + " credits.")
+        for x in pairsChips:
+            pairsPayout[x] = int(pairsChips * pairs_modifier)
+            playerChips[x] += pairsPayout[x]
     #Total Bonus
-    totalBonus = trips_bonus + pairs_bonus
+    tripsTotal = mm.get_chips_total(tripsPayout)
+    if tripsTotal["Total"] > 0:
+        am.insert_achievement(charData['name'], "Poker_Trips")
+        print("Your Trips Bet Bonus is " + str(tripsTotal["Total"]) + " credits.")
+    pairsTotal = mm.get_chips_total(pairsPayout)
+    if pairsTotal["Total"] > 0:
+        am.insert_achievement(charData['name'], "Poker_Pairs")
+        print("Your Pairs Bet Bonus is " + str(pairsTotal["Total"]) + " credits.")
+    totalBonus = tripsTotal["Total"] + pairsTotal["Total"]
+    cm.update_player_chips(playerChips, charData['id'])
     return totalBonus
 
 def checkOpeningHandForPairs(hand):

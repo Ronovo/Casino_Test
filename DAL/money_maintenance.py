@@ -2,6 +2,7 @@ import sqlite3
 
 import formatter
 from DAL import character_maintenance as cm, achievement_maintenance as am, blackjack_maintenance as bjs
+from DAL import poker_maintenance as ps
 
 DB_PATH = "casino.db"
 
@@ -67,6 +68,10 @@ def setChipBet(characterData,chips,game):
             updateBlackjackBet(characterData['name'],chips)
             #Return updated character data
             return cm.load_character_by_name(characterData['name'])
+        case "Poker":
+            walk_away_flag = updateAnteAndTripsBet(characterData['name'])
+            return walk_away_flag
+
 
 def payOut(characterData,winType, game, double_down_flag):
     match game:
@@ -269,25 +274,29 @@ def get_chips_total(chips):
               "Total" : chipTotal}
     return totals
 
-def select_bet_chips(chips):
+def select_bet_chips(chips, require_multiple_of_2=False):
     chipsWork = dict(chips)
     selectedChips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
     while 1 != 0:
         formatter.clear()
         selectedChipsWork = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
         totalRemaining = get_chips_total(chipsWork)
+        selectedTotal = get_chips_total(selectedChips)
         formatter.drawMenuTopper("Total of chips remaining : " + str(totalRemaining["Total"]) + " credits")
+        if require_multiple_of_2:
+            print("*** POKER BETTING: Total must be in multiples of 2 (Ante + Blind) ***")
+            print("Current Bet Total: " + str(selectedTotal["Total"]) + " credits")
         print("1.) White Chips ($1) | White Total : " + str(totalRemaining["White"]))
         print("Bet : " + str(selectedChips["White"]) + " | Remaining : " + str(chipsWork["White"]))
         print("\n2.) Red Chips ($5) | Red Total : " + str(totalRemaining["Red"]))
         print("Bet : " + str(selectedChips["Red"]) + " | Remaining : " + str(chipsWork["Red"]))
-        print("\n3.) Green Chips ($25) | White Total : " + str(totalRemaining["Green"]))
+        print("\n3.) Green Chips ($25) | Green Total : " + str(totalRemaining["Green"]))
         print("Bet : " + str(selectedChips["Green"]) + " | Remaining : " + str(chipsWork["Green"]))
-        print("\n4.) Black Chips ($100) | White Total : " + str(totalRemaining["Black"]))
+        print("\n4.) Black Chips ($100) | Black Total : " + str(totalRemaining["Black"]))
         print("Bet : " + str(selectedChips["Black"]) + " | Remaining : " + str(chipsWork["Black"]))
-        print("\n5.) Purple Chips ($500) | White Total : " + str(totalRemaining["Purple"]))
+        print("\n5.) Purple Chips ($500) | Purple Total : " + str(totalRemaining["Purple"]))
         print("Bet : " + str(selectedChips["Purple"]) + " | Remaining : " + str(chipsWork["Purple"]))
-        print("\n6.) Orange Chips ($1000) | White Total : " + str(totalRemaining["Orange"]))
+        print("\n6.) Orange Chips ($1000) | Orange Total : " + str(totalRemaining["Orange"]))
         print("Bet : " + str(selectedChips["Orange"]) + " | Remaining : " + str(chipsWork["Orange"]))
         print("\n7.) All In (Bet Every Chip)")
         print("8.) Reset Bets")
@@ -314,8 +323,21 @@ def select_bet_chips(chips):
                          selectedChipsWork[x] = chipsWork[x]
                 case "8":
                     chipsWork = dict(chips)
-                    selectedChips = dict(selectedChipsWork)
+                    selectedChips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
                 case "9":
+                    # Validate multiple of 2 if required
+                    if require_multiple_of_2:
+                        currentTotal = get_chips_total(selectedChips)
+                        if currentTotal["Total"] % 2 != 0:
+                            print("ERROR: Total bet must be in multiples of 2 for poker (Ante + Blind).")
+                            print("Current total: " + str(currentTotal["Total"]) + " credits")
+                            print("Please adjust your bet to an even number.")
+                            input(formatter.getInputText("Enter"))
+                            continue
+                        if currentTotal["Total"] < 2:
+                            print("ERROR: Minimum bet is 2 credits (1 for Ante + 1 for Blind).")
+                            input(formatter.getInputText("Enter"))
+                            continue
                     return selectedChips
         else:
             input(formatter.getInputText("Enter"))
@@ -557,10 +579,10 @@ def add_chips_from_total(finalExchangeChipsOut, displayCreditTotal):
         displayCreditTotal -= workTotals["Total"]
 
 
-def get_bet_chips_total(name):
+def get_bet_chips_total(name, require_multiple_of_2=False):
     characterData = cm.load_character_by_name(name)
     chips = get_chips_by_character_id(characterData['id'])
-    selectedChips = select_bet_chips(chips)
+    selectedChips = select_bet_chips(chips, require_multiple_of_2)
     return selectedChips
 
 def chips_pay_out_menu(name, winnings):
@@ -571,3 +593,143 @@ def chips_pay_out_menu(name, winnings):
     cm.update_player_chips_add(name, cashoutChips)
     print("Chips saved to character")
     return payoutTotals["Total"]
+
+# --------------------------------------------------------
+# POKER METHODS
+# --------------------------------------------------------
+def updatePokerBet(name, chips):
+    pid = ps.get_poker_id(name)
+    chipTotals = get_chips_total(chips)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    #Ante and Blind Calculation
+    ante = int(chipTotals["Total"]/2)
+
+    # Update the Current Bet
+    cursor.execute("""
+               UPDATE Poker
+               SET ante = ?, blind = ?, white, red, green, black, orange, purple
+               WHERE poker_id = ?
+            """, (
+        ante,
+        ante,
+        pid,
+    ))
+    conn.commit()
+    conn.close()
+
+def updateAnteAndTripsBet(name):
+    walk_away_flag = False
+    anteChips = ps.get_ante_chips(name)
+    anteTotals = get_chips_total(anteChips)
+    ante = anteTotals["Total"]
+    blindChips = ps.get_blind_chips(name)
+    blindTotals = get_chips_total(blindChips)
+    blind = blindTotals["Total"]
+    tripsTotal = 0
+    pairsTotal = 0
+    while 1 > 0:
+        pot = ante + blind
+        total = pot + tripsTotal + pairsTotal
+        formatter.clear()
+        formatter.drawMenuTopper("Initial Betting Menu")
+        print("1.) Add Ante and Blind (Currently " + str(pot) + " credits)")
+        print("2.) OPTIONAL - Trips Bet (Currently " + str(tripsTotal) + " credits)")
+        print("3.) OPTIONAL - Pairs Bet(Currently " + str(pairsTotal) + " credits)")
+        print("4.) Lock-in Initial bet")
+        print("5.) Walk Away(Lose Ante + Blind)")
+        formatter.drawMenuTopper("Total Initial Bet = " + str(total) + " credits")
+        menuInput = input(formatter.getInputText("Choice"))
+        if menuInput.isnumeric():
+            formatter.clear()
+            if 0 > int(menuInput) >= 5:
+                input(formatter.getInputText("Wrong Number"))
+            match menuInput:
+                case "1":
+                    # Save starting values for potential rollback
+                    anteStart = ante
+                    blindStart = blind
+                    
+                    formatter.clear()
+                    print("Ante is currently " + str(ante) + " credits")
+                    print("Blind is the same amount as the ante")
+                    print("You can add more chips to increase your ante and blind bet.")
+                    input(formatter.getInputText("Enter"))
+                    
+                    # Get additional chips from player using chip menu
+                    additionalChips = get_bet_chips_total(name, require_multiple_of_2=True)
+                    for x in additionalChips:
+                        newAnte = int(additionalChips[x]/2)
+                        anteChips[x] += newAnte
+                        blindChips[x] += newAnte
+                    ps.update_ante_chip(name, anteChips)
+                    ps.update_blind_chips(name,blindChips)
+                    additionalChipsTotal = get_chips_total(additionalChips)
+
+                    additionalBet = int(additionalChipsTotal["Total"]/2)
+                    
+                    # If player didn't add any chips (backed out), restore original values
+                    if additionalBet == 0:
+                        ante = anteStart
+                        blind = blindStart
+                        print("No additional bet placed. Ante and Blind remain at " + str(ante) + " credits each.")
+                        input(formatter.getInputText("Enter"))
+                    else:
+                        # Add to existing ante and blind
+                        ante += additionalBet
+                        blind += additionalBet
+                        print("Added " + str(additionalBet) + " credits to Ante and Blind.")
+                        print("New Ante: " + str(ante) + " | New Blind: " + str(blind))
+                        # Deduct the additional chips from player's inventory
+                        cm.remove_player_chips(name, additionalChips)
+                        input(formatter.getInputText("Enter"))
+                case "2":
+                    formatter.clear()
+                    print("Trips bet is currently " + str(tripsTotal) + " credits")
+                    print("Bet you are going to get a 3 of a Kind or Higher")
+                    print("Default : 0")
+                    input(formatter.getInputText("Enter"))
+                    
+                    # Get trips bet chips from player using chip menu
+                    selectedTripsChips = get_bet_chips_total(name, require_multiple_of_2=False)
+                    selectedTripsChipsTotal = get_chips_total(selectedTripsChips)
+                    tripsTotal = selectedTripsChipsTotal["Total"]
+                    
+                    if tripsTotal > 0:
+                        print("Trips bet set to " + str(tripsTotal) + " credits.")
+                        # Deduct the chips from player's inventory
+                        ps.update_trips_chips(name, selectedTripsChips)
+                        cm.remove_player_chips(name, selectedTripsChips)
+                    else:
+                        print("No trips bet placed.")
+                    input(formatter.getInputText("Enter"))
+                case "3":
+                    formatter.clear()
+                    print("Pairs bet is currently " + str(pairsTotal) + " credits")
+                    print("Bet your starting hand is a pair")
+                    print("Default : 0")
+                    input(formatter.getInputText("Enter"))
+                    
+                    # Get pairs bet chips from player using chip menu
+                    selectedPairsChips = get_bet_chips_total(name, require_multiple_of_2=False)
+                    selectedPairsChipsTotal = get_chips_total(selectedPairsChips)
+                    pairsTotal = selectedPairsChipsTotal["Total"]
+                    
+                    if pairsTotal > 0:
+                        print("Pairs bet set to " + str(pairsTotal) + " credits.")
+                        # Deduct the chips from player's inventory
+                        ps.update_pairs_chips(name, selectedPairsChips)
+                        cm.remove_player_chips(name, selectedPairsChips)
+                    else:
+                        print("No pairs bet placed.")
+                    input(formatter.getInputText("Enter"))
+                case "4":
+                    break
+                case "5":
+                    walk_away_flag = True
+                    break
+                case _:
+                    input(formatter.getInputText("NonNumber"))
+        else:
+            input(formatter.getInputText("NonNumber"))
+    return walk_away_flag
