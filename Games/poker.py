@@ -6,7 +6,7 @@ from DAL import character_maintenance as cm, poker_maintenance as ps, money_main
 def pokerStart(characterName):
     while 1 > 0:
         formatter.clear()
-        formatter.drawMenuTopper("Welcome to the Ultimate Texas Hold'em v1.1")
+        formatter.drawMenuTopper("Welcome to the Ultimate Texas Hold'em v2.0")
         print("1.) Start Game(Deal In)")
         print("2.) Game Information")
         print("3.) Betting Information")
@@ -20,10 +20,7 @@ def pokerStart(characterName):
             match menuInput:
                 case "1":
                     characterData = cm.load_character_by_name(characterName)
-                    #currentDeck = dm.restockDeck()
-                    # Deck = (0-1 : Player Hand)(2-3 Dealer)(4-8 Community)
-                    # Stacked deck: Player gets royal flush, dealer gets flush
-                    currentDeck = ["1S", "JS", "2S", "3S", "QS", "KS", "AS", "2D", "3D"]
+                    currentDeck = dm.restockDeck()
                     dealin(currentDeck, characterData)
                 case "2":
                     printPokerGameInfo()

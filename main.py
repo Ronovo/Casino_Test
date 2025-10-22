@@ -14,11 +14,11 @@ characterName = cm.load_characters_at_start()
 
 while 1 > 0:
     formatter.clear()
-    formatter.drawMenuTopper("Welcome to Ronovo's Casino v1.7")
+    formatter.drawMenuTopper("Welcome to Ronovo's Casino v1.8")
     print("Main Menu")
     formatter.drawMenuLine()
     print("1.) Blackjack v2.2 (Double Down Update)")
-    print("2.) Texas Hold'em Poker(V1.2 : Achievement Update)")
+    print("2.) Texas Hold'em Poker V2.0 (Chips Update)")
     print("3.) Guess the Number - V0.0 Planning")
     print("4.) Baccarat - COMING SOON")
     print("5.) Horse Racing - COMING SOON")
