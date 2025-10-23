@@ -115,6 +115,25 @@ def create_even_odd_connection(chips):
     conn.close()
     return even_odd_id
 
+def create_lucky_connection(chips):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO Gtn_Bet_Lucky (white, red, green, black, purple, orange)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        chips.get('White', 0),
+        chips.get('Red', 0),
+        chips.get('Green', 0),
+        chips.get('Black', 0),
+        chips.get('Purple', 0),
+        chips.get('Orange', 0)
+    ))
+    lucky_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return lucky_id
+
 # --------------------------------------------------------
 # GTN Select Methods
 # --------------------------------------------------------
@@ -142,6 +161,10 @@ def has_even_odd_connection(gtn_id):
 def has_range_connection(gtn_id):
     range_id = get_gtn_range_id(gtn_id)
     return range_id != 0
+
+def has_lucky_connection(gtn_id):
+    lucky_id = get_gtn_lucky_id(gtn_id)
+    return lucky_id != 0
 
 def get_gtn_pick_id(gtn_id):
     conn = sqlite3.connect(DB_PATH)
@@ -182,6 +205,16 @@ def get_gtn_even_odd_id(gtn_id):
     even_odd_id = cursor.fetchone()
     conn.close()
     return even_odd_id[0]
+
+def get_gtn_lucky_id(gtn_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT lucky_id FROM GuessTheNumber WHERE gtn_id = ?",
+                   (gtn_id,))
+    lucky_id = cursor.fetchone()
+    conn.close()
+    return lucky_id[0]
 
 def get_pick_chips(name):
     gtn_id = get_gtn_id(name)
@@ -259,6 +292,25 @@ def get_range_chips(name):
         "Orange": int(selectedRangeInfo[8])  # orange chip count
     }
 
+def get_lucky_chips(name):
+    gtn_id = get_gtn_id(name)
+    lucky_id = get_gtn_lucky_id(gtn_id)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM Gtn_Bet_Lucky WHERE lucky_id = ?",
+                   (lucky_id,))
+    selectedLuckyInfo = cursor.fetchone()
+    conn.close()
+    return {
+        "White": int(selectedLuckyInfo[3]),  # white chip count
+        "Red": int(selectedLuckyInfo[4]),  # red chip count
+        "Green": int(selectedLuckyInfo[5]),  # green chip count
+        "Black": int(selectedLuckyInfo[6]),  # black chip count
+        "Purple": int(selectedLuckyInfo[7]),  # purple chip count
+        "Orange": int(selectedLuckyInfo[8])  # orange chip count
+    }
+
 
 def get_pick_info(pick_id):
     conn = sqlite3.connect(DB_PATH)
@@ -308,6 +360,18 @@ def get_range_info(range_id):
     keys = [desc[0] for desc in cursor.description]
     return dict(zip(keys, row))
 
+def get_lucky_info(lucky_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Gtn_Bet_Lucky WHERE lucky_id = ?", (lucky_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+    keys = [desc[0] for desc in cursor.description]
+    return dict(zip(keys, row))
+
 def get_max_number(gtn_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -345,9 +409,11 @@ def get_even_odd_status(name):
 # --------------------------------------------------------
 # GTN Update Methods
 # --------------------------------------------------------
-def updateStartingBet(name, betType, chips, numberPicked):
+def updateStartingBet(name, betType, chips, numbersPicked):
     gtn_id = get_gtn_id(name)
-
+    numberPicked = 0
+    if len(numbersPicked) == 1:
+        numberPicked = numbersPicked[0]
     match betType:
         case "Pick":
             if not has_pick_connection(gtn_id):
@@ -445,6 +511,29 @@ def updateStartingBet(name, betType, chips, numberPicked):
             rangeStart = numberPicked
             rangeEnd = rangeStart + 2
             update_range_chips(name, rangeStart, rangeEnd, rangePlayerChips)
+        case "Lucky":
+            if not has_lucky_connection(gtn_id):
+                blankChips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+                # Create missing connections
+                lucky_id = create_lucky_connection(blankChips)
+
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+                cursor.execute("""
+                                   UPDATE GuessTheNumber
+                                   SET lucky_id = ?
+                                   WHERE gtn_id = ?
+                               """, (lucky_id, gtn_id))
+                conn.commit()
+                conn.close()
+
+            # Update Player Chips from Bet Chips
+            luckyPlayerChips = get_lucky_chips(name)
+            for x in luckyPlayerChips:
+                luckyPlayerChips[x] += chips[x]
+            number1 = numbersPicked[0]
+            number2 = numbersPicked[1]
+            update_lucky_chips(name, number1, number2, luckyPlayerChips)
 
 def update_number_max_pick(name, maxNumber):
     gtn_id = get_gtn_id(name)
@@ -564,6 +653,29 @@ def update_range_chips(name, rangeStart, rangeEnd, chips):
     conn.commit()
     conn.close()
 
+def update_lucky_chips(name, number1, number2, chips):
+    gtn_id = get_gtn_id(name)
+    lucky_id = get_gtn_lucky_id(gtn_id)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+                  UPDATE Gtn_Bet_Lucky
+                  SET lucky_number_1 = ?, lucky_number_2 = ?, white = ?, red = ?, green = ?, black = ?, orange = ?, purple = ?
+                  WHERE lucky_id = ?
+               """, (
+        number1,
+        number2,
+        chips["White"],
+        chips["Red"],
+        chips["Green"],
+        chips["Black"],
+        chips["Orange"],
+        chips["Purple"],
+        lucky_id,
+    ))
+    conn.commit()
+    conn.close()
+
 def update_gtn_pick_new_game(pick_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -621,6 +733,21 @@ def update_gtn_range_new_game(range_id):
                    """, (
         0, 0, 0, 0, 0, 0, 0, 0,
         range_id,))
+
+    conn.commit()
+    conn.close()
+
+def update_gtn_lucky_new_game(lucky_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+                      UPDATE Gtn_Bet_Lucky
+                      SET lucky_number_1 = ?, lucky_number_2 = ?, white = ?, red = ?, green = ?, black = ?, purple = ?, orange = ?
+                      WHERE lucky_id = ?
+                   """, (
+        0, 0, 0, 0, 0, 0, 0, 0,
+        lucky_id,))
 
     conn.commit()
     conn.close()

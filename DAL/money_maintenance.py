@@ -284,8 +284,8 @@ def select_bet_chips(chips, require_multiple_of_2=False):
         selectedTotal = get_chips_total(selectedChips)
         formatter.drawMenuTopper("Total of chips remaining : " + str(totalRemaining["Total"]) + " credits")
         if require_multiple_of_2:
-            print("*** POKER BETTING: Total must be in multiples of 2 (Ante + Blind) ***")
-            print("Current Bet Total: " + str(selectedTotal["Total"]) + " credits")
+            print("*** Due To Game Restrictions, You Must Bet In Multiples of 2 ***")
+        print("Current Bet Total: " + str(selectedTotal["Total"]) + " credits")
         print("1.) White Chips ($1) | White Total : " + str(totalRemaining["White"]))
         print("Bet : " + str(selectedChips["White"]) + " | Remaining : " + str(chipsWork["White"]))
         print("\n2.) Red Chips ($5) | Red Total : " + str(totalRemaining["Red"]))
@@ -329,13 +329,13 @@ def select_bet_chips(chips, require_multiple_of_2=False):
                     if require_multiple_of_2:
                         currentTotal = get_chips_total(selectedChips)
                         if currentTotal["Total"] % 2 != 0:
-                            print("ERROR: Total bet must be in multiples of 2 for poker (Ante + Blind).")
+                            print("ERROR: Total bet must be in multiples of 2")
                             print("Current total: " + str(currentTotal["Total"]) + " credits")
                             print("Please adjust your bet to an even number.")
                             input(formatter.getInputText("Enter"))
                             continue
                         if currentTotal["Total"] < 2:
-                            print("ERROR: Minimum bet is 2 credits (1 for Ante + 1 for Blind).")
+                            print("ERROR: Minimum bet is 2 credits.")
                             input(formatter.getInputText("Enter"))
                             continue
                     return selectedChips

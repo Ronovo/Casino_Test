@@ -19,7 +19,7 @@ while 1 > 0:
     formatter.drawMenuLine()
     print("1.) Blackjack v2.2 (Double Down Update)")
     print("2.) Texas Hold'em Poker V2.0 (Chips Update)")
-    print("3.) Guess the Number - V0.4 (Even/Odd & Range Update)")
+    print("3.) Guess the Number - V0.5 (Easy Complete Update)")
     print("4.) Baccarat - COMING SOON")
     print("5.) Horse Racing - COMING SOON")
     print("6.) Roulette - COMING SOON")
