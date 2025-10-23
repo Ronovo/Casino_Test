@@ -36,11 +36,6 @@ def update_character_with_poker(poker_id, name):
     conn.close()
 
 def create_poker_connection(characterData):
-    """
-    Create a connection to a new poker_id to the CharacterData
-    Expects a dict (like load_character_by_name returns).
-    """
-
     poker_id = create_new_poker_entry()
     update_character_with_poker(poker_id, characterData["name"])
 
@@ -189,11 +184,6 @@ def updateAnteAndBlindStart(name, blindChips, anteChips):
                              not has_blind_connection(poker_id) or
                              not has_trips_connection(poker_id) or
                              not has_pairs_connection(poker_id))
-
-    ante_id = None
-    blind_id = None
-    trips_id = None
-    pairs_id = None
 
     if needs_connection_update:
         # Create missing connections
@@ -443,22 +433,18 @@ def get_poker_ante_id(poker_id):
     return anteid[0]
 
 def has_ante_connection(poker_id):
-    """Check if poker record already has an ante_bet_id connection."""
     ante_id = get_poker_ante_id(poker_id)
     return ante_id != 0
 
 def has_blind_connection(poker_id):
-    """Check if poker record already has a blind_bet_id connection."""
     blind_id = get_poker_blind_id(poker_id)
     return blind_id != 0
 
 def has_trips_connection(poker_id):
-    """Check if poker record already has a trips_bet_id connection."""
     trips_id = get_poker_trips_id(poker_id)
     return trips_id != 0
 
 def has_pairs_connection(poker_id):
-    """Check if poker record already has a pairs_bet_id connection."""
     pairs_id = get_poker_pairs_id(poker_id)
     return pairs_id != 0
 

@@ -19,6 +19,8 @@ def loadDatabaseJson():
     load_poker_trips(tripsPath)
     pairsPath = cwd + "Paytables/pairs_modifier.json"
     load_poker_pairs(pairsPath)
+    gtnPath = cwd + "Paytables/guess_the_number.json"
+    load_guess_the_number(gtnPath)
     #Chips (Color/value)
     chipsPath = cwd + "Money/chips.json"
     load_chips(chipsPath)
@@ -388,6 +390,23 @@ def load_poker_pairs(path):
             INSERT OR IGNORE INTO PokerPairs (name, score_value, odds, modifier)
             VALUES (?, ?, ?, ?)
         """, (pair["name"], pair["score_value"], pair["odds"], pair["modifier"],))
+
+    conn.commit()
+    conn.close()
+
+def load_guess_the_number(path):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    with open(path, "r", encoding="utf-8") as f:
+        gtnMods = json.load(f)
+
+    for gtn in gtnMods:
+        cursor.execute("""
+            INSERT OR IGNORE INTO GtnModifiers (name, odds_easy, odds_medium, odds_hard, odds_impossible, base_modifier)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (gtn["name"], gtn["odds_easy"], gtn["odds_medium"], gtn["odds_hard"], gtn["odds_impossible"],
+              gtn["base_modifier"],))
 
     conn.commit()
     conn.close()

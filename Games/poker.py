@@ -191,7 +191,6 @@ def dealin(currentDeck, characterData):
     dealerHand = []
     # 5 cards in the middle ("Flop" + 1 rounds)
     communityHand = []
-    totalBet = 0
 
     if characterData['poker_id'] == 0:
         characterData = ps.create_poker_connection(characterData)
