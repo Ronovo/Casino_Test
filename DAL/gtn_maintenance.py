@@ -58,6 +58,25 @@ def create_pick_connection(chips):
     conn.close()
     return pick_id
 
+def create_range_connection(chips):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO Gtn_Bet_Range (white, red, green, black, purple, orange)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        chips.get('White', 0),
+        chips.get('Red', 0),
+        chips.get('Green', 0),
+        chips.get('Black', 0),
+        chips.get('Purple', 0),
+        chips.get('Orange', 0)
+    ))
+    range_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return range_id
+
 def create_high_low_connection(chips):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -76,6 +95,25 @@ def create_high_low_connection(chips):
     conn.commit()
     conn.close()
     return high_low_id
+
+def create_even_odd_connection(chips):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO Gtn_Bet_EvenOdd (white, red, green, black, purple, orange)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        chips.get('White', 0),
+        chips.get('Red', 0),
+        chips.get('Green', 0),
+        chips.get('Black', 0),
+        chips.get('Purple', 0),
+        chips.get('Orange', 0)
+    ))
+    even_odd_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return even_odd_id
 
 # --------------------------------------------------------
 # GTN Select Methods
@@ -97,6 +135,14 @@ def has_high_low_connection(gtn_id):
     high_low_id = get_gtn_high_low_id(gtn_id)
     return high_low_id != 0
 
+def has_even_odd_connection(gtn_id):
+    even_odd_id = get_gtn_even_odd_id(gtn_id)
+    return even_odd_id != 0
+
+def has_range_connection(gtn_id):
+    range_id = get_gtn_range_id(gtn_id)
+    return range_id != 0
+
 def get_gtn_pick_id(gtn_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -107,6 +153,16 @@ def get_gtn_pick_id(gtn_id):
     conn.close()
     return pick_id[0]
 
+def get_gtn_range_id(gtn_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT range_id FROM GuessTheNumber WHERE gtn_id = ?",
+                   (gtn_id,))
+    range_id = cursor.fetchone()
+    conn.close()
+    return range_id[0]
+
 def get_gtn_high_low_id(gtn_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -116,6 +172,16 @@ def get_gtn_high_low_id(gtn_id):
     high_low_id = cursor.fetchone()
     conn.close()
     return high_low_id[0]
+
+def get_gtn_even_odd_id(gtn_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT even_odd_id FROM GuessTheNumber WHERE gtn_id = ?",
+                   (gtn_id,))
+    even_odd_id = cursor.fetchone()
+    conn.close()
+    return even_odd_id[0]
 
 def get_pick_chips(name):
     gtn_id = get_gtn_id(name)
@@ -155,6 +221,45 @@ def get_high_low_chips(name):
         "Orange": int(highLowChips[8])  # orange chip count
     }
 
+def get_even_odd_chips(name):
+    gtn_id = get_gtn_id(name)
+    even_odd_id = get_gtn_even_odd_id(gtn_id)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM Gtn_Bet_EvenOdd WHERE even_odd_id = ?",
+                   (even_odd_id,))
+    highLowChips = cursor.fetchone()
+    conn.close()
+    return {
+        "White": int(highLowChips[3]),  # white chip count
+        "Red": int(highLowChips[4]),  # red chip count
+        "Green": int(highLowChips[5]),  # green chip count
+        "Black": int(highLowChips[6]),  # black chip count
+        "Purple": int(highLowChips[7]),  # purple chip count
+        "Orange": int(highLowChips[8])  # orange chip count
+    }
+
+def get_range_chips(name):
+    gtn_id = get_gtn_id(name)
+    range_id = get_gtn_range_id(gtn_id)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM Gtn_Bet_Range WHERE range_id = ?",
+                   (range_id,))
+    selectedRangeInfo = cursor.fetchone()
+    conn.close()
+    return {
+        "White": int(selectedRangeInfo[3]),  # white chip count
+        "Red": int(selectedRangeInfo[4]),  # red chip count
+        "Green": int(selectedRangeInfo[5]),  # green chip count
+        "Black": int(selectedRangeInfo[6]),  # black chip count
+        "Purple": int(selectedRangeInfo[7]),  # purple chip count
+        "Orange": int(selectedRangeInfo[8])  # orange chip count
+    }
+
+
 def get_pick_info(pick_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -171,6 +276,30 @@ def get_high_low_info(high_low_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM Gtn_Bet_HighLow WHERE high_low_id = ?", (high_low_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+    keys = [desc[0] for desc in cursor.description]
+    return dict(zip(keys, row))
+
+def get_even_odd_info(even_odd_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Gtn_Bet_EvenOdd WHERE even_odd_id = ?", (even_odd_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+    keys = [desc[0] for desc in cursor.description]
+    return dict(zip(keys, row))
+
+def get_range_info(range_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Gtn_Bet_Range WHERE range_id = ?", (range_id,))
     row = cursor.fetchone()
     conn.close()
 
@@ -197,6 +326,18 @@ def get_high_low_status(name):
 
     cursor.execute("SELECT high_picked FROM Gtn_Bet_HighLow WHERE high_low_id = ?",
                    (high_low_id,))
+    maxNumber = cursor.fetchone()
+    conn.close()
+    return maxNumber[0]
+
+def get_even_odd_status(name):
+    gtn_id = get_gtn_id(name)
+    even_odd_id = get_gtn_even_odd_id(gtn_id)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT even_picked FROM Gtn_Bet_EvenOdd WHERE even_odd_id = ?",
+                   (even_odd_id,))
     maxNumber = cursor.fetchone()
     conn.close()
     return maxNumber[0]
@@ -255,6 +396,55 @@ def updateStartingBet(name, betType, chips, numberPicked):
             for x in highLowPlayerChips:
                 highLowPlayerChips[x] += chips[x]
             update_low_high_chips(name, highLowPlayerChips)
+        case "Even/Odd":
+            if not has_even_odd_connection(gtn_id):
+                blankChips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+                # Create missing connections
+                even_odd_id = create_even_odd_connection(blankChips)
+
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+                cursor.execute("""
+                                    UPDATE GuessTheNumber
+                                    SET even_odd_id = ?
+                                    WHERE gtn_id = ?
+                                """, (even_odd_id, gtn_id))
+                conn.commit()
+                conn.close()
+
+            if numberPicked == 1:  # Even
+                update_even_odd(name, 1, 0)
+            elif numberPicked == 2:  # Odd
+                update_even_odd(name, 0, 1)
+
+            # Update Player Chips from Bet Chips
+            evenOddPlayerChips = get_even_odd_chips(name)
+            for x in evenOddPlayerChips:
+                evenOddPlayerChips[x] += chips[x]
+            update_even_odd_chips(name, evenOddPlayerChips)
+        case "Range":
+            if not has_range_connection(gtn_id):
+                blankChips = {"White": 0, "Red": 0, "Green": 0, "Black": 0, "Purple": 0, "Orange": 0}
+                # Create missing connections
+                range_id = create_range_connection(blankChips)
+
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+                cursor.execute("""
+                           UPDATE GuessTheNumber
+                           SET range_id = ?
+                           WHERE gtn_id = ?
+                       """, (range_id, gtn_id))
+                conn.commit()
+                conn.close()
+
+            # Update Player Chips from Bet Chips
+            rangePlayerChips = get_range_chips(name)
+            for x in rangePlayerChips:
+                rangePlayerChips[x] += chips[x]
+            rangeStart = numberPicked
+            rangeEnd = rangeStart + 2
+            update_range_chips(name, rangeStart, rangeEnd, rangePlayerChips)
 
 def update_number_max_pick(name, maxNumber):
     gtn_id = get_gtn_id(name)
@@ -329,9 +519,52 @@ def update_low_high_chips(name, chips):
     conn.commit()
     conn.close()
 
-def update_gtn_pick_new_game(gtn_id, pick_id):
-    update_gtn_new_game(gtn_id)
+def update_even_odd_chips(name, chips):
+    gtn_id = get_gtn_id(name)
+    even_odd_id = get_gtn_even_odd_id(gtn_id)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
 
+    cursor.execute("""
+                  UPDATE Gtn_Bet_EvenOdd
+                  SET white = ?, red = ?, green = ?, black = ?, orange = ?, purple = ?
+                  WHERE even_odd_id = ?
+               """, (
+        chips["White"],
+        chips["Red"],
+        chips["Green"],
+        chips["Black"],
+        chips["Orange"],
+        chips["Purple"],
+        even_odd_id,
+    ))
+    conn.commit()
+    conn.close()
+
+def update_range_chips(name, rangeStart, rangeEnd, chips):
+    gtn_id = get_gtn_id(name)
+    range_id = get_gtn_range_id(gtn_id)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+                  UPDATE Gtn_Bet_Range
+                  SET range_start = ?, range_end = ?, white = ?, red = ?, green = ?, black = ?, orange = ?, purple = ?
+                  WHERE range_id = ?
+               """, (
+        rangeStart,
+        rangeEnd,
+        chips["White"],
+        chips["Red"],
+        chips["Green"],
+        chips["Black"],
+        chips["Orange"],
+        chips["Purple"],
+        range_id,
+    ))
+    conn.commit()
+    conn.close()
+
+def update_gtn_pick_new_game(pick_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -347,9 +580,7 @@ def update_gtn_pick_new_game(gtn_id, pick_id):
     conn.close()
 
 
-def update_gtn_high_low_new_game(gtn_id, high_low_id):
-    update_gtn_new_game(gtn_id)
-
+def update_gtn_high_low_new_game(high_low_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -360,6 +591,36 @@ def update_gtn_high_low_new_game(gtn_id, high_low_id):
                    """, (
         0, 0, 0, 0, 0, 0, 0, 0,
         high_low_id,))
+
+    conn.commit()
+    conn.close()
+
+def update_gtn_even_odd_new_game(even_odd_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+                      UPDATE Gtn_Bet_EvenOdd
+                      SET even_picked = ?, odd_picked = ?, white = ?, red = ?, green = ?, black = ?, purple = ?, orange = ?
+                      WHERE even_odd_id = ?
+                   """, (
+        0, 0, 0, 0, 0, 0, 0, 0,
+        even_odd_id,))
+
+    conn.commit()
+    conn.close()
+
+def update_gtn_range_new_game(range_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+                      UPDATE Gtn_Bet_Range
+                      SET range_start = ?, range_end = ?, white = ?, red = ?, green = ?, black = ?, purple = ?, orange = ?
+                      WHERE range_id = ?
+                   """, (
+        0, 0, 0, 0, 0, 0, 0, 0,
+        range_id,))
 
     conn.commit()
     conn.close()
@@ -391,6 +652,20 @@ def update_low_high(name, low, high):
         high, low, gtn_id,))
     conn.commit()
     conn.close()
+
+def update_even_odd(name, even, odd):
+    gtn_id = get_gtn_id(name)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+                              UPDATE Gtn_Bet_EvenOdd
+                              SET even_picked = ?, odd_picked = ?
+                              WHERE even_odd_id = ?
+                           """, (
+        even, odd, gtn_id,))
+    conn.commit()
+    conn.close()
 # --------------------------------------------------------
 # GTN Get Paytable Methods
 # --------------------------------------------------------
@@ -410,3 +685,5 @@ def get_base_modifier_by_difficulty(maxNumber, base_modifier):
         return base_modifier * 100
     elif maxNumber == 1000000000:
         return base_modifier * 100000000
+    else:
+        return base_modifier
