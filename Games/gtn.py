@@ -7,7 +7,7 @@ from DAL import character_maintenance as cm, gtn_maintenance as gm, money_mainte
 def gtnStart(characterName):
     while 1 > 0:
         formatter.clear()
-        formatter.drawMenuTopper("Welcome to the Guess The Number V0.5")
+        formatter.drawMenuTopper("Welcome to the Guess The Number V1.0")
         print("1.) Start Game")
         print("2.) Game Information")
         print("3.) Bet Types")
@@ -56,7 +56,7 @@ def printBetTypes():
     print("Payout : 1:1")
     print("4. Even/Odd - Even == Divisible by 2")
     print("Payout : 1:1")
-    print("5. Range Guess - Pick 3 numbers in a range (i.e. 1-3)")
+    print("5. Range Guess - Pick Numbers in a range (i.e. for 10 : 1-2, for 100 : 10-29)")
     print("Payout : 2:1")
     print("6. Lucky Number Combo - Bet twice, guess twice.")
     print("Payout : 20:1 if Guess #1, 5:1 if Guess #2")
@@ -70,9 +70,9 @@ def startGtn(name):
     formatter.clear()
     formatter.drawMenuTopper("Pick your Difficulty")
     print("1.) Easy - Numbers : 1-10")
-    print("X.) Medium - Numbers : 1-100")
-    print("X.) Hard - Numbers : 1-1000")
-    print("X.) Impossible - Numbers : 1-1000000000")
+    print("2.) Medium - Numbers : 1-100")
+    print("3.) Hard - Numbers : 1-1000")
+    print("4.) Impossible - Numbers : 1-100000000")
     print("5.) Main Menu")
     menuInput = input(formatter.getInputText("Choice"))
     if menuInput.isnumeric():
@@ -95,12 +95,22 @@ def startGtn(name):
     else:
         input(formatter.getInputText("NonNumber"))
 
-def easyBet(name):
-    maxNumber = 10
+def bet(name,maxNumber):
     gm.update_number_max_pick(name, maxNumber)
     dealerNumber = dealerRoll(maxNumber)
-    gm.update_dealer_number(name,dealerNumber)
+    gm.update_dealer_number(name, dealerNumber)
 
+    modifier = int(maxNumber / 10)
+    difficulty = ""
+    match maxNumber:
+        case 10:
+            difficulty = "Easy"
+        case 100:
+            difficulty = "Medium"
+        case 1000:
+            difficulty = "Hard"
+        case 100000000:
+            difficulty = "Impossible"
     pickBet = 0
     highLowBet = 0
     highLowBetType = ""
@@ -110,8 +120,8 @@ def easyBet(name):
     luckyBet = 0
     while 1 > 0:
         formatter.clear()
-        formatter.drawMenuTopper("Easy Difficulty Betting Menu")
-        print("1.) Pick a number - Payout : 5:1 | Current Bet : " + str(pickBet))
+        formatter.drawMenuTopper(difficulty + " Difficulty Betting Menu")
+        print("1.) Pick a number - Payout : " + str(5 * modifier) + ":1 | Current Bet : " + str(pickBet))
         if highLowBetType == "":
             print("2.) Higher/Lower - Payout : 1:1 | Current Bet : " + str(highLowBet))
         else:
@@ -120,8 +130,8 @@ def easyBet(name):
             print("3.) Even/Odd - Payout : 1:1 | Current Bet : " + str(evenOddBet))
         else:
             print("3.) Even/Odd - Payout : 1:1 | Current Bet : " + str(evenOddBet) + " | " + evenOddBetType)
-        print("4.) Range Pick(3 Numbers) - Payout : 2:1 | Current Bet : " + str(rangeBet))
-        print("5.) Lucky Number Combo - Payout: 20:1 if #1, 5:1 if #2 | Current Bet : " + str(luckyBet))
+        print("4.) Range Pick(" + str(2*modifier) + " Numbers) - Payout : " + str(2 * modifier) +":1 | Current Bet : " + str(rangeBet))
+        print("5.) Lucky Number Combo - Payout: " + str(20 * modifier) + ":1 if #1, " + str(5 * modifier) + ":1 if #2 | Current Bet : " + str(luckyBet))
         print("6.) Lock In Bet")
         print("7.) Go Back")
         menuInput = input(formatter.getInputText("Choice"))
@@ -131,7 +141,7 @@ def easyBet(name):
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
                 case "1":
-                    pickBet += pickANumber(name)
+                    pickBet += pickANumber(name, maxNumber, modifier)
                 case "2":
                     highLowBet += highLow(maxNumber, name)
                     highFlag = gm.get_high_low_status(name)
@@ -147,11 +157,11 @@ def easyBet(name):
                     else:
                         evenOddBetType = "Odd"
                 case "4":
-                    rangeBet += pickARange(name)
+                    rangeBet += pickARange(name, maxNumber, modifier)
                 case "5":
-                    luckyBet += pickALucky(name)
+                    luckyBet += pickALucky(name, maxNumber, modifier)
                 case "6":
-                    calculateWinsAndTotal(name, dealerNumber, maxNumber)
+                    calculateWinsAndTotal(name, dealerNumber, maxNumber, modifier)
                     return
                 case "7":
                     return
@@ -160,45 +170,56 @@ def easyBet(name):
         else:
             input(formatter.getInputText("NonNumber"))
 
+def easyBet(name):
+    maxNumber = 10
+    bet(name, maxNumber)
+
 def mediumBet(name):
-    pass
+    maxNumber = 100
+    bet(name, maxNumber)
 
 def hardBet(name):
-    pass
+    maxNumber = 1000
+    bet(name, maxNumber)
 
 def impossibleBet(name):
-    pass
+    maxNumber = 100000000
+    bet(name, maxNumber)
 
-def pickANumber(name):
+def pickANumber(name, maxNumber, modifier):
     print("You are placing a 'Pick The Number' bet.")
-    picked_number = input("Pick a number between 1-10\n")
+    picked_number = input("Pick a number between 1-" + str(maxNumber) + "\n")
     selectedChips = mm.get_bet_chips_total(name,False)
     cm.remove_player_chips(name, selectedChips)
     pickedNumbers = [int(picked_number)]
-    gm.updateStartingBet(name,"Pick", selectedChips, pickedNumbers)
+    gm.updateStartingBet(name,"Pick", selectedChips, pickedNumbers, modifier)
     pickChipsTotal = mm.get_chips_total(selectedChips)
     return pickChipsTotal["Total"]
 
-def pickARange(name):
+def pickARange(name, maxNumber, modifier):
     print("You are placing a 'Pick A Range' bet.")
     print("You choose the starting number of the range.")
-    rangeStart = input("Pick a number between 1-8\n")
+    rangeMultiple = 2
+    rangeMod = rangeMultiple * modifier
+    print("Numbers in range :" + str(rangeMod))
+    rangeMax = (maxNumber - rangeMod) + 1
+    rangeStart = input("Pick a number between 1-" + str(rangeMax) + "\n")
     selectedChips = mm.get_bet_chips_total(name,False)
     cm.remove_player_chips(name, selectedChips)
     pickedNumbers = [int(rangeStart)]
-    gm.updateStartingBet(name,"Range", selectedChips, pickedNumbers)
+    gm.updateStartingBet(name,"Range", selectedChips, pickedNumbers, modifier)
     rangeChipsTotal = mm.get_chips_total(selectedChips)
     return rangeChipsTotal["Total"]
 
-def pickALucky(name):
+def pickALucky(name, maxNumber, modifier):
     print("You are placing a Lucky Number Combo bet")
-    print("Pick 2 numbers. 20:1 if #1, 5:1 if #2")
-    number1 = input("#1 : Pick a number between 1-10\n")
-    number2 = input("#2 : Pick a number between 1-10\n")
+    print("Pick 2 numbers. " + str(20 * modifier) + ":1 if #1, " + str(5 * modifier) + ":1 if #2")
+    number1 = input("#1 : Pick a number between 1-" + str(maxNumber) + "\n")
+    number2 = input("#2 : Pick a number between 1-" + str(maxNumber) + "\n")
     selectedChips = mm.get_bet_chips_total(name,True)
     cm.remove_player_chips(name, selectedChips)
     pickedNumbers = [number1, number2]
-    gm.updateStartingBet(name,"Lucky", selectedChips, pickedNumbers)
+    gm.updateStartingBet(name,"Lucky", selectedChips, pickedNumbers, modifier)
     luckyChipsTotal = mm.get_chips_total(selectedChips)
     return luckyChipsTotal["Total"]
 
@@ -237,7 +258,7 @@ def highLow(maxNumber, name):
     selectedChips = mm.get_bet_chips_total(name, False)
     cm.remove_player_chips(name, selectedChips)
     pickedNumbers = [number]
-    gm.updateStartingBet(name, "High/Low", selectedChips, pickedNumbers)
+    gm.updateStartingBet(name, "High/Low", selectedChips, pickedNumbers, 1)
     highLowChipsTotal = mm.get_chips_total(selectedChips)
     return highLowChipsTotal["Total"]
 
@@ -274,14 +295,14 @@ def evenOdd(name):
     selectedChips = mm.get_bet_chips_total(name, False)
     cm.remove_player_chips(name, selectedChips)
     pickedNumbers = [number]
-    gm.updateStartingBet(name, "Even/Odd", selectedChips, pickedNumbers)
+    gm.updateStartingBet(name, "Even/Odd", selectedChips, pickedNumbers, 1)
     evenOddChipsTotal = mm.get_chips_total(selectedChips)
     return evenOddChipsTotal["Total"]
 
 def dealerRoll(maxNumber):
     return random.randint(1, maxNumber)
 
-def calculateWinsAndTotal(name, dealerNumber, maxNumber):
+def calculateWinsAndTotal(name, dealerNumber, maxNumber, modifier):
     # Get the Ids for calculating
     gtn_id = gm.get_gtn_id(name)
     pick_id = gm.get_gtn_pick_id(gtn_id)
@@ -296,16 +317,19 @@ def calculateWinsAndTotal(name, dealerNumber, maxNumber):
             pickedNumber = pickInfo["number_picked"]
             print("Your Number : " + str(pickedNumber) + " | Dealer's Number : " + str(dealerNumber))
             base_modifier = 0
+            belowNumber = pickedNumber - modifier
+            aboveNumber = pickedNumber + modifier
             if pickedNumber == dealerNumber:
-                print("Spot on! You Win!(5:1)\n")
                 base_modifier = gm.get_base_modifier_by_name("Pick The Number")
-            elif (pickedNumber + 1) == dealerNumber or (pickedNumber - 1) == dealerNumber:
-                print("You were Close! You Still Win (2:1)!\n")
+                base_modifier = gm.get_base_modifier_by_difficulty(gm.get_max_number(gtn_id), base_modifier)
+                print("Spot on! You Win!(" + str(base_modifier) + ":1)\n")
+            elif belowNumber < dealerNumber < aboveNumber:
                 base_modifier = gm.get_base_modifier_by_name("Above/Below")
+                base_modifier = gm.get_base_modifier_by_difficulty(gm.get_max_number(gtn_id), base_modifier)
+                print("You were Close! You Still Win (" + str(base_modifier) + ":1)!\n")
             else:
                 print("You lose the pick number bet!!\n")
             if base_modifier != 0:
-                base_modifier = gm.get_base_modifier_by_difficulty(gm.get_max_number(gtn_id), base_modifier)
                 characterData = cm.load_character_by_name(name)
                 playerChips = mm.get_chips_by_character_id(characterData['id'])
                 pickChips = gm.get_pick_chips(name)
@@ -317,7 +341,7 @@ def calculateWinsAndTotal(name, dealerNumber, maxNumber):
                 pickChipsTotals = mm.get_chips_total(pickChips)
                 print("Total Pick A Number Bet Winnings : " + str(pickChipsTotals["Total"]))
                 cm.update_player_chips(playerChips, characterData['id'])
-            input(formatter.getInputText("Enter"))
+                input(formatter.getInputText("Enter"))
     # High/Low logic
     if high_low_id != 0:
         highLowInfo = gm.get_high_low_info(high_low_id)
@@ -354,7 +378,7 @@ def calculateWinsAndTotal(name, dealerNumber, maxNumber):
             highLowChipsTotals = mm.get_chips_total(highLowChips)
             print("Total High/Low Bet Winnings : " + str(highLowChipsTotals["Total"]))
             cm.update_player_chips(playerChips, characterData['id'])
-        input(formatter.getInputText("Enter"))
+            input(formatter.getInputText("Enter"))
     # Even/Odd logic
     if even_odd_id != 0:
         evenOddInfo = gm.get_even_odd_info(even_odd_id)
@@ -398,12 +422,13 @@ def calculateWinsAndTotal(name, dealerNumber, maxNumber):
             print("Your picked range is " + str(rangeStart) + "-" + str(rangeEnd))
             base_modifier = 0
             if rangeStart <= dealerNumber <= rangeEnd:
-                print("It's in range! You Win!(2:1)\n")
+                base_modifier = gm.get_base_modifier_by_name("Range")
+                base_modifier = gm.get_base_modifier_by_difficulty(gm.get_max_number(gtn_id), base_modifier)
+                print("It's in range! You Win!(" + str(base_modifier) + ":1)\n")
                 base_modifier = gm.get_base_modifier_by_name("Range")
             else:
                 print("Number not in range, you lose!\n")
             if base_modifier != 0:
-                base_modifier = gm.get_base_modifier_by_difficulty(gm.get_max_number(gtn_id), base_modifier)
                 characterData = cm.load_character_by_name(name)
                 playerChips = mm.get_chips_by_character_id(characterData['id'])
                 rangeChips = gm.get_range_chips(name)
@@ -415,7 +440,7 @@ def calculateWinsAndTotal(name, dealerNumber, maxNumber):
                 rangeChipsTotals = mm.get_chips_total(rangeChips)
                 print("Total Pick A Range Bet Winnings : " + str(rangeChipsTotals["Total"]))
                 cm.update_player_chips(playerChips, characterData['id'])
-            input(formatter.getInputText("Enter"))
+                input(formatter.getInputText("Enter"))
     # Lucky Number Logic
     if lucky_id != 0:
         luckyInfo = gm.get_lucky_info(lucky_id)
@@ -427,15 +452,16 @@ def calculateWinsAndTotal(name, dealerNumber, maxNumber):
             print("Your Lucky Number 2 was " + str(number2))
             base_modifier = 0
             if dealerNumber == number1:
-                print("Jackpot! You Are So Lucky! 20:1\n")
                 base_modifier = gm.get_base_modifier_by_name("Lucky Combo Number 1")
+                base_modifier = gm.get_base_modifier_by_difficulty(gm.get_max_number(gtn_id), base_modifier)
+                print("Jackpot! You Are So Lucky! " + str(base_modifier) + ":1\n")
             elif dealerNumber == number2:
-                print("You win! 5:1\n")
                 base_modifier = gm.get_base_modifier_by_name("Lucky Combo Number 2")
+                base_modifier = gm.get_base_modifier_by_difficulty(gm.get_max_number(gtn_id), base_modifier)
+                print("You win! " + str(base_modifier) + ":1\n")
             else:
                 print("Better luck next time, you lose!\n")
             if base_modifier != 0:
-                base_modifier = gm.get_base_modifier_by_difficulty(gm.get_max_number(gtn_id), base_modifier)
                 characterData = cm.load_character_by_name(name)
                 playerChips = mm.get_chips_by_character_id(characterData['id'])
                 luckyChips = gm.get_lucky_chips(name)
@@ -447,7 +473,7 @@ def calculateWinsAndTotal(name, dealerNumber, maxNumber):
                 luckyChipsTotals = mm.get_chips_total(luckyChips)
                 print("Total Lucky Number Bet Winnings : " + str(luckyChipsTotals["Total"]))
                 cm.update_player_chips(playerChips, characterData['id'])
-            input(formatter.getInputText("Enter"))
+                input(formatter.getInputText("Enter"))
     #Set Up Player for the next game
     gm.update_gtn_new_game(gtn_id)
     gm.update_gtn_high_low_new_game(high_low_id)

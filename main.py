@@ -1,5 +1,5 @@
 import formatter
-from Games import blackjack, poker, gtn
+from Games import blackjack, poker, gtn, baccarat
 from DAL import character_maintenance as cm, money_maintenance as mm
 from Database import create_database_structure as dbcreate
 from Database import load_helper_methods as fillTables
@@ -19,8 +19,8 @@ while 1 > 0:
     formatter.drawMenuLine()
     print("1.) Blackjack v2.2 (Double Down Update)")
     print("2.) Texas Hold'em Poker V2.0 (Chips Update)")
-    print("3.) Guess the Number - V0.5 (Easy Complete Update)")
-    print("4.) Baccarat - COMING SOON")
+    print("3.) Guess the Number - V1.0 (Difficulty Update)")
+    print("4.) Baccarat - V0.0")
     print("5.) Horse Racing - COMING SOON")
     print("6.) Roulette - COMING SOON")
     print("7.) Day Trading - COMING SOON")
@@ -43,6 +43,8 @@ while 1 > 0:
                 poker.pokerStart(characterName)
             case "3":
                 gtn.gtnStart(characterName)
+            case "4":
+                baccarat.baccaratStart(characterName)
             case "5":
                 print("Horse Racing - COMING SOON")
                 input(formatter.getInputText("Enter"))

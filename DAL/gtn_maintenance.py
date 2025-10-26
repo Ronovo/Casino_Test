@@ -409,7 +409,7 @@ def get_even_odd_status(name):
 # --------------------------------------------------------
 # GTN Update Methods
 # --------------------------------------------------------
-def updateStartingBet(name, betType, chips, numbersPicked):
+def updateStartingBet(name, betType, chips, numbersPicked, modifier):
     gtn_id = get_gtn_id(name)
     numberPicked = 0
     if len(numbersPicked) == 1:
@@ -509,7 +509,7 @@ def updateStartingBet(name, betType, chips, numbersPicked):
             for x in rangePlayerChips:
                 rangePlayerChips[x] += chips[x]
             rangeStart = numberPicked
-            rangeEnd = rangeStart + 2
+            rangeEnd = rangeStart + (2 * modifier)
             update_range_chips(name, rangeStart, rangeEnd, rangePlayerChips)
         case "Lucky":
             if not has_lucky_connection(gtn_id):

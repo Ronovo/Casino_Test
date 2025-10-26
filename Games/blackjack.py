@@ -3,7 +3,7 @@ from Helpers import deckmaintenance as dm
 from DAL import money_maintenance as mm
 from DAL import achievement_maintenance as am, character_maintenance as cm, blackjack_maintenance as bjs
 
-# TODO : Balance Difficulty (Fix Paytable, only use current table on very hard
+# TODO : Balance Difficulty (Fix Paytable, only use current table on very hard)
 def blackjackStart(characterName):
     while 1 > 0:
         # Check if player has any chips for game over state
