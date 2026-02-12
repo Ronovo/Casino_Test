@@ -22,7 +22,7 @@ def blackjackStart(characterName):
         menuInput = input(formatter.getInputText("Choice"))
         if menuInput.isnumeric():
             formatter.clear()
-            if 0 > int(menuInput) >= 3:
+            if 0 > int(menuInput) >= 4:
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
                 case "1":
@@ -81,7 +81,7 @@ def dealin(currentDeck, characterData):
     selectedChips = mm.get_bet_chips_total(characterData["name"])
     cm.remove_player_chips(characterData["name"], selectedChips)
     totalBetChips = mm.get_chips_total(selectedChips)
-    characterData = mm.setChipBet(characterData,totalBetChips,'BJ')
+    mm.setChipBet(characterData,totalBetChips,'BJ')
 
     formatter.clear()
     for x in range(2):
@@ -123,7 +123,7 @@ def dealin(currentDeck, characterData):
         menuInput = input(formatter.getInputText("Choice"))
         if menuInput.isnumeric():
             formatter.clear()
-            if 0 > int(menuInput) >= 3:
+            if 0 > int(menuInput) >= 4:
                 input(formatter.getInputText("Wrong Number"))
             match menuInput:
                 case "1":
@@ -140,7 +140,7 @@ def dealin(currentDeck, characterData):
                         for x in selectedChips:
                             selectedChips[x] *= 2
                         totalBetChips = mm.get_chips_total(selectedChips)
-                        characterData = mm.setChipBet(characterData, totalBetChips, 'BJ')
+                        mm.setChipBet(characterData, totalBetChips, 'BJ')
                         print("It has been doubled")
                     else:
                         print("That option is no longer valid")
@@ -372,11 +372,11 @@ def blackjack_win(characterData, sumOfHand, blackjackCheck, double_down_flag, ha
             black_jack_flag = checkHandForBlackjack(hand)
             if black_jack_flag:
                 winType = 3
-        mm.payOut(characterData, winType, "BJ", double_down_flag)
+        bjs.payOut(characterData, winType, double_down_flag)
         if winCount:
             am.insert_achievement(characterData["name"], "Blackjack_21")
     else :
-        mm.payOut(characterData, 1, "BJ",double_down_flag)
+        bjs.payOut(characterData, 1, double_down_flag)
     return result
 
 def blackjack_lose(characterData, loseCount=True):
@@ -389,7 +389,7 @@ def blackjack_lose(characterData, loseCount=True):
 def blackjack_draw(characterData):
     formatter.clear()
     result = "It's a draw! All bets returned"
-    mm.payOut(characterData, -1, "BJ",False)
+    bjs.payOut(characterData, -1,False)
     bjs.update_blackjack_draws(characterData['name'])
     am.insert_achievement(characterData["name"], "Blackjack_Draw")
     return result

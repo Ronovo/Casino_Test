@@ -22,9 +22,11 @@ def init_db():
         blackjack_id INTEGER DEFAULT 0,
         poker_id INTEGER DEFAULT 0,
         gtn_id INTEGER DEFAULT 0,
+        baccarat_id INTEGER DEFAULT 0,
         FOREIGN KEY (blackjack_id) REFERENCES Blackjack (blackjack_id),
         FOREIGN KEY (poker_id) REFERENCES Poker (poker_id),
-        FOREIGN KEY (gtn_id) REFERENCES GuessTheNumber (gtn_id)
+        FOREIGN KEY (gtn_id) REFERENCES GuessTheNumber (gtn_id),
+        FOREIGN KEY (baccarat_id) REFERENCES Baccarat (baccarat_id)
     );
     
     CREATE TABLE IF NOT EXISTS Blackjack (
@@ -73,6 +75,33 @@ def init_db():
         FOREIGN KEY (even_odd_id) REFERENCES Gtn_Bet_EvenOdd (even_odd_id),
         FOREIGN KEY (range_id) REFERENCES Gtn_Bet_Range (range_id)
         FOREIGN KEY (lucky_id) REFERENCES Gtn_Bet_Lucky (lucky_id)
+    );
+    
+    CREATE TABLE IF NOT EXISTS Baccarat (
+        baccarat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_bet INTEGER DEFAULT 0,
+        banker_bet INTEGER DEFAULT 0,
+        tie_bet INTEGER DEFAULT 0, 
+        white INTEGER DEFAULT 0,
+        red INTEGER DEFAULT 0,
+        green INTEGER DEFAULT 0,
+        black INTEGER DEFAULT 0,
+        purple INTEGER DEFAULT 0,
+        orange INTEGER DEFAULT 0,
+        baccarat_bonus_bet_id INTEGER DEFAULT 0,
+        FOREIGN KEY (baccarat_bonus_bet_id) REFERENCES Baccarat_Bonus_Bet (baccarat_bonus_bet_id)
+    );
+    
+    CREATE TABLE IF NOT EXISTS Baccarat_Bonus_Bet (
+        baccarat_bonus_bet_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dragon7 INTEGER DEFAULT 0,
+        panda8 INTEGER DEFAULT 0,
+        white INTEGER DEFAULT 0,
+        red INTEGER DEFAULT 0,
+        green INTEGER DEFAULT 0,
+        black INTEGER DEFAULT 0,
+        purple INTEGER DEFAULT 0,
+        orange INTEGER DEFAULT 0
     );
     
     /*

@@ -2,7 +2,7 @@ import sqlite3
 
 import formatter
 from DAL import character_maintenance as cm, achievement_maintenance as am, blackjack_maintenance as bjs
-from DAL import poker_maintenance as ps
+from DAL import poker_maintenance as ps, baccarat_maintenance as bm
 
 DB_PATH = "casino.db"
 
@@ -66,70 +66,12 @@ def setChipBet(characterData,chips,game):
         case "BJ":
             #Update Character's Current Bet
             updateBlackjackBet(characterData['name'],chips)
-            #Return updated character data
-            return cm.load_character_by_name(characterData['name'])
         case "Poker":
             walk_away_flag = updateAnteAndTripsBet(characterData['name'])
             return walk_away_flag
+        case "Baccarat":
+            updateBaccaratBet(characterData['name'],chips)
 
-
-def payOut(characterData,winType, game, double_down_flag):
-    match game:
-        case "BJ":
-            #Current Bet in Chips
-            currentBet = getCurrentBlackjackBet(characterData['name'])
-            # Get the total bet amount from the dictionary
-            totalBetAmount = currentBet["Total"] if currentBet else 0
-            match winType:
-                #Blackjack - 3:1 (4x payout = 3 win + 1 start)
-                case 3:
-                    #5x payout = 3 win + 2 start (double down)
-                    if double_down_flag:
-                        totalWinnings = payoutHelper(5,totalBetAmount, currentBet, characterData['name'])
-                        print("Blackjack! You won " + str(totalWinnings) + " credits! (3:1 payout w/ Double Down)")
-                    else:
-                        totalWinnings = payoutHelper(4,totalBetAmount, currentBet, characterData['name'])
-                        print("Blackjack! You won " + str(totalWinnings) + " credits! (3:1 payout)")
-                #21 - 2:1 (3x payout - 2 win + 1 start
-                case 2:
-                    # 4x payout = 2 win + 2 start (double down)
-                    if double_down_flag:
-                        totalWinnings = payoutHelper(4, totalBetAmount, currentBet, characterData['name'])
-                        print("21! You won " + str(totalWinnings) + " credits! (2:1 payout w/ Double Down)")
-                    else:
-                        totalWinnings = payoutHelper(3, totalBetAmount, currentBet, characterData['name'])
-                        print("21! You won " + str(totalWinnings) + " credits! (2:1 payout)")
-                #Win, 1 to 1 - double the bet chips and add to player inventory
-                case 1:
-                    # 3x payout = 1 win + 2 start (double down)
-                    if double_down_flag:
-                        totalWinnings = payoutHelper(3, totalBetAmount, currentBet, characterData['name'])
-                        print("You won " + str(totalWinnings) + " credits! (Double Downed!)")
-                    else:
-                        totalWinnings = payoutHelper(2, totalBetAmount, currentBet, characterData['name'])
-                        print("You won " + str(totalWinnings) + " credits! (Bet chips doubled and added to inventory)")
-                #Draw, Add Back current bet to Credits
-                #Double Down does not matter
-                case -1:
-                    totalWinnings = payoutHelper(1, totalBetAmount, currentBet, characterData['name'])
-                    print("Draw! " + str(totalWinnings) + " credits in chips returned")
-            checkCreditsAchievements(characterData['name'])
-
-def payoutHelper(modifier, totalBetAmount, currentBet, characterName):
-        # 3:1 = 4 total
-        blackjackChips = {
-            "White": currentBet["White"] * modifier,
-            "Red": currentBet["Red"] * modifier,
-            "Green": currentBet["Green"] * modifier,
-            "Black": currentBet["Black"] * modifier,
-            "Purple": currentBet["Purple"] * modifier,
-            "Orange": currentBet["Orange"] * modifier
-        }
-        # Add blackjack chips to player's inventory
-        cm.update_player_chips_add(characterName, blackjackChips)
-        #Get Total to return
-        totalWinningChips = get_chips_total(blackjackChips)
-        return totalWinningChips["Total"]
 # --------------------------------------------------------
 # BLACKJACK METHODS
 # --------------------------------------------------------
@@ -156,35 +98,6 @@ def updateBlackjackBet(name, currentBet):
     ))
     conn.commit()
     conn.close()
-
-def getCurrentBlackjackBet(name):
-    bjid = bjs.get_blackjack_id(name)
-
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    # Get current bet and chip values
-    cursor.execute("""
-                  SELECT current_bet, white, red, green, black, purple, orange
-                  FROM Blackjack
-                  WHERE blackjack_id = ?
-               """, (
-        bjid,
-    ))
-    bet = cursor.fetchone()
-    conn.commit()
-    conn.close()
-
-    if bet:
-        return {
-            "Total": bet[0],    # current_bet value
-            "White": int(bet[1]/1),    # white chip count
-            "Red": int(bet[2]/5),      # red chip count
-            "Green": int(bet[3]/25),    # green chip count
-            "Black": int(bet[4]/100),    # black chip count
-            "Purple": int(bet[5]/500),   # purple chip count
-            "Orange": int(bet[6]/1000)    # orange chip count
-        }
 
 def checkNumber(answer):
     if answer.isnumeric():
@@ -733,3 +646,28 @@ def updateAnteAndTripsBet(name):
         else:
             input(formatter.getInputText("NonNumber"))
     return walk_away_flag
+
+# --------------------------------------------------------
+# BACCARAT METHODS
+# --------------------------------------------------------
+def updateBaccaratBet(name, currentBet):
+    baccarat_id = bm.get_baccarat_id(name)
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+               UPDATE Baccarat
+               SET white = ?, red = ?, green = ?, black = ?, purple = ?, orange = ?
+               WHERE baccarat_id = ?
+            """, (
+        currentBet["White"],
+        currentBet["Red"],
+        currentBet["Green"],
+        currentBet["Black"],
+        currentBet["Purple"],
+        currentBet["Orange"],
+        baccarat_id
+    ))
+    conn.commit()
+    conn.close()
