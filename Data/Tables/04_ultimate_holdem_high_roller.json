@@ -1,0 +1,38 @@
+{
+  "key": "ultimate_holdem_high_roller",
+  "game": "poker",
+  "title": "Ultimate Texas Hold'em: High Roller",
+  "version": "1.0",
+  "order": 21,
+  "min_bet": 25,
+  "max_bet": 25000,
+  "description": "Same rules, bigger stakes: the Ante starts at 25 credits.",
+  "settings": {},
+  "paytable": {
+    "blind": {
+      "Royal Flush": 500,
+      "Straight Flush": 50,
+      "Four of a Kind": 10,
+      "Full House": 3,
+      "Flush": 1.5,
+      "Straight": 1
+    },
+    "trips": {
+      "Royal Flush": 50,
+      "Straight Flush": 40,
+      "Four of a Kind": 30,
+      "Full House": 8,
+      "Flush": 6,
+      "Straight": 5,
+      "Three of a Kind": 3
+    },
+    "pairs": {
+      "A": 25,
+      "K": 10,
+      "Q": 8,
+      "J": 6,
+      "10": 5,
+      "2-9": 3
+    }
+  }
+}

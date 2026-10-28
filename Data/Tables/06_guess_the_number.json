@@ -1,0 +1,27 @@
+{
+  "key": "guess_the_number",
+  "game": "gtn",
+  "title": "Guess the Number",
+  "version": "2.0",
+  "order": 40,
+  "min_bet": 1,
+  "max_bet": 100,
+  "description": "The dealer seals a number. Bet on what it is, how close you are, or where it falls.",
+  "settings": {
+    "difficulties": [
+      {"name": "Easy", "max_number": 10},
+      {"name": "Medium", "max_number": 100},
+      {"name": "Hard", "max_number": 1000},
+      {"name": "Impossible", "max_number": 100000000}
+    ]
+  },
+  "paytable": {
+    "exact": 5,
+    "close": 2,
+    "high_low": 1,
+    "even_odd": 1,
+    "range": 2,
+    "lucky_1": 3,
+    "lucky_2": 1
+  }
+}

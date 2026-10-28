@@ -1,0 +1,38 @@
+{
+  "key": "ultimate_holdem",
+  "game": "poker",
+  "title": "Ultimate Texas Hold'em",
+  "version": "3.0",
+  "order": 20,
+  "min_bet": 1,
+  "max_bet": 5000,
+  "description": "A 1v1 showdown against the dealer. Raise early for a bigger Play bet.",
+  "settings": {},
+  "paytable": {
+    "blind": {
+      "Royal Flush": 500,
+      "Straight Flush": 50,
+      "Four of a Kind": 10,
+      "Full House": 3,
+      "Flush": 1.5,
+      "Straight": 1
+    },
+    "trips": {
+      "Royal Flush": 50,
+      "Straight Flush": 40,
+      "Four of a Kind": 30,
+      "Full House": 8,
+      "Flush": 6,
+      "Straight": 5,
+      "Three of a Kind": 3
+    },
+    "pairs": {
+      "A": 25,
+      "K": 10,
+      "Q": 8,
+      "J": 6,
+      "10": 5,
+      "2-9": 3
+    }
+  }
+}

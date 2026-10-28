@@ -1,0 +1,33 @@
+{
+  "key": "horse_racing",
+  "game": "racing",
+  "title": "Ronovo Downs: Horse Racing",
+  "version": "1.0",
+  "order": 60,
+  "min_bet": 1,
+  "max_bet": 5000,
+  "description": "Eight horses, a 40-race season and stewards who weigh down anyone winning too much.",
+  "settings": {
+    "season_length": 40,
+    "margin": 0.15,
+    "points": [
+      10,
+      5,
+      3,
+      1
+    ],
+    "model": {
+      "spread": 5.0,
+      "aptitude": 4.0,
+      "weight_cost": 0.5
+    },
+    "handicap": {
+      "window": 8,
+      "hot_wins": 2,
+      "penalty_lb": 6,
+      "relief_lb": 1,
+      "max_lb": 30
+    }
+  },
+  "paytable": {}
+}

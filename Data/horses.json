@@ -1,0 +1,10 @@
+[
+  {"key": "midnight_ledger", "name": "Midnight Ledger", "rating": 88, "stamina": 0.2, "mud": -0.3, "style": "stalker", "silks": "#2b2f77"},
+  {"key": "copper_kettle", "name": "Copper Kettle", "rating": 85, "stamina": -0.7, "mud": 0.1, "style": "front", "silks": "#c8692b"},
+  {"key": "gale_warning", "name": "Gale Warning", "rating": 84, "stamina": 0.8, "mud": 0.6, "style": "closer", "silks": "#1f8a8a"},
+  {"key": "ronovos_pride", "name": "Ronovo's Pride", "rating": 82, "stamina": 0.0, "mud": 0.0, "style": "stalker", "silks": "#b3242f"},
+  {"key": "second_breakfast", "name": "Second Breakfast", "rating": 80, "stamina": 0.5, "mud": -0.6, "style": "closer", "silks": "#d9b44a"},
+  {"key": "paper_tiger", "name": "Paper Tiger", "rating": 79, "stamina": -0.9, "mud": -0.8, "style": "front", "silks": "#e58a1f"},
+  {"key": "mudlark", "name": "Mudlark", "rating": 77, "stamina": 0.3, "mud": 1.0, "style": "stalker", "silks": "#6b4a22"},
+  {"key": "slow_clap", "name": "Slow Clap", "rating": 74, "stamina": 1.0, "mud": 0.4, "style": "closer", "silks": "#6d3fb5"}
+]

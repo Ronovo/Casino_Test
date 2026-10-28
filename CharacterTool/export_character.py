@@ -1,37 +1,32 @@
-import os
-from character_helper_methods import export_character_to_json
+"""Export a character to CharacterTool/Character/<name>.json.
 
-# --------------------------------------------------------
-# CONFIGURATION
-# --------------------------------------------------------
-# Name from the database - change this to the character you want to export
-characterName = "Ronovo Ronove"
+Usage (from any folder):  python CharacterTool/export_character.py "Ronovo Ronove"
+"""
+import argparse
+import sys
+from pathlib import Path
 
-# --------------------------------------------------------
-# EXPORT
-# --------------------------------------------------------
-# Get the current working directory and construct the export path
-cwd = os.getcwd()
-character_folder = os.path.join(cwd, "Character")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# Create the Character folder if it doesn't exist
-if not os.path.exists(character_folder):
-    os.makedirs(character_folder)
-    print(f"Created Character folder at: {character_folder}")
+from casino.config import ACHIEVEMENTS_PATH, CHARACTER_EXPORT_DIR, DB_PATH  # noqa: E402
+from casino.engine.db import Database  # noqa: E402
+from casino.transfer import write_export  # noqa: E402
 
-# Construct the full export path
-exportPath = os.path.join(character_folder, f"{characterName}.json")
 
-print(f"Exporting character '{characterName}' to: {exportPath}")
-print("-" * 60)
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Export a character to JSON.")
+    parser.add_argument("name", help="character name as it appears in the game")
+    parser.add_argument("--out", type=Path, default=CHARACTER_EXPORT_DIR, help="folder to write the JSON file to")
+    args = parser.parse_args()
 
-try:
-    export_character_to_json(characterName, exportPath)
-    print("-" * 60)
-    print(f"SUCCESS: Export completed successfully!")
-    print(f"File saved to: {exportPath}")
-except ValueError as e:
-    print(f"ERROR: {e}")
-    print("Please make sure the character name exists in the database.")
-except Exception as e:
-    print(f"ERROR: An unexpected error occurred: {e}")
+    db = Database(DB_PATH)
+    db.initialize(ACHIEVEMENTS_PATH)
+    try:
+        path = write_export(db, args.name, args.out)
+    except ValueError as error:
+        sys.exit(f"ERROR: {error}")
+    print(f"Exported '{args.name}' to {path}")
+
+
+if __name__ == "__main__":
+    main()

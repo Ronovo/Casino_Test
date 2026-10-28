@@ -1,0 +1,23 @@
+{
+  "key": "blackjack_high_roller",
+  "game": "blackjack",
+  "title": "Blackjack: High Roller",
+  "version": "1.0",
+  "order": 11,
+  "min_bet": 100,
+  "max_bet": 50000,
+  "description": "Vegas rules for big stacks: six decks, the dealer hits soft 17, and blackjack pays 3:2.",
+  "settings": {
+    "decks": 6,
+    "dealer_stands_on": 17,
+    "dealer_hits_soft_17": true,
+    "allow_double": true,
+    "double_after_split": true,
+    "allow_split": true,
+    "allow_surrender": true
+  },
+  "paytable": {
+    "win": 1,
+    "natural": 1.5
+  }
+}

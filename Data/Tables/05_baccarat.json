@@ -1,0 +1,21 @@
+{
+  "key": "ez_baccarat",
+  "game": "baccarat",
+  "title": "EZ Baccarat",
+  "version": "1.0",
+  "order": 30,
+  "min_bet": 1,
+  "max_bet": 10000,
+  "description": "Commission-free baccarat with Dragon 7 and Panda 8 bonus bets.",
+  "settings": {
+    "decks": 8,
+    "banker_push_on_dragon7": true
+  },
+  "paytable": {
+    "player": 1,
+    "banker": 1,
+    "tie": 8,
+    "dragon7": 40,
+    "panda8": 25
+  }
+}

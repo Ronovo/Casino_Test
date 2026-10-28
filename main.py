@@ -1,68 +1,35 @@
-import formatter
-from Games import blackjack, poker, gtn, baccarat
-from DAL import character_maintenance as cm, money_maintenance as mm
-from Database import create_database_structure as dbcreate
-from Database import load_helper_methods as fillTables
+"""Ronovo's Casino. Run with: python main.py"""
+import argparse
+import sys
 
-#Initialize Database
-dbcreate.init_db()
-
-fillTables.loadDatabaseJson()
-
-#Run the character menu
-characterName = cm.load_characters_at_start()
-
-while 1 > 0:
-    formatter.clear()
-    formatter.drawMenuTopper("Welcome to Ronovo's Casino v1.8")
-    print("Main Menu")
-    formatter.drawMenuLine()
-    print("1.) Blackjack v2.2 (Double Down Update)")
-    print("2.) Texas Hold'em Poker V2.0 (Chips Update)")
-    print("3.) Guess the Number - V1.0 (Difficulty Update)")
-    print("4.) Baccarat - V0.0")
-    print("5.) Horse Racing - COMING SOON")
-    print("6.) Roulette - COMING SOON")
-    print("7.) Day Trading - COMING SOON")
-    print("8.) Display Character Information")
-    print("9.) Chips Exchange")
-    print("10.) Quit")
-    menuInput = input(formatter.getInputText("Choice"))
-    if menuInput.isnumeric():
-        formatter.clear()
-        if 0 > int(menuInput) >= 10:
-            input(formatter.getInputText("Wrong Number"))
-        match menuInput:
-            case "1":
-                flag = blackjack.blackjackStart(characterName)
-                if flag == "GAME_OVER":
-                    print("You have no chips left. Game Over!")
-                    input(formatter.getInputText("Enter"))
-                    quit()
-            case "2":
-                poker.pokerStart(characterName)
-            case "3":
-                gtn.gtnStart(characterName)
-            case "4":
-                baccarat.baccaratStart(characterName)
-            case "5":
-                print("Horse Racing - COMING SOON")
-                input(formatter.getInputText("Enter"))
-            case "6":
-                print("Roulette - COMING SOON")
-                input(formatter.getInputText("Enter"))
-            case "7":
-                print("Shooting Range Bets - COMING SOON")
-                input(formatter.getInputText("Enter"))
-            case "8":
-                cm.display_character(characterName, True)
-            case "9":
-                mm.exhangeChips(characterName)
-            case "10":
-                quit()
-            case _:
-                input(formatter.getInputText("NonNumber"))
-    else:
-        input(formatter.getInputText("NonNumber"))
+from casino.accounts import AccountError, Accounts
+from casino.config import ACHIEVEMENTS_PATH, DB_PATH, TABLES_DIR
+from casino.engine.db import Database
+from casino.games import load_games
+from casino.web.server import CasinoApp, serve
 
 
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the casino web server.")
+    parser.add_argument("--host", default="0.0.0.0",
+                        help="address to listen on; 127.0.0.1 keeps the casino private to this computer")
+    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--verbose", action="store_true", help="log every request")
+    parser.add_argument("--claim", nargs=2, metavar=("CHARACTER", "USERNAME"),
+                        help="give a character saved before accounts existed to a registered user, then exit")
+    args = parser.parse_args()
+
+    db = Database(DB_PATH)
+    db.initialize(ACHIEVEMENTS_PATH)
+    if args.claim:
+        try:
+            character = Accounts(db).claim_character(*args.claim)
+        except AccountError as error:
+            sys.exit(f"ERROR: {error}")
+        print(f"'{character.name}' now belongs to {args.claim[1]}.")
+        return
+    serve(CasinoApp(db, load_games(TABLES_DIR)), args.host, args.port, args.verbose)
+
+
+if __name__ == "__main__":
+    main()

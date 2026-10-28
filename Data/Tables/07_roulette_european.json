@@ -1,0 +1,21 @@
+{
+  "key": "roulette_european",
+  "game": "roulette",
+  "title": "Roulette: European",
+  "version": "1.0",
+  "order": 50,
+  "min_bet": 1,
+  "max_bet": 5000,
+  "description": "A single-zero wheel with the best odds in the house.",
+  "settings": {
+    "wheel": "european"
+  },
+  "paytable": {
+    "straight": 35,
+    "red_black": 1,
+    "odd_even": 1,
+    "low_high": 1,
+    "dozen": 2,
+    "column": 2
+  }
+}
