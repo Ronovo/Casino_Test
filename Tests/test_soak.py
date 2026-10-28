@@ -11,6 +11,10 @@ from casino.engine.cards import Shoe
 from casino.web.floor import Floor
 from casino.web.server import CasinoApp
 from Tests.helpers import DatabaseTestCase
+from casino.security_questions import QUESTIONS
+
+SECURITY = (QUESTIONS[0], "rex")
+SECURITY_BODY = {"question": QUESTIONS[0], "answer": "rex"}
 
 GAMES = {game.table.key: game for game in load_games(TABLES_DIR)}
 
@@ -177,7 +181,7 @@ class HostileInputTests(DatabaseTestCase):
         super().setUp()
         self.games = load_games(TABLES_DIR)
         self.app = CasinoApp(self.db, self.games, Floor(self.db, self.games, rng_factory=lambda: random.Random(3)))
-        self.token = self.app.dispatch("POST", "register", {"username": "Fuzzer", "password": "hunter22"}, None).token
+        self.token = self.app.dispatch("POST", "register", {"username": "Fuzzer", "password": "hunter22", **SECURITY_BODY}, None).token
         self.app.dispatch("POST", "characters", {"name": "Fuzzer", "difficulty": "Medium"}, self.token)
         self.wallet = self.app.floor.seat(self.db.get_character("Fuzzer")).session.wallet
 

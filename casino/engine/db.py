@@ -103,6 +103,14 @@ LEGACY_STATS = (("Blackjack", "blackjack_id", "blackjack"), ("Poker", "poker_id"
 STAT_FIELDS = ("wins", "losses", "pushes", "net_credits", "biggest_win")
 # Expired logins are swept once they are this many seconds older than a newly issued one.
 LOGIN_PURGE_MARGIN = 60 * 60 * 24 * 60
+# Users columns added after the first release, so they are created on older databases as well
+USER_COLUMNS = {
+    "ronovo_sub": "TEXT",
+    "security_question": "TEXT",
+    "security_answer_hash": "TEXT",
+    "reset_failures": "INTEGER NOT NULL DEFAULT 0",
+    "reset_locked_until": "REAL NOT NULL DEFAULT 0",
+}
 
 
 class DuplicateCharacter(ValueError):
@@ -169,6 +177,11 @@ class Database:
                 self._migrate_legacy_stats(conn)
             if "user_id" not in {row[1] for row in conn.execute("PRAGMA table_info(Characters)")}:
                 conn.execute("ALTER TABLE Characters ADD COLUMN user_id INTEGER REFERENCES Users (id)")
+            user_columns = {row[1] for row in conn.execute("PRAGMA table_info(Users)")}
+            for column, kind in USER_COLUMNS.items():
+                if column not in user_columns:
+                    conn.execute(f"ALTER TABLE Users ADD COLUMN {column} {kind}")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_ronovo_sub ON Users (ronovo_sub)")
             conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         if achievements_path:
             self.sync_achievements(achievements_path)
@@ -203,11 +216,11 @@ class Database:
                         )
 
     # ------------------------------------------------------------------ accounts
-    def create_user(self, username: str, password_hash: str) -> User:
+    def create_user(self, username: str, password_hash: str, ronovo_sub: str | None = None) -> User:
         with self.connect() as conn:
             try:
-                cursor = conn.execute("INSERT INTO Users (username, password_hash) VALUES (?, ?)",
-                                      (username, password_hash))
+                cursor = conn.execute("INSERT INTO Users (username, password_hash, ronovo_sub) VALUES (?, ?, ?)",
+                                      (username, password_hash, ronovo_sub))
             except sqlite3.IntegrityError:
                 raise DuplicateUser(username) from None
         return User(cursor.lastrowid, username, password_hash)
@@ -216,6 +229,12 @@ class Database:
         with self.connect() as conn:
             row = conn.execute("SELECT id, username, password_hash FROM Users WHERE username = ?",
                                (username,)).fetchone()
+        return User(*row) if row else None
+
+    def get_ronovo_user(self, sub: str) -> User | None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT id, username, password_hash FROM Users WHERE ronovo_sub = ?",
+                               (sub,)).fetchone()
         return User(*row) if row else None
 
     def add_login(self, token_hash: str, user_id: int, expires_at: int) -> None:
@@ -242,6 +261,37 @@ class Database:
     def delete_login(self, token_hash: str) -> None:
         with self.connect() as conn:
             conn.execute("DELETE FROM Logins WHERE token_hash = ?", (token_hash,))
+
+    # ------------------------------------------------------------------ security questions
+    def has_security_question(self, user_id: int) -> bool:
+        with self.connect() as conn:
+            row = conn.execute("SELECT security_answer_hash FROM Users WHERE id = ?", (user_id,)).fetchone()
+        return bool(row and row[0])
+
+    def set_security_question(self, user_id: int, question: str, answer_hash: str) -> None:
+        with self.connect() as conn:
+            conn.execute("UPDATE Users SET security_question = ?, security_answer_hash = ? WHERE id = ?",
+                         (question, answer_hash, user_id))
+
+    def get_reset(self, username: str) -> tuple[int, str, str, int, float] | None:
+        """Id, security question, answer hash, wrong answers so far and lock time of an account that has a question."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """SELECT id, security_question, security_answer_hash, reset_failures, reset_locked_until
+                   FROM Users WHERE username = ? AND security_answer_hash IS NOT NULL""", (username,)).fetchone()
+        return tuple(row) if row else None
+
+    def set_reset_failures(self, user_id: int, failures: int, locked_until: float) -> None:
+        with self.connect() as conn:
+            conn.execute("UPDATE Users SET reset_failures = ?, reset_locked_until = ? WHERE id = ?",
+                         (failures, locked_until, user_id))
+
+    def reset_password(self, user_id: int, password_hash: str) -> None:
+        """Set a new password and log the account out everywhere."""
+        with self.connect() as conn:
+            conn.execute("UPDATE Users SET password_hash = ?, reset_failures = 0, reset_locked_until = 0 WHERE id = ?",
+                         (password_hash, user_id))
+            conn.execute("DELETE FROM Logins WHERE user_id = ?", (user_id,))
 
     # ------------------------------------------------------------------ characters
     @staticmethod

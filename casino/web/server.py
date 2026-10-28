@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import socket
 import traceback
 from dataclasses import dataclass
@@ -9,8 +10,10 @@ from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import parse_qs
 
-from casino import APP_NAME, APP_VERSION
+from casino import APP_NAME, APP_VERSION, ronovo_sso
+from casino.security_questions import QUESTIONS
 from casino.accounts import LOGIN_LIFETIME, AccountError, Accounts
 from casino.config import DIFFICULTIES
 from casino.engine.chips import CHIP_VALUES
@@ -22,6 +25,8 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 MIME_TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
               ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".ico": "image/x-icon"}
 COOKIE_NAME = "casino_login"
+SSO_STATE_COOKIE = "casino_sso_state"
+SSO_STATE_SECONDS = 600
 MAX_BODY_BYTES = 64 * 1024
 MAX_DRAIN_BYTES = 1024 * 1024
 CONTENT_SECURITY_POLICY = "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
@@ -71,9 +76,19 @@ class CasinoApp:
             return Reply(self._session_view(*login) if login else self._session_view(None, None))
         if route in (("POST", "register"), ("POST", "login")):
             if route[1] == "register":
-                self.accounts.register(data.get("username"), data.get("password"))
+                self.accounts.register(data.get("username"), data.get("password"), data.get("question"),
+                                       data.get("answer"))
             new_token = self.accounts.login(data.get("username"), data.get("password"))
-            return Reply(self._session_view(*self.accounts.resolve(new_token)), token=new_token)
+            user, character = self.accounts.resolve(new_token)
+            view = self._session_view(user, character)
+            # Accounts made before security questions are asked to set one straight after logging in.
+            view["needs_security_question"] = not self.accounts.has_security_question(user)
+            return Reply(view, token=new_token)
+        if route == ("POST", "reset-question"):
+            return Reply({"question": self.accounts.security_question(data.get("username"))})
+        if route == ("POST", "reset-password"):
+            self.accounts.reset_password(data.get("username"), data.get("answer"), data.get("password"))
+            return Reply({"reset": True})
         if route == ("POST", "logout"):
             if token:
                 self.accounts.logout(token)
@@ -82,6 +97,9 @@ class CasinoApp:
         if login is None:
             raise ApiError(401, "Log in to play.")
         user, character = login
+        if route == ("POST", "security-question"):
+            self.accounts.set_security_question(user, data.get("question"), data.get("answer"))
+            return Reply(self._session_view(user, character))
         if route == ("POST", "characters"):
             created = self.accounts.create_character(user, data.get("name"), data.get("difficulty"))
             self.accounts.select_character(token, user, created.id)
@@ -115,8 +133,27 @@ class CasinoApp:
             traceback.print_exc()
             return Reply({"error": "Something went wrong at the table."}, 500)
 
+    # ------------------------------------------------------------------ Ronovo login
+    def ronovo_authorize_url(self, host: str) -> tuple[str, str]:
+        """Where to send the browser to log in with Ronovo, and the state to hold in its cookie meanwhile."""
+        if not ronovo_sso.enabled():
+            raise ApiError(404, "Not found.")
+        state = ronovo_sso.new_state()
+        return ronovo_sso.authorize_url("casino", f"http://{host}/sso/callback", state), state
+
+    def ronovo_callback(self, form: dict[str, str], expected_state: str | None) -> str:
+        """A login token for the casino account tied to the Ronovo account. Raises ApiError for a bad callback."""
+        state = form.get("state", "")
+        if not expected_state or not secrets.compare_digest(expected_state, state):
+            raise ApiError(400, "Invalid Ronovo login.")
+        account = ronovo_sso.verify(form.get("token", ""), "casino")
+        if account is None:
+            raise ApiError(400, "Invalid Ronovo login.")
+        return self.accounts.issue_token(self.accounts.ronovo_user(account["sub"], account["username"]))
+
     def _session_view(self, user: User | None, character: Character | None) -> dict[str, Any]:
         view: dict[str, Any] = {"app": APP_NAME, "version": APP_VERSION, "user": None, "characters": [],
+                                "ronovo": ronovo_sso.enabled(), "questions": QUESTIONS,
                                 "character": None, "chip_values": CHIP_VALUES,
                                 "difficulties": [{"key": key, "label": label}
                                                  for key, (label, _) in DIFFICULTIES.items()]}
@@ -147,18 +184,24 @@ def parse_json_body(content_type: str, body: bytes) -> Any:
         raise ApiError(400, "Malformed JSON.") from None
 
 
-def login_token(cookie_header: str) -> str | None:
+def read_cookie(cookie_header: str, name: str) -> str | None:
     try:
         cookie = SimpleCookie(cookie_header)
     except CookieError:
         return None
-    return cookie[COOKIE_NAME].value if COOKIE_NAME in cookie else None
+    return cookie[name].value if name in cookie else None
 
 
 def login_cookie(token: str) -> str:
     """Set-Cookie value storing a login token, or clearing it when `token` is ""."""
     age = LOGIN_LIFETIME if token else 0
     return f"{COOKIE_NAME}={token}; Path=/; Max-Age={age}; HttpOnly; SameSite=Strict"
+
+
+def state_cookie(state: str) -> str:
+    """Set-Cookie value holding a Ronovo login's state until its callback, or clearing it when `state` is ""."""
+    age = SSO_STATE_SECONDS if state else 0
+    return f"{SSO_STATE_COOKIE}={state}; Path=/sso; Max-Age={age}; HttpOnly; SameSite=Lax"
 
 
 class CasinoHandler(BaseHTTPRequestHandler):
@@ -169,6 +212,8 @@ class CasinoHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path.split("?")[0].startswith("/api/"):
             self._api({})
+        elif self.path.split("?")[0] == "/sso/login":
+            self._sso_login()
         else:
             self._static()
 
@@ -183,6 +228,8 @@ class CasinoHandler(BaseHTTPRequestHandler):
         # The body is read even for requests about to be refused: closing a socket with unread data resets
         # the connection, and the client would see that instead of the error message.
         body = self.rfile.read(length)
+        if self.path == "/sso/callback":
+            return self._sso_callback(body)
         if not self.path.startswith("/api/"):
             return self._json({"error": "Not found."}, 404)
         try:
@@ -202,8 +249,34 @@ class CasinoHandler(BaseHTTPRequestHandler):
 
     def _api(self, data: Any) -> None:
         path = self.path.split("?")[0][len("/api/"):]
-        reply = self.app.answer(self.command, path, data, login_token(self.headers.get("Cookie", "")))
+        reply = self.app.answer(self.command, path, data, read_cookie(self.headers.get("Cookie", ""), COOKIE_NAME))
         self._json(reply.body, reply.status, None if reply.token is None else login_cookie(reply.token))
+
+    def _sso_login(self) -> None:
+        try:
+            location, state = self.app.ronovo_authorize_url(self.headers.get("Host", ""))
+        except ApiError as error:
+            return self._json({"error": error.message}, error.status)
+        self._redirect(location, [state_cookie(state)])
+
+    def _sso_callback(self, body: bytes) -> None:
+        form = {key: values[0] for key, values in parse_qs(body.decode("utf-8", "replace")).items()}
+        expected = read_cookie(self.headers.get("Cookie", ""), SSO_STATE_COOKIE)
+        try:
+            token = self.app.ronovo_callback(form, expected)
+        except ApiError as error:
+            return self._json({"error": error.message}, error.status)
+        self._redirect("/", [state_cookie(""), login_cookie(token)])
+
+    def _redirect(self, location: str, cookies: list[str]) -> None:
+        self.send_response(303)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        for cookie in cookies:
+            self.send_header("Set-Cookie", cookie)
+        for name, value in COMMON_HEADERS.items():
+            self.send_header(name, value)
+        self.end_headers()
 
     def _json(self, body: dict[str, Any], status: int = 200, cookie: str | None = None, close: bool = False) -> None:
         headers = dict(JSON_HEADERS)

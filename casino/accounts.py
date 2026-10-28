@@ -8,6 +8,7 @@ import secrets
 import threading
 import time
 
+from casino import security_questions
 from casino.config import DIFFICULTIES, load_starting_chips
 from casino.engine.db import Character, Database, DuplicateCharacter, DuplicateUser, User
 
@@ -49,17 +50,22 @@ class Accounts:
         self.db = db
         self._failures: dict[str, tuple[int, float]] = {}
         self._lock = threading.Lock()
+        # The casino keeps no secret key, so a username with no account shows the same stand-in question
+        # until the server restarts.
+        self._stand_in_key = secrets.token_bytes(32)
 
     # ------------------------------------------------------------------ sign up and login
-    def register(self, username: object, password: object) -> User:
+    def register(self, username: object, password: object, question: object, answer: object) -> User:
         if not isinstance(username, str) or not USERNAME_PATTERN.fullmatch(username):
             raise AccountError("Usernames are 3 to 20 letters, digits, dashes or underscores.")
-        if not isinstance(password, str) or not MIN_PASSWORD <= len(password) <= MAX_PASSWORD:
-            raise AccountError(f"Passwords are {MIN_PASSWORD} to {MAX_PASSWORD} characters long.")
+        _check_password(password)
+        _check_security_answer(question, answer)
         try:
-            return self.db.create_user(username, hash_password(password))
+            user = self.db.create_user(username, hash_password(password))
         except DuplicateUser:
             raise AccountError("That username is already taken.") from None
+        self.set_security_question(user, question, answer)
+        return user
 
     def login(self, username: object, password: object) -> str:
         """Check a password and return a new login token."""
@@ -90,6 +96,54 @@ class Accounts:
 
     def logout(self, token: str) -> None:
         self.db.delete_login(_token_hash(token))
+
+    # ------------------------------------------------------------------ security questions and resets
+    def has_security_question(self, user: User) -> bool:
+        return self.db.has_security_question(user.id)
+
+    def set_security_question(self, user: User, question: object, answer: object) -> None:
+        _check_security_answer(question, answer)
+        self.db.set_security_question(user.id, question, hash_password(security_questions.normalize_answer(answer)))
+
+    def security_question(self, username: object) -> str:
+        if not isinstance(username, str) or not username.strip():
+            raise AccountError("Enter your username.")
+        found = self.db.get_reset(username.strip())
+        return found[1] if found else security_questions.stand_in_question(username.strip(), self._stand_in_key)
+
+    def reset_password(self, username: object, answer: object, password: object) -> None:
+        """Set a new password when the security answer is right. Too many wrong answers lock resets for a while."""
+        _check_password(password)
+        found = self.db.get_reset(username.strip()) if isinstance(username, str) else None
+        if found is None:
+            hash_password("")
+            raise AccountError("That answer is wrong.")
+        user_id, _, answer_hash, failures, locked_until = found
+        if time.time() < locked_until:
+            raise AccountError("Too many wrong answers. Try again in 15 minutes.")
+        if not verify_password(security_questions.normalize_answer(answer), answer_hash):
+            failures += 1
+            locked = failures >= security_questions.MAX_RESET_FAILURES
+            self.db.set_reset_failures(user_id, 0 if locked else failures,
+                                       time.time() + security_questions.RESET_LOCK_SECONDS if locked else 0)
+            raise AccountError("That answer is wrong.")
+        self.db.reset_password(user_id, hash_password(password))
+
+    def ronovo_user(self, sub: str, username: str) -> User:
+        """The account tied to a Ronovo account, created on its first login and named after it. Its password is
+        random and never shown, so logging in with Ronovo is the only way in."""
+        user = self.db.get_ronovo_user(sub)
+        base = username if USERNAME_PATTERN.fullmatch(username) else "player"
+        n = 1
+        while user is None:
+            name = base if n == 1 else f"{base[:20 - len(str(n))]}{n}"
+            try:
+                user = self.db.create_user(name, hash_password(secrets.token_urlsafe(32)), sub)
+            except DuplicateUser:
+                # Either the name is taken, or a second login for this Ronovo account got there first.
+                user = self.db.get_ronovo_user(sub)
+                n += 1
+        return user
 
     def resolve(self, token: str | None) -> tuple[User, Character | None] | None:
         """The account a token belongs to and the character it has sat down as."""
@@ -141,3 +195,14 @@ class Accounts:
             raise AccountError(f"'{character_name}' already belongs to another account.")
         self.db.set_character_owner(character.id, user.id)
         return character
+
+
+def _check_password(password: object) -> None:
+    if not isinstance(password, str) or not MIN_PASSWORD <= len(password) <= MAX_PASSWORD:
+        raise AccountError(f"Passwords are {MIN_PASSWORD} to {MAX_PASSWORD} characters long.")
+
+
+def _check_security_answer(question: object, answer: object) -> None:
+    problem = security_questions.problem(question, answer) if isinstance(answer, str) else "Answer your security question."
+    if problem:
+        raise AccountError(problem)

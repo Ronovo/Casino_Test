@@ -36,8 +36,15 @@ python main.py --verbose            # log every request
 ```
 
 ## Accounts and Characters
-- Each player creates an account (username and password) on the login page. Passwords are stored as salted
-  PBKDF2 hashes, and a login lasts 30 days per browser.
+- Each player creates an account (username and password) on the login page, and picks a security question.
+  Passwords and answers are stored as salted PBKDF2 hashes, and a login lasts 30 days per browser.
+- **Forgot password?** resets the password with the security answer and logs the account out everywhere. Five
+  wrong answers lock resets for 15 minutes. Accounts from before security questions pick one at their next login.
+- With `RONOVO_SSO_URL` (the portfolio's address, such as `http://ronovo.lan`) and `RONOVO_SSO_PUBLIC_KEY`
+  (printed by the portfolio's `python sso.py`) set, the login page offers **Log in with Ronovo**. The first Ronovo
+  login creates a casino account named after the Ronovo username, with a number added if that name is taken, and
+  every later Ronovo login from any device uses the same one. That account has no password of its own, so
+  Ronovo is the only way into it. Without those two settings the app runs on its own.
 - An account holds up to 8 characters. Each character has its own chips, record, achievements and racing season.
 - Characters saved before accounts existed belong to nobody. Register an account, then hand one over:
   `python main.py --claim "Ronovo Ronove" your_username`

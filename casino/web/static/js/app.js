@@ -131,15 +131,33 @@ async function route() {
 }
 
 // ------------------------------------------------------------------ accounts
-function authScreen(mode = 'login') {
+function securityFields() {
+  const question = h('select', null, h('option', { value: '' }, 'Pick a question'),
+    state.session.questions.map((q) => h('option', { value: q }, q)));
+  const answer = h('input', { maxLength: 100, autocomplete: 'off' });
+  const fields = [
+    h('div', { class: 'field' }, h('label', null, 'Security question'), question),
+    h('div', { class: 'field' }, h('label', null, 'Answer'), answer),
+    h('p', { class: 'muted', style: { fontSize: '12px', marginBottom: '12px' } },
+      'You need this answer to reset your password.'),
+  ];
+  return { question, answer, fields };
+}
+
+function authScreen(mode = 'login', notice = '') {
   const username = h('input', { autocomplete: 'username', maxLength: 20 });
   const password = h('input', { type: 'password', autocomplete: mode === 'login' ? 'current-password' : 'new-password' });
+  const security = securityFields();
   const error = h('div', { class: 'error-text' });
   const submit = async (event) => {
     event.preventDefault();
     try {
-      state.session = await api.post(mode, { username: username.value.trim(), password: password.value });
-      go('#/lobby');
+      state.session = await api.post(mode, {
+        username: username.value.trim(), password: password.value,
+        question: security.question.value, answer: security.answer.value,
+      });
+      if (state.session.needs_security_question) securityScreen();
+      else go('#/lobby');
     } catch (problem) {
       error.textContent = problem.message;
     }
@@ -149,6 +167,11 @@ function authScreen(mode = 'login') {
       h('div', { class: 'suits' }, '♠', h('span', { class: 'red' }, '♥'), '♣', h('span', { class: 'red' }, '♦')),
       h('h1', null, state.session.app),
       h('p', { class: 'muted' }, 'Blackjack · Hold\'em · Baccarat · Roulette · Racing')),
+    notice && h('p', { class: 'muted', style: { textAlign: 'center' } }, notice),
+    state.session.ronovo && h('button', {
+      class: 'primary', type: 'button', style: { width: '100%', marginBottom: '12px' },
+      onclick: () => { location.href = '/sso/login'; },
+    }, 'Log in with Ronovo'),
     h('form', { class: 'panel', onsubmit: submit },
       h('div', { class: 'tabs' },
         h('button', { type: 'button', class: mode === 'login' ? 'on' : '', onclick: () => authScreen('login') }, 'Log in'),
@@ -158,10 +181,75 @@ function authScreen(mode = 'login') {
       h('div', { class: 'field' }, h('label', null, 'Password'), password),
       mode === 'register' && h('p', { class: 'muted', style: { fontSize: '12px', marginBottom: '12px' } },
         '3 to 20 letters, digits, dashes or underscores. Passwords need at least 6 characters.'),
-      h('button', { class: 'primary', type: 'submit', style: { width: '100%' } },
+      mode === 'register' && security.fields,
+      h('button', { class: state.session.ronovo ? '' : 'primary', type: 'submit', style: { width: '100%' } },
         mode === 'login' ? 'Log in' : 'Create account'),
+      mode === 'login' && h('button', { type: 'button', class: 'link', style: { marginTop: '8px' }, onclick: resetScreen },
+        'Forgot password?'),
       error)));
   username.focus();
+}
+
+// Two steps: the username brings up its security question, then the answer and a new password change it.
+function resetScreen() {
+  const username = h('input', { autocomplete: 'username', maxLength: 20 });
+  const answer = h('input', { maxLength: 100, autocomplete: 'off' });
+  const password = h('input', { type: 'password', autocomplete: 'new-password' });
+  const question = h('p', null);
+  const second = h('div', { hidden: true },
+    question,
+    h('div', { class: 'field' }, h('label', null, 'Answer'), answer),
+    h('div', { class: 'field' }, h('label', null, 'New password'), password));
+  const button = h('button', { class: 'primary', type: 'submit', style: { width: '100%' } }, 'Next');
+  const error = h('div', { class: 'error-text' });
+  const submit = async (event) => {
+    event.preventDefault();
+    error.textContent = '';
+    try {
+      if (second.hidden) {
+        question.textContent = (await api.post('reset-question', { username: username.value.trim() })).question;
+        username.readOnly = true;
+        second.hidden = false;
+        button.textContent = 'Reset password';
+        answer.focus();
+        return;
+      }
+      await api.post('reset-password', { username: username.value.trim(), answer: answer.value, password: password.value });
+      authScreen('login', 'Password changed. Log in with your new password.');
+    } catch (problem) {
+      error.textContent = problem.message;
+    }
+  };
+  add(clear(screen), h('div', { class: 'narrow' },
+    h('form', { class: 'panel', onsubmit: submit },
+      h('h2', null, 'Reset password'),
+      h('div', { class: 'field' }, h('label', null, 'Username'), username),
+      second,
+      button,
+      h('button', { type: 'button', class: 'link', style: { marginTop: '8px' }, onclick: () => authScreen('login') }, 'Back'),
+      error)));
+  username.focus();
+}
+
+// Accounts made before security questions set one straight after logging in.
+function securityScreen() {
+  const security = securityFields();
+  const error = h('div', { class: 'error-text' });
+  const submit = async (event) => {
+    event.preventDefault();
+    try {
+      state.session = await api.post('security-question', { question: security.question.value, answer: security.answer.value });
+      go('#/lobby');
+    } catch (problem) {
+      error.textContent = problem.message;
+    }
+  };
+  add(clear(screen), h('div', { class: 'narrow' },
+    h('form', { class: 'panel', onsubmit: submit },
+      h('h2', null, 'Pick a security question'),
+      security.fields,
+      h('button', { class: 'primary', type: 'submit', style: { width: '100%' } }, 'Save'),
+      error)));
 }
 
 function charactersScreen() {

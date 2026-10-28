@@ -15,6 +15,10 @@ from casino.games import load_games
 from casino.web.floor import Floor
 from casino.web.server import CasinoApp, make_server
 from Tests.helpers import DatabaseTestCase
+from casino.security_questions import QUESTIONS
+
+SECURITY = (QUESTIONS[0], "rex")
+SECURITY_BODY = {"question": QUESTIONS[0], "answer": "rex"}
 
 
 class CashierTests(DatabaseTestCase):
@@ -50,7 +54,7 @@ class AccountTests(DatabaseTestCase):
         self.assertFalse(verify_password("hunter22", "not a hash"))
 
     def test_register_login_and_logout(self):
-        self.accounts.register("Ronovo", "hunter22")
+        self.accounts.register("Ronovo", "hunter22", *SECURITY)
         token = self.accounts.login("ronovo", "hunter22")
         user, character = self.accounts.resolve(token)
         self.assertEqual(user.username, "Ronovo")
@@ -61,15 +65,15 @@ class AccountTests(DatabaseTestCase):
         self.assertIsNone(self.accounts.resolve(None))
 
     def test_registration_rules(self):
-        self.accounts.register("Ronovo", "hunter22")
+        self.accounts.register("Ronovo", "hunter22", *SECURITY)
         for username, password in (("RONOVO", "hunter22"), ("ab", "hunter22"), ("bad name", "hunter22"),
                                    ("<script>", "hunter22"), ("Fine_Name", "short"), ("Fine_Name", "x" * 129),
                                    (None, "hunter22"), ("Fine_Name", None), (["a"], {"b": 1})):
             with self.subTest(username=username), self.assertRaises(AccountError):
-                self.accounts.register(username, password)
+                self.accounts.register(username, password, *SECURITY)
 
     def test_wrong_passwords_lock_the_account_for_a_while(self):
-        self.accounts.register("Ronovo", "hunter22")
+        self.accounts.register("Ronovo", "hunter22", *SECURITY)
         for _ in range(5):
             with self.assertRaisesRegex(AccountError, "Wrong username or password"):
                 self.accounts.login("Ronovo", "nope")
@@ -81,8 +85,8 @@ class AccountTests(DatabaseTestCase):
             self.accounts.login("Nobody", "")
 
     def test_characters_belong_to_their_account(self):
-        owner = self.accounts.register("Ronovo", "hunter22")
-        other = self.accounts.register("Rival", "hunter22")
+        owner = self.accounts.register("Ronovo", "hunter22", *SECURITY)
+        other = self.accounts.register("Rival", "hunter22", *SECURITY)
         token, other_token = self.accounts.login("Ronovo", "hunter22"), self.accounts.login("Rival", "hunter22")
         character = self.accounts.create_character(owner, "  High   Roller ", "Hard")
         self.assertEqual(character.name, "High Roller")
@@ -96,7 +100,7 @@ class AccountTests(DatabaseTestCase):
         self.assertEqual(self.db.list_characters(other.id), [])
 
     def test_character_creation_rules(self):
-        user = self.accounts.register("Ronovo", "hunter22")
+        user = self.accounts.register("Ronovo", "hunter22", *SECURITY)
         for name, difficulty in (("", "Easy"), ("   ", "Easy"), ("x" * 31, "Easy"), ("Fine", "Impossible"),
                                  (None, "Easy"), ("Fine", None), (5, ["Easy"])):
             with self.subTest(name=name, difficulty=difficulty), self.assertRaises(AccountError):
@@ -106,8 +110,8 @@ class AccountTests(DatabaseTestCase):
         legacy = self.db.create_character("Old Timer", "Hard", Chips(White=5))
         with self.assertRaisesRegex(AccountError, "No account named"):
             self.accounts.claim_character("Old Timer", "Ronovo")
-        owner = self.accounts.register("Ronovo", "hunter22")
-        self.accounts.register("Rival", "hunter22")
+        owner = self.accounts.register("Ronovo", "hunter22", *SECURITY)
+        self.accounts.register("Rival", "hunter22", *SECURITY)
         self.accounts.claim_character("Old Timer", "Ronovo")
         self.assertEqual([c.id for c in self.db.list_characters(owner.id)], [legacy.id])
         with self.assertRaisesRegex(AccountError, "another account"):
@@ -124,7 +128,7 @@ class AppTestCase(DatabaseTestCase):
         self.token = self.signup("Ronovo", "Ronovo Ronove", "Medium")
 
     def signup(self, username, character, difficulty):
-        token = self.app.dispatch("POST", "register", {"username": username, "password": "hunter22"}, None).token
+        token = self.app.dispatch("POST", "register", {"username": username, "password": "hunter22", **SECURITY_BODY}, None).token
         reply = self.app.dispatch("POST", "characters", {"name": character, "difficulty": difficulty}, token)
         self.assertEqual(reply.status, 200, reply.body)
         return token
