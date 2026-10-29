@@ -5,6 +5,7 @@ import threading
 import urllib.error
 import urllib.request
 from http.cookiejar import CookieJar
+from unittest import mock
 
 from casino.accounts import AccountError, Accounts, hash_password, verify_password
 from casino.cashier import break_chips, color_up
@@ -13,7 +14,7 @@ from casino.engine.cards import Shoe
 from casino.engine.chips import Chips
 from casino.games import load_games
 from casino.web.floor import Floor
-from casino.web.server import CasinoApp, make_server
+from casino.web.server import STATIC_DIR, CasinoApp, make_server, static_file
 from Tests.helpers import DatabaseTestCase
 from ronovo_portfolio_auth.security_questions import QUESTIONS
 
@@ -165,6 +166,15 @@ class FloorTests(AppTestCase):
         self.assertEqual(body["player"]["credits"], 1000)
         self.assertFalse(body["player"]["broke"])
 
+    def test_a_round_that_fails_part_way_keeps_the_chips(self):
+        self.stack(["10S", "9C", "6H", "7D", "10C"])
+        failing = mock.patch.object(type(self.db), "set_open_stake", side_effect=RuntimeError("disk full"))
+        with failing, self.assertRaises(RuntimeError):
+            self.app.dispatch("POST", "tables/blackjack_classic/start", {"bets": {"bet": 10}}, self.token)
+        self.assertEqual(self.seat().session.wallet.total, 1000)
+        self.assertEqual(self.db.load_chips(self.seat().session.character.id).total, 1000)
+        self.assertFalse(self.call("GET", "lobby")["tables"][0]["in_progress"])
+
     def test_blackjack_round_over_the_api(self):
         self.stack(["10S", "9C", "6H", "7D", "10C"])
         body = self.call("POST", "tables/blackjack_classic/start", {"bets": {"bet": 10}})
@@ -258,6 +268,39 @@ class FloorTests(AppTestCase):
         self.assertIn("20 cr", body["notices"][0])
         self.assertEqual(CasinoApp(self.db, self.games).dispatch("GET", "lobby", {}, self.token).body["notices"], [])
 
+    def test_a_round_starts_from_the_chips_in_the_database(self):
+        character = self.seat().session.character
+        self.call("GET", "lobby")
+        self.db.save_chips(character.id, Chips.make_change(5000))
+        self.stack(["10S", "9C", "6H", "7D", "10C"])
+        body = self.call("POST", "tables/blackjack_classic/start", {"bets": {"bet": 10}})
+        self.assertEqual(body["player"]["credits"], 4990)
+
+    def test_walking_away_counts_only_before_betting(self):
+        walked = "Best Bet Is To Not Play"
+        self.call("GET", "tables/ultimate_holdem")
+        self.call("POST", "tables/ultimate_holdem/start", {"bets": {"ante": 10}})
+        for action in ("check", "check", "fold"):
+            body = self.call("POST", "tables/ultimate_holdem/act", {"action": action})
+        self.assertTrue(body["round"]["finished"])
+        self.assertNotIn(walked, [a["display_name"] for a in self.call("POST", "tables/ultimate_holdem/leave")["achievements"]])
+
+        self.call("GET", "tables/ultimate_holdem")
+        self.assertIn(walked, [a["display_name"] for a in self.call("POST", "tables/ultimate_holdem/leave")["achievements"]])
+
+    def test_registering_a_name_someone_failed_to_log_in_as_still_logs_in(self):
+        for _ in range(6):
+            self.call("POST", "login", {"username": "Newcomer", "password": "guess"}, token=None, status=400)
+        reply = self.app.dispatch("POST", "register", {"username": "Newcomer", "password": "hunter22", **SECURITY_BODY}, None)
+        self.assertEqual(reply.status, 200, reply.body)
+        self.assertEqual(self.app.accounts.resolve(reply.token)[0].username, "Newcomer")
+
+    def test_logging_in_again_ends_the_browsers_old_login(self):
+        reply = self.app.dispatch("POST", "login", {"username": "Ronovo", "password": "hunter22"}, self.token)
+        self.assertEqual(reply.status, 200, reply.body)
+        self.assertIsNone(self.app.accounts.resolve(self.token))
+        self.assertIsNotNone(self.app.accounts.resolve(reply.token))
+
 
 class HttpTests(AppTestCase):
     def setUp(self):
@@ -315,9 +358,17 @@ class HttpTests(AppTestCase):
         self.assertIn(b"<!DOCTYPE html>", body)
         self.assertIn("Content-Security-Policy", headers)
         self.assertEqual(self.request("/js/app.js")[0], 200)
-        for path in ("/../config.py", "/..%2f..%2fmain.py", "/js/../../server.py", "/nothing.js", "/js"):
+        for path in ("/nothing.js", "/js"):
             with self.subTest(path=path):
                 self.assertEqual(self.request(path)[0], 404)
+
+    def test_files_outside_the_static_folder_are_never_served(self):
+        outside = STATIC_DIR.parent / "outside_static_test.js"
+        outside.write_text("secret", encoding="utf-8")
+        self.addCleanup(outside.unlink)
+        for path in ("/../outside_static_test.js", "/js/../../outside_static_test.js"):
+            with self.subTest(path=path):
+                self.assertIsNone(static_file(path))
 
     def test_malformed_requests(self):
         self.assertEqual(self.request("/api/login", raw=b"{not json")[0], 400)

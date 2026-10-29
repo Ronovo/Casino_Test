@@ -16,7 +16,7 @@ STREETS = ((0, "Pre-Flop", (4, 3)), (3, "The Flop", (2,)), (5, "Turn & River", (
 
 class HoldemRound(Round):
     def __init__(self, game: "UltimateHoldemGame", session: Session, ante: int, trips: int, pairs: int):
-        super().__init__(game, session)
+        super().__init__(game, session, ante * 2 + trips + pairs)
         self.bets = {"ante": Bet("Ante", ante), "blind": Bet("Blind", ante)}
         if trips:
             self.bets["trips"] = Bet("Trips", trips)
@@ -28,10 +28,6 @@ class HoldemRound(Round):
         self.board = [shoe.draw() for _ in range(5)]
         self.street = 0
         self.folded = False
-
-    @property
-    def staked(self) -> int:
-        return sum(bet.amount for bet in self.bets.values())
 
     @property
     def shown(self) -> int:
@@ -60,7 +56,7 @@ class HoldemRound(Round):
             self.folded = True
         else:
             self.bets["play"] = Bet("Play", self.bets["ante"].amount * int(action.removeprefix("play")))
-            self.session.wallet.withdraw(self.bets["play"].amount)
+            self.take(self.bets["play"].amount)
         self._showdown()
 
     def _showdown(self) -> None:
@@ -175,7 +171,6 @@ class UltimateHoldemGame(Game):
         needed = ante * 3 + trips + pairs
         if not session.wallet.can_afford(needed):
             raise BetError(f"Keep chips back for a Play bet: these bets need {fmt_credits(needed)} in your rack.")
-        self.take_stakes(session, ante * 2 + trips + pairs)
         return HoldemRound(self, session, ante, trips, pairs)
 
     def leave(self, session: Session) -> None:

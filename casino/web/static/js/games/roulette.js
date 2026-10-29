@@ -1,5 +1,5 @@
 import { add, credits, h } from '../dom.js';
-import { betBar, betSlip, resultPanel } from '../ui.js';
+import { SLIP_HINT, betBar, betSlip, resultPanel, slipHandlers } from '../ui.js';
 
 const SPIN_MS = 5000;
 const FULL_TURNS = 5;
@@ -59,12 +59,8 @@ function boardEl(ctx, slip, winner) {
     const won = winner != null && key === `straight:${winner}`;
     const el = h('button', {
       class: `cell ${extra} ${won ? 'winner' : ''}`, style, disabled: !playing,
-      title: playing ? 'Click to add a chip, right-click to take one back' : '',
-      onclick: () => slip.add(key),
-      oncontextmenu: (event) => {
-        event.preventDefault();
-        slip.remove(key);
-      },
+      title: playing ? SLIP_HINT : '',
+      ...slipHandlers(slip, key),
     }, label, amount ? h('span', { class: 'marker' }, amount >= 1000 ? `${Math.floor(amount / 100) / 10}K` : amount) : null);
     if (won) el.style.animationDelay = `${SPIN_MS}ms`;
     return el;

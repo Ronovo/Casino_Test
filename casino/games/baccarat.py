@@ -5,7 +5,6 @@ from typing import Any, Mapping
 
 from casino.engine.bets import Bet, BetError, Outcome, Settlement, read_stake, settle
 from casino.engine.cards import cards_view
-from casino.engine.chips import fmt_credits
 from casino.engine.game import Game, Round, pay_rows, pay_section
 from casino.engine.session import Session
 from casino.rules import baccarat as rules
@@ -20,16 +19,12 @@ WINNER_NOTES = {"player": "Player wins!", "banker": "Banker wins!", "tie": "It's
 
 class BaccaratRound(Round):
     def __init__(self, game: "BaccaratGame", session: Session, stakes: dict[str, int]):
-        super().__init__(game, session)
+        super().__init__(game, session, sum(stakes.values()))
         self.stakes = stakes
         shoe = session.new_shoe(int(game.setting("decks", 8)))
         self.coup = rules.play_coup(shoe.draw)
         settlements = [self._settle(key, label) for key, label in BET_TYPES if stakes[key]]
         self.finish(settlements, [*self.coup.log, WINNER_NOTES[self.coup.winner]])
-
-    @property
-    def staked(self) -> int:
-        return sum(self.stakes.values())
 
     def _settle(self, key: str, label: str) -> Settlement:
         coup, session = self.coup, self.session
@@ -102,5 +97,4 @@ class BaccaratGame(Game):
             raise BetError("Place at least one bet first.")
         if (stakes["dragon7"] or stakes["panda8"]) and not (stakes["player"] or stakes["banker"]):
             raise BetError("Bonus bets need a Player or Banker bet too.")
-        self.take_stakes(session, sum(stakes.values()))
         return BaccaratRound(self, session, stakes)

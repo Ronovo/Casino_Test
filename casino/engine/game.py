@@ -49,17 +49,22 @@ def pay_section(title: str | None, rows: Iterable[Iterable[str]]) -> dict[str, A
 class Round(ABC):
     """One round at a table, from the stakes going down to the last bet being settled."""
 
-    def __init__(self, game: "Game", session: Session):
+    def __init__(self, game: "Game", session: Session, stake: int):
         self.game = game
         self.session = session
         self.settlements: list[Settlement] = []
         self.notes: list[str] = []
         self.finished = False
+        # Credits taken from the wallet for this round so far.
+        self.staked = 0
+        self.take(stake)
 
-    @property
-    @abstractmethod
-    def staked(self) -> int:
-        """Credits taken from the wallet for this round so far."""
+    def take(self, amount: int) -> None:
+        """Moves chips from the rack onto the table: the opening bets, or a double, split or Play bet later."""
+        if not self.session.wallet.can_afford(amount):
+            raise BetError("You don't have enough chips to cover that.")
+        self.session.wallet.withdraw(amount)
+        self.staked += amount
 
     @abstractmethod
     def table_view(self) -> dict[str, Any]:
@@ -137,7 +142,7 @@ class Game(ABC):
         return {}
 
     def leave(self, session: Session) -> None:
-        """The player got up from the table without a round in progress."""
+        """The player got up from the table without having bet since sitting down."""
 
     def summary(self) -> dict[str, Any]:
         table = self.table
@@ -147,8 +152,3 @@ class Game(ABC):
 
     def info(self) -> dict[str, Any]:
         return {**self.summary(), "rules": self.rules_pages(), "paytable": self.paytable(), "layout": self.layout()}
-
-    def take_stakes(self, session: Session, total: int) -> None:
-        if not session.wallet.can_afford(total):
-            raise BetError("You don't have enough chips to cover that.")
-        session.wallet.withdraw(total)

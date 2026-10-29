@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from fractions import Fraction
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable, Hashable, Mapping
 
 from casino.engine.chips import fmt_credits
 
@@ -33,11 +33,16 @@ class Bet:
         return self.name if self.selection is None else f"{self.name} ({self.selection})"
 
 
+def is_whole(value: Any) -> bool:
+    """An int from the client's JSON. true and false are ints to Python, so they are refused."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def read_stake(value: Any, label: str, minimum: int = 1, maximum: int | None = None, optional: bool = False) -> int:
     """Validate a stake sent by a client. Optional stakes may be missing or 0, meaning no bet."""
     if optional and value in (None, 0):
         return 0
-    if isinstance(value, bool) or not isinstance(value, int):
+    if not is_whole(value):
         raise BetError(f"{label}: the stake must be a whole number of credits.")
     if value < max(minimum, 1):
         raise BetError(f"{label}: the minimum stake is {fmt_credits(max(minimum, 1))}.")
@@ -51,6 +56,21 @@ def add_stake(bet: Bet, value: Any, minimum: int, maximum: int | None) -> None:
     bet.amount += read_stake(value, bet.label, minimum, maximum)
     if maximum is not None and bet.amount > maximum:
         raise BetError(f"{bet.label}: the maximum stake is {fmt_credits(maximum)}.")
+
+
+def gather_slip(items: Any, read_spot: Callable[[Mapping[str, Any]], tuple[Hashable, str, Any]],
+                minimum: int, maximum: int | None) -> dict[Hashable, Bet]:
+    """Bets sent as a list of objects with an "amount"; stakes on the same spot add up. read_spot turns one object
+    into (spot, bet name, selection), raising BetError for a spot that isn't on the board."""
+    if not isinstance(items, list) or not items:
+        raise BetError("Place at least one bet first.")
+    slip: dict[Hashable, Bet] = {}
+    for item in items:
+        if not isinstance(item, Mapping):
+            raise BetError("That bet isn't on the board.")
+        spot, name, selection = read_spot(item)
+        add_stake(slip.setdefault(spot, Bet(name, 0, selection)), item.get("amount"), minimum, maximum)
+    return slip
 
 
 def format_ratio(ratio: float) -> str:

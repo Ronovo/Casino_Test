@@ -3,23 +3,25 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from casino.engine.bets import Bet, BetError, Outcome, add_stake, settle
+from casino.engine.bets import Bet, BetError, Outcome, gather_slip, settle
 from casino.engine.game import Game, Round, pay_rows, pay_section
 from casino.engine.session import Session
 from casino.rules import roulette as rules
 
-BET_LABELS = {"straight": "Straight up", "red_black": "Red/Black", "odd_even": "Odd/Even",
-              "low_high": "Low/High", "dozen": "Dozen", "column": "Column"}
-PAYTABLE_LABELS = (("straight", "Straight up: a single number"), ("red_black", "Red or Black"),
-                   ("odd_even", "Odd or Even"), ("low_high", "Low (1-18) or High (19-36)"),
-                   ("dozen", "Dozen"), ("column", "Column"))
-SELECTIONS = {"red_black": ("Red", "Black"), "odd_even": ("Odd", "Even"), "low_high": ("Low", "High"),
-              "dozen": (1, 2, 3), "column": (1, 2, 3)}
+# kind: (bet name, paytable line, the selections it takes; a straight bet takes any pocket on the wheel)
+BET_KINDS: dict[str, tuple[str, str, tuple[Any, ...] | None]] = {
+    "straight": ("Straight up", "Straight up: a single number", None),
+    "red_black": ("Red/Black", "Red or Black", ("Red", "Black")),
+    "odd_even": ("Odd/Even", "Odd or Even", ("Odd", "Even")),
+    "low_high": ("Low/High", "Low (1-18) or High (19-36)", ("Low", "High")),
+    "dozen": ("Dozen", "Dozen", (1, 2, 3)),
+    "column": ("Column", "Column", (1, 2, 3)),
+}
 
 
 class RouletteRound(Round):
     def __init__(self, game: "RouletteGame", session: Session, placed: list[tuple[str, Bet]]):
-        super().__init__(game, session)
+        super().__init__(game, session, sum(bet.amount for _, bet in placed))
         self.placed = placed
         self.pocket = session.rng.choice(game.wheel)
         settlements = []
@@ -32,10 +34,6 @@ class RouletteRound(Round):
                 if kind == "straight":
                     session.unlock("Roulette_Zero" if self.pocket in ("0", "00") else "Roulette_Straight")
         self.finish(settlements, [f"The ball lands on {self.pocket} {rules.color_of(self.pocket)}."])
-
-    @property
-    def staked(self) -> int:
-        return sum(bet.amount for _, bet in self.placed)
 
     def table_view(self) -> dict[str, Any]:
         return {"pocket": self.pocket, "color": rules.color_of(self.pocket)}
@@ -59,26 +57,20 @@ class RouletteGame(Game):
 
     def paytable(self) -> list[dict[str, Any]]:
         pay = self.table.paytable
-        return [pay_section(None, pay_rows((label, pay[kind]) for kind, label in PAYTABLE_LABELS))]
+        return [pay_section(None, pay_rows((line, pay[kind]) for kind, (_, line, _) in BET_KINDS.items()))]
 
     def layout(self) -> dict[str, Any]:
         return {"wheel": list(self.wheel), "red": sorted(rules.RED_NUMBERS)}
 
     def start(self, session: Session, data: Mapping[str, Any]) -> RouletteRound:
-        bets = data.get("bets")
-        if not isinstance(bets, list) or not bets:
-            raise BetError("Place at least one bet first.")
-        placed: dict[tuple[str, Any], Bet] = {}
-        for item in bets:
-            if not isinstance(item, Mapping):
-                raise BetError("That bet isn't on the board.")
+        def spot(item: Mapping[str, Any]) -> tuple[tuple[str, Any], str, Any]:
             kind, selection = item.get("kind"), item.get("selection")
-            if not isinstance(kind, str) or type(selection) not in (str, int):
+            if not isinstance(kind, str) or kind not in BET_KINDS or type(selection) not in (str, int):
                 raise BetError("That bet isn't on the board.")
-            valid = self.wheel if kind == "straight" else SELECTIONS.get(kind, ())
-            if selection not in valid:
+            name, _, selections = BET_KINDS[kind]
+            if selection not in (self.wheel if selections is None else selections):
                 raise BetError("That bet isn't on the board.")
-            bet = placed.setdefault((kind, selection), Bet(BET_LABELS[kind], 0, selection))
-            add_stake(bet, item.get("amount"), self.table.min_bet, self.table.max_bet)
-        self.take_stakes(session, sum(bet.amount for bet in placed.values()))
+            return (kind, selection), name, selection
+
+        placed = gather_slip(data.get("bets"), spot, self.table.min_bet, self.table.max_bet)
         return RouletteRound(self, session, [(kind, bet) for (kind, _), bet in placed.items()])

@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from casino.cashier import break_chips, color_up, smaller_than
 from casino.config import load_starting_chips
-from casino.engine.bets import BetError
+from casino.engine.bets import BetError, is_whole
 from casino.engine.chips import CHIP_VALUES, fmt_credits
 from casino.engine.db import Character, Database
 from casino.engine.game import Game, Round
@@ -30,6 +30,8 @@ class Seat:
     session: Session
     rounds: dict[str, Round] = field(default_factory=dict)
     notices: list[str] = field(default_factory=list)
+    # Tables this character has started a round at since sitting down there.
+    played: set[str] = field(default_factory=set)
     lock: threading.RLock = field(default_factory=threading.RLock)
 
 
@@ -90,13 +92,21 @@ class Floor:
             raise ApiError(409, "Finish the round you have in progress first.")
         if not isinstance(data, Mapping):
             raise ApiError(400, "Bets must be sent as an object.")
+        def begin() -> Round:
+            # Chips may have changed outside this server since the seat was made, e.g. a CharacterTool import.
+            seat.session.wallet.reload()
+            started = game.start(seat.session, data)
+            if not started.finished:
+                self.db.set_open_stake(seat.session.character.id, key, started.staked)
+            return started
+
         try:
-            current = game.start(seat.session, data)
+            current = self._in_one_transaction(seat, begin)
         except BetError as error:
             raise ApiError(400, str(error)) from None
+        seat.played.add(key)
         if not current.finished:
             seat.rounds[key] = current
-            self.db.set_open_stake(seat.session.character.id, key, current.staked)
         return self._reply(seat, round=current.view(), betting=game.betting_view(seat.session))
 
     def act(self, seat: Seat, key: str, action: Any) -> dict[str, Any]:
@@ -104,19 +114,33 @@ class Floor:
         current = seat.rounds.get(key)
         if current is None:
             raise ApiError(409, "You have no round in progress at this table.")
-        try:
+        def play() -> None:
             current.act(action)
+            self.db.set_open_stake(seat.session.character.id, key, 0 if current.finished else current.staked)
+
+        try:
+            self._in_one_transaction(seat, play)
         except BetError as error:
             raise ApiError(400, str(error)) from None
         if current.finished:
             del seat.rounds[key]
-        self.db.set_open_stake(seat.session.character.id, key, 0 if current.finished else current.staked)
         return self._reply(seat, round=current.view(), betting=game.betting_view(seat.session))
+
+    def _in_one_transaction(self, seat: Seat, work: Callable[[], Any]) -> Any:
+        """Runs work as one database transaction. If it fails part-way, the chips in the database and in memory
+        go back to how they were before it started."""
+        try:
+            with self.db.transaction():
+                return work()
+        except BaseException:
+            seat.session.wallet.reload()
+            raise
 
     def leave(self, seat: Seat, key: str) -> dict[str, Any]:
         game = self._game(key)
-        if key not in seat.rounds:
+        if key not in seat.rounds and key not in seat.played:
             game.leave(seat.session)
+        seat.played.discard(key)
         return self._reply(seat)
 
     # ------------------------------------------------------------------ character
@@ -148,7 +172,7 @@ class Floor:
             raise ApiError(400, "That exchange isn't possible.")
         action, color, into, count = data.get("action"), data.get("color"), data.get("into"), data.get("count")
         if (action not in ("break", "color_up") or not isinstance(into, str) or into not in CHIP_VALUES
-                or isinstance(count, bool) or not isinstance(count, int) or count < 1):
+                or not is_whole(count) or count < 1):
             raise ApiError(400, "That exchange isn't possible.")
         if action == "break":
             if (not isinstance(color, str) or color not in CHIP_VALUES or CHIP_VALUES[into] >= CHIP_VALUES[color]

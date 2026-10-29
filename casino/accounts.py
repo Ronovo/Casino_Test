@@ -12,6 +12,7 @@ from ronovo_portfolio_auth import security_questions
 from ronovo_portfolio_auth.login_limiter import LockedOut, LoginLimiter
 
 from casino.config import DIFFICULTIES, load_starting_chips
+from casino.engine.bets import is_whole
 from casino.engine.db import Character, Database, DuplicateCharacter, DuplicateUser, User
 
 PBKDF2_ROUNDS = 240_000
@@ -40,6 +41,10 @@ def verify_password(password: str, stored: str) -> bool:
     except ValueError:
         return False
     return hmac.compare_digest(candidate, stored)
+
+
+# Checked against when the username doesn't exist, so a wrong username costs the same one hash as a wrong password.
+DUMMY_HASH = hash_password("not a real password")
 
 
 def _token_hash(token: str) -> str:
@@ -78,9 +83,8 @@ class Accounts:
             raise AccountError("Wrong username or password.")
         user = self.db.get_user(username)
         try:
-            # A missing account still costs one hash so response time doesn't reveal which usernames exist.
             valid = self._logins.attempt(username, lambda: verify_password(
-                password, user.password_hash if user else hash_password("")) and user is not None)
+                password, user.password_hash if user else DUMMY_HASH) and user is not None)
         except LockedOut as locked:
             raise AccountError(str(locked)) from None
         if not valid:
@@ -107,7 +111,7 @@ class Accounts:
         _check_password(password)
         found = self.db.get_reset(username.strip()) if isinstance(username, str) else None
         if found is None:
-            hash_password("")
+            verify_password(str(answer), DUMMY_HASH)
             raise AccountError("That answer is wrong.")
         user_id, _, answer_hash, _, _ = found
         tries = self.db.count_reset_try(user_id, time.time())
@@ -171,8 +175,7 @@ class Accounts:
         if found is None:
             return None
         user, character_id = found
-        character = next((c for c in self.db.list_characters(user.id) if c.id == character_id), None)
-        return user, character
+        return user, self._owned_character(user, character_id)
 
     # ------------------------------------------------------------------ characters
     def create_character(self, user: User, name: object, difficulty: object) -> Character:
@@ -195,11 +198,16 @@ class Accounts:
         if character_id is None:
             self.db.set_login_character(_token_hash(token), None)
             return None
-        character = next((c for c in self.db.list_characters(user.id) if c.id == character_id), None)
+        character = self._owned_character(user, character_id)
         if character is None:
             raise AccountError("That character isn't on your account.")
         self.db.set_login_character(_token_hash(token), character.id)
         return character
+
+    def _owned_character(self, user: User, character_id: object) -> Character | None:
+        if not is_whole(character_id):
+            return None
+        return next((c for c in self.db.list_characters(user.id) if c.id == character_id), None)
 
     def claim_character(self, character_name: str, username: str) -> Character:
         """Hand a character that predates accounts to a user. Run from the command line, never from the web."""

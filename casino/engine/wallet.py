@@ -15,6 +15,11 @@ class Wallet:
     def load(cls, db: Database, character_id: int) -> "Wallet":
         return cls(db, character_id, db.load_chips(character_id))
 
+    def reload(self) -> None:
+        """Re-reads the rack: at the start of each round, and after a failed round rolled back chip changes this
+        copy had already made."""
+        self._chips = self._db.load_chips(self._character_id)
+
     @property
     def chips(self) -> Chips:
         return self._chips

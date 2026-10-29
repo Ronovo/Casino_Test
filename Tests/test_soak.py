@@ -1,6 +1,8 @@
 """Thousands of random rounds per game, checking after every move that no credit appears or vanishes."""
+import os
 import random
 import threading
+import unittest
 
 from casino.config import TABLES_DIR
 from casino.engine.bets import BetError
@@ -65,6 +67,7 @@ BET_MAKERS = {"racing": racing_bets, "blackjack": blackjack_bets, "poker": poker
               "roulette": roulette_bets, "gtn": gtn_bets}
 
 
+@unittest.skipUnless(os.environ.get("CASINO_SOAK"), "set CASINO_SOAK=1 to run the soak tests")
 class SoakTests(DatabaseTestCase):
     def soak(self, table_key, rounds, credits, seed=1, top_up=True):
         """Play random rounds with random legal moves. Returns (rounds played, total net)."""

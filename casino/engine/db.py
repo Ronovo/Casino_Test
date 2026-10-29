@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,7 +37,7 @@ CREATE TABLE IF NOT EXISTS Logins (
 
 CREATE TABLE IF NOT EXISTS Characters (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL,
+    name TEXT UNIQUE NOT NULL COLLATE NOCASE,
     difficulty TEXT,
     user_id INTEGER REFERENCES Users (id)
 );
@@ -143,12 +144,19 @@ class Database:
         """`durable=False` skips the disk flush on every commit: much faster, but only safe for throwaway data."""
         self.path = str(path)
         self.durable = durable
+        self._local = threading.local()
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
-        """A connection that commits on success, rolls back on error and is always closed."""
+        """A connection that commits on success, rolls back on error and is always closed. Inside transaction() it is
+        that transaction's connection instead, so the writes commit or roll back together."""
+        shared = getattr(self._local, "conn", None)
+        if shared is not None:
+            yield shared
+            return
         conn = sqlite3.connect(self.path, timeout=15)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
         if not self.durable:
             conn.execute("PRAGMA synchronous = OFF")
         try:
@@ -159,6 +167,19 @@ class Database:
             raise
         finally:
             conn.close()
+
+    @contextmanager
+    def transaction(self) -> Iterator[None]:
+        """Every database write made on this thread inside the block commits as one, or not at all."""
+        if getattr(self._local, "conn", None) is not None:
+            yield
+            return
+        with self.connect() as conn:
+            self._local.conn = conn
+            try:
+                yield
+            finally:
+                self._local.conn = None
 
     # ------------------------------------------------------------------ setup
     def initialize(self, achievements_path: str | Path | None = None) -> None:
@@ -193,11 +214,14 @@ class Database:
                 raise DuplicateUser(username) from None
         return User(cursor.lastrowid, username, password_hash)
 
-    def get_user(self, username: str) -> User | None:
+    def _find_user(self, column: str, value: str) -> User | None:
         with self.connect() as conn:
-            row = conn.execute("SELECT id, username, password_hash FROM Users WHERE username = ?",
-                               (username,)).fetchone()
+            row = conn.execute(f"SELECT id, username, password_hash FROM Users WHERE {column} = ?",
+                               (value,)).fetchone()
         return User(*row) if row else None
+
+    def get_user(self, username: str) -> User | None:
+        return self._find_user("username", username)
 
     def link_portfolio(self, user_id: int, sub: str) -> bool:
         """Links an account to a portfolio account. False when the account is already linked to one."""
@@ -209,10 +233,7 @@ class Database:
                 raise DuplicateUser(sub) from None
 
     def get_portfolio_user(self, sub: str) -> User | None:
-        with self.connect() as conn:
-            row = conn.execute("SELECT id, username, password_hash FROM Users WHERE portfolio_sub = ?",
-                               (sub,)).fetchone()
-        return User(*row) if row else None
+        return self._find_user("portfolio_sub", sub)
 
     def add_login(self, token_hash: str, user_id: int, expires_at: int) -> None:
         with self.connect() as conn:

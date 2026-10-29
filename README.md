@@ -72,10 +72,10 @@ python main.py --verbose            # log every request
 ```
 python -m unittest discover -s Tests -t .
 ```
-The portfolio login tests need the requirements installed, and the soak tests (`Tests/test_soak.py`) take
-about 100 seconds of the run. Game rules are pure functions (`casino/rules`). Full rounds are played through each game's `start`/`act`
+The portfolio login tests need the requirements installed. The soak tests (`Tests/test_soak.py`) take about 100
+seconds, so they only run with `CASINO_SOAK=1` set. Game rules are pure functions (`casino/rules`). Full rounds are played through each game's `start`/`act`
 interface with stacked decks (`Tests/test_games.py`), thousands of random rounds check that no credit is ever
-created or lost (`Tests/test_soak.py`), and `EDGE_CASES.md` lists what that turned up.
+created or lost (`Tests/test_soak.py`).
 
 ## Project Layout
 ```
@@ -109,7 +109,6 @@ Tests/
 docker/git-sync.sh      updates the container from GitHub on start
 Dockerfile
 requirements.txt        PyJWT and ronovo-portfolio-auth (portfolio login, security questions, login lock)
-EDGE_CASES.md           how the games were tested and the open balance questions
 ```
 
 ## Adding a Table (new scenario, no code)
@@ -118,10 +117,10 @@ It appears on the casino floor the next time the server starts.
 
 ## Adding a Game
 1. Put the rules as pure functions in `casino/rules/<game>.py` and unit test them.
-2. In `casino/games/<game>.py`, subclass `Round` (what happens after the bets are down: `actions`, `perform`,
-   `table_view`, `staked`) and `Game` (`rules_pages`, `paytable`, and `start`, which validates the bets with
-   `read_stake`, takes them with `take_stakes` and returns the round). Pay out with `settle` and end the round
-   with `finish`.
+2. In `casino/games/<game>.py`, subclass `Round` (what happens after the bets are down: `actions`, `perform`
+   and `table_view`) and `Game` (`rules_pages`, `paytable`, and `start`, which validates the bets with
+   `read_stake` and returns the round, built with the total stake). Take later bets with `take`, pay out with
+   `settle` and end the round with `finish`.
 3. Register the class in `casino/games/__init__.py` and add a table JSON with `"game": "<game_key>"`.
 4. Add `casino/web/static/js/games/<game>.js` exporting `render(ctx, mount)` and list it in `GAMES` in
    `js/app.js`.
@@ -131,14 +130,13 @@ It appears on the casino floor the next time the server starts.
 python CharacterTool/export_character.py "Ronovo Ronove"
 python CharacterTool/import_character.py "CharacterTool/Character/Ronovo Ronove.json" [--name "New Name"]
 ```
-Exports from before version 2.0 still import (chips, blackjack/poker records and achievements). An imported
-character has no owner until it is claimed with `python main.py --claim`. Importing over an existing name replaces
-that character's chips and stats. Stop the server first: a running server keeps each seated character's chips in
-memory and would write them back over the import.
+An imported character has no owner until it is claimed with `python main.py --claim`. Importing over an existing
+name replaces that character's chips and stats. A running server picks the imported chips up when that character
+starts its next round. An import made while that character has a round in progress is overwritten when the round
+settles.
 
 ## Saves
 Progress lives in `casino.db` next to `main.py` (set the `CASINO_DB` environment variable to use another file).
-Older databases upgrade automatically on launch: characters, chips and achievements are kept.
 
 ## Docker
 The image serves on port 8000 and keeps the database at `/app/data/casino.db` (`CASINO_DB`), so mount a volume

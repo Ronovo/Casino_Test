@@ -17,7 +17,7 @@
   },
   "paytable": {
     "exact": 5,
-    "close": 2,
+    "close": 1,
     "high_low": 1,
     "even_odd": 1,
     "range": 2,

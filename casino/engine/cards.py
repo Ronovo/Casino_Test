@@ -23,10 +23,10 @@ class Card:
 
     @classmethod
     def parse(cls, text: str) -> "Card":
-        """Parse 'AS', '10H', 'TH' or the legacy '1H' (ten of hearts)."""
+        """Parse 'AS', '10H' or 'TH' (ten of hearts)."""
         text = text.strip().upper()
         rank, suit = text[:-1], text[-1]
-        if rank in ("1", "T"):
+        if rank == "T":
             rank = "10"
         return cls(rank, suit)
 
@@ -34,10 +34,6 @@ class Card:
     def value(self) -> int:
         """Poker ranking value: 2..14 with Ace high."""
         return RANKS.index(self.rank) + 2
-
-    @property
-    def is_red(self) -> bool:
-        return self.suit in ("H", "D")
 
     @property
     def name(self) -> str:

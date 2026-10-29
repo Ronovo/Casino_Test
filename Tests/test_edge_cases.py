@@ -1,4 +1,4 @@
-"""Regression tests for the edge cases written up in EDGE_CASES.md."""
+"""Regression tests for edge cases found by the soak tests."""
 import random
 
 from casino.engine.bets import BetError

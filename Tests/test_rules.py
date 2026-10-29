@@ -24,8 +24,7 @@ class BetMathTests(unittest.TestCase):
 
 
 class CardTests(unittest.TestCase):
-    def test_parse_legacy_ten(self):
-        self.assertEqual(Card.parse("1H"), Card("10", "H"))
+    def test_parse(self):
         self.assertEqual(Card.parse("th"), Card("10", "H"))
         self.assertEqual(str(Card.parse("AS")), "A♠")
         self.assertEqual(Card.parse("QD").name, "Queen of Diamonds")

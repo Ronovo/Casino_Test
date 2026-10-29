@@ -53,9 +53,6 @@ class Chips:
     def total(self) -> int:
         return sum(count * CHIP_VALUES[color] for color, count in self._counts.items())
 
-    def is_empty(self) -> bool:
-        return self.total == 0
-
     def contains(self, other: "Chips") -> bool:
         return all(self._counts[color] >= other[color] for color in COLORS)
 

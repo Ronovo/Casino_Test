@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from casino.config import HORSES_PATH
-from casino.engine.bets import Bet, BetError, Outcome, add_stake, format_ratio, settle
+from casino.engine.bets import Bet, BetError, Outcome, format_ratio, gather_slip, settle
 from casino.engine.game import Game, Round, TableConfig, pay_section
 from casino.engine.session import Session
 from casino.rules import racing as rules
@@ -26,7 +26,7 @@ def new_season(number: int, horses: list[Horse], conditions: Conditions, champio
 
 class RaceRound(Round):
     def __init__(self, game: "HorseRacingGame", session: Session, bets: list[tuple[str, str, Bet, float]]):
-        super().__init__(game, session)
+        super().__init__(game, session, sum(bet.amount for _, _, bet, _ in bets))
         self.bets = bets
         season = game.season(session)
         horses, records = game.horses, season["horses"]
@@ -73,10 +73,6 @@ class RaceRound(Round):
             season["conditions"] = {"distance": conditions.distance, "going": conditions.going}
         session.db.save_game_state(session.character.id, game.game_key, season)
         self.finish(settlements, notes)
-
-    @property
-    def staked(self) -> int:
-        return sum(bet.amount for _, _, bet, _ in self.bets)
 
     def table_view(self) -> dict[str, Any]:
         return {"race": self.race, "runners": self.runners, "standings": self.standings,
@@ -192,21 +188,16 @@ class HorseRacingGame(Game):
 
     # ------------------------------------------------------------------ round
     def start(self, session: Session, data: Mapping[str, Any]) -> RaceRound:
-        raw_bets = data.get("bets")
-        if not isinstance(raw_bets, list) or not raw_bets:
-            raise BetError("Place at least one bet first.")
         prices = dict(zip((horse.key for horse in self.horses), self.odds(self.season(session))))
         names = {horse.key: horse.name for horse in self.horses}
-        slip: dict[tuple[str, str], Bet] = {}
-        for item in raw_bets:
-            if not isinstance(item, Mapping):
-                raise BetError("That bet isn't on the board.")
+
+        def spot(item: Mapping[str, Any]) -> tuple[tuple[str, str], str, str]:
             key, kind = item.get("horse"), item.get("kind")
             if not isinstance(key, str) or not isinstance(kind, str) or key not in names or kind not in BET_NAMES:
                 raise BetError("That bet isn't on the board.")
             if prices[key][kind] is None:
                 raise BetError(f"There is no {BET_NAMES[kind]} price on {names[key]} for this race.")
-            bet = slip.setdefault((key, kind), Bet(BET_NAMES[kind], 0, names[key]))
-            add_stake(bet, item.get("amount"), self.table.min_bet, self.table.max_bet)
-        self.take_stakes(session, sum(bet.amount for bet in slip.values()))
+            return (key, kind), BET_NAMES[kind], names[key]
+
+        slip = gather_slip(data.get("bets"), spot, self.table.min_bet, self.table.max_bet)
         return RaceRound(self, session, [(key, kind, bet, prices[key][kind]) for (key, kind), bet in slip.items()])

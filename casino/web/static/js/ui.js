@@ -114,16 +114,25 @@ export function chipTray(ctx) {
   return tray;
 }
 
-export function spotEl(ctx, slip, key, name, pays, { wide = false } = {}) {
-  const amount = slip.get(key);
-  return h('button', {
-    class: `spot ${wide ? 'wide' : ''}`,
-    title: 'Click to add a chip, right-click to take one back',
+export const SLIP_HINT = 'Click to add a chip, right-click to take one back';
+
+/** Click adds the chosen chip to this spot on the slip, right-click takes one back. */
+export function slipHandlers(slip, key) {
+  return {
     onclick: () => slip.add(key),
     oncontextmenu: (event) => {
       event.preventDefault();
       slip.remove(key);
     },
+  };
+}
+
+export function spotEl(ctx, slip, key, name, pays, { wide = false } = {}) {
+  const amount = slip.get(key);
+  return h('button', {
+    class: `spot ${wide ? 'wide' : ''}`,
+    title: SLIP_HINT,
+    ...slipHandlers(slip, key),
   }, h('span', { class: 'spot-name' }, name), pays && h('span', { class: 'spot-pays' }, pays),
      amount ? [stackEl(ctx, amount), h('span', { class: 'spot-amount' }, credits(amount))] : null);
 }

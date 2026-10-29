@@ -9,7 +9,6 @@ AMERICAN_WHEEL = ("0", "28", "9", "26", "30", "11", "7", "20", "32", "17", "5", 
                   "16", "4", "23", "35", "14", "2")
 WHEELS = {"european": EUROPEAN_WHEEL, "american": AMERICAN_WHEEL}
 RED_NUMBERS = frozenset({1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36})
-BET_KINDS = ("straight", "red_black", "odd_even", "low_high", "dozen", "column")
 
 
 def color_of(pocket: str) -> str:

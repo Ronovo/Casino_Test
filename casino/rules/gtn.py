@@ -6,7 +6,6 @@ from typing import Any, Mapping
 
 from casino.engine.bets import Outcome
 
-BET_KINDS = ("pick", "high_low", "even_odd", "range", "lucky")
 
 
 @dataclass(frozen=True)

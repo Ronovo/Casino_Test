@@ -34,7 +34,7 @@ def total_view(cards: list[Card], from_split: bool = False) -> dict[str, Any]:
 
 class BlackjackRound(Round):
     def __init__(self, game: "BlackjackGame", session: Session, amount: int):
-        super().__init__(game, session)
+        super().__init__(game, session, amount)
         self.shoe = session.new_shoe(game.decks)
         player = [self.shoe.draw()]
         self.dealer = [self.shoe.draw()]
@@ -47,10 +47,6 @@ class BlackjackRound(Round):
             self._finish([self._settle_naturals()], [self._natural_note()])
         else:
             self._advance()
-
-    @property
-    def staked(self) -> int:
-        return sum(hand.bet.amount for hand in self.hands)
 
     # ------------------------------------------------------------------ player
     def actions(self) -> list[dict[str, str]]:
@@ -71,19 +67,19 @@ class BlackjackRound(Round):
         return actions
 
     def perform(self, action: str) -> None:
-        wallet, hand = self.session.wallet, self.hands[self.active]
+        hand = self.hands[self.active]
         if action == "hit":
             hand.cards.append(self.shoe.draw())
         elif action == "stand":
             hand.finished = True
         elif action == "double":
-            wallet.withdraw(hand.bet.amount)
+            self.take(hand.bet.amount)
             hand.bet.amount *= 2
             hand.doubled = True
             hand.cards.append(self.shoe.draw())
             hand.finished = True
         elif action == "split":
-            wallet.withdraw(hand.bet.amount)
+            self.take(hand.bet.amount)
             split_card = hand.cards.pop()
             hand.cards.append(self.shoe.draw())
             second = PlayerHand([split_card, self.shoe.draw()], Bet("Hand 2", hand.bet.amount), from_split=True)
@@ -226,5 +222,4 @@ class BlackjackGame(Game):
 
     def start(self, session: Session, data: Mapping[str, Any]) -> BlackjackRound:
         amount = read_stake(data.get("bet"), "Bet", self.table.min_bet, self.table.max_bet)
-        self.take_stakes(session, amount)
         return BlackjackRound(self, session, amount)

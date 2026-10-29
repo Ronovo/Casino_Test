@@ -1,5 +1,5 @@
 import { add, credits, h } from '../dom.js';
-import { betBar, betSlip, late, resultPanel } from '../ui.js';
+import { SLIP_HINT, betBar, betSlip, late, resultPanel, slipHandlers } from '../ui.js';
 
 const WINNER_MS = 11000;
 // Real margins are a few percent of the race time; stretching them makes the finish readable on screen.
@@ -51,12 +51,8 @@ function cardEl(ctx, slip) {
     const amount = slip.get(key);
     return h('td', null, h('button', {
       class: `price ${amount ? 'on' : ''}`, disabled: !price,
-      title: price ? 'Click to add a chip, right-click to take one back' : 'No price: too likely to be worth a bet',
-      onclick: () => slip.add(key),
-      oncontextmenu: (event) => {
-        event.preventDefault();
-        slip.remove(key);
-      },
+      title: price ? SLIP_HINT : 'No price: too likely to be worth a bet',
+      ...slipHandlers(slip, key),
     }, price || '-', amount ? h('span', { class: 'marker' }, amount) : null));
   };
   return h('table', { class: 'data race-card' },

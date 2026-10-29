@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from casino.engine.bets import Bet, BetError, Outcome, format_ratio, read_stake, settle
+from casino.engine.bets import Bet, BetError, Outcome, format_ratio, is_whole, read_stake, settle
 from casino.engine.game import Game, Round, pay_section
 from casino.engine.session import Session
 from casino.rules import gtn as rules
@@ -14,7 +14,7 @@ BET_NAMES = {"pick": "Pick a Number", "high_low": "High / Low", "even_odd": "Eve
 
 
 def _whole(value: Any, low: int, high: int) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and low <= value <= high
+    return is_whole(value) and low <= value <= high
 
 
 def read_selection(kind: str, value: Any, difficulty: Difficulty) -> Any:
@@ -38,7 +38,7 @@ def read_selection(kind: str, value: Any, difficulty: Difficulty) -> Any:
 
 class GuessRound(Round):
     def __init__(self, game: "GuessTheNumberGame", session: Session, difficulty: Difficulty, bets: dict[str, Bet]):
-        super().__init__(game, session)
+        super().__init__(game, session, sum(bet.amount for bet in bets.values()))
         self.difficulty = difficulty
         self.bets = bets
         self.number = session.rng.randint(1, difficulty.max_number)
@@ -57,10 +57,6 @@ class GuessRound(Round):
                 if kind == "lucky" and bet.selection[0] == self.number:
                     session.unlock("GTN_Lucky")
         self.finish(settlements, notes)
-
-    @property
-    def staked(self) -> int:
-        return sum(bet.amount for bet in self.bets.values())
 
     def table_view(self) -> dict[str, Any]:
         return {"number": self.number, "digits": self.difficulty.digits, "difficulty": self.difficulty.name}
@@ -134,5 +130,4 @@ class GuessTheNumberGame(Game):
             selection = read_selection(kind, item.get("selection"), difficulty)
             amount = read_stake(item.get("amount"), BET_NAMES[kind], self.table.min_bet, self.table.max_bet)
             bets[kind] = Bet(BET_NAMES[kind], amount, selection)
-        self.take_stakes(session, sum(bet.amount for bet in bets.values()))
         return GuessRound(self, session, difficulty, bets)
