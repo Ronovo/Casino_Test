@@ -146,7 +146,7 @@ class Game(ABC):
 
     def summary(self) -> dict[str, Any]:
         table = self.table
-        return {"key": table.key, "game": self.game_key, "title": table.title, "version": table.version,
+        return {"key": table.key, "game": self.game_key, "title": table.title,
                 "description": table.description, "min_bet": table.min_bet, "max_bet": table.max_bet,
                 "min_buy_in": self.min_buy_in}
 

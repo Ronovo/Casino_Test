@@ -17,7 +17,7 @@ from ronovo_portfolio_auth.security_questions import QUESTIONS
 
 from casino import APP_NAME, APP_VERSION
 from casino.accounts import LOGIN_LIFETIME, PORTFOLIO_CHOICE_SECONDS, AccountError, Accounts
-from casino.config import DIFFICULTIES
+from casino.config import load_starting_chips, DIFFICULTIES
 from casino.engine.chips import CHIP_VALUES
 from casino.engine.db import Character, Database, User
 from casino.engine.game import Game
@@ -58,6 +58,7 @@ class CasinoApp:
         self._seated: dict[tuple[str, str], Callable[[Seat, Any], dict[str, Any]]] = {
             ("GET", "lobby"): lambda seat, data: self.floor.lobby(seat),
             ("GET", "profile"): lambda seat, data: self.floor.profile(seat),
+            ("GET", "cashier"): lambda seat, data: self.floor.snapshot(seat),
             ("POST", "start-over"): lambda seat, data: self.floor.start_over(seat),
             ("POST", "cashier"): self.floor.exchange,
         }
@@ -175,17 +176,17 @@ class CasinoApp:
         return self._logged_in(user, old_token)
 
     def _session_view(self, user: User | None, character: Character | None) -> dict[str, Any]:
-        view: dict[str, Any] = {"app": APP_NAME, "version": APP_VERSION, "user": None, "characters": [],
+        view: dict[str, Any] = {"app": APP_NAME, "user": None, "characters": [],
                                 "portfolio": portfolio_sso.enabled(),
                                 "portfolio_url": portfolio_sso.portfolio_url() if portfolio_sso.enabled() else None,
                                 "questions": QUESTIONS,
                                 "character": None, "chip_values": CHIP_VALUES,
-                                "difficulties": [{"key": key, "label": label}
-                                                 for key, (label, _) in DIFFICULTIES.items()]}
+                                "difficulties": [{"key": key, "label": f"{key} - {load_starting_chips(key).total:,} credits"}
+                                                 for key in DIFFICULTIES]}
         if user:
             view["user"] = user.username
-            view["characters"] = [{"id": c.id, "name": c.name, "difficulty": c.difficulty,
-                                   "credits": self.db.load_chips(c.id).total}
+            credits = self.db.character_credits(user.id)
+            view["characters"] = [{"id": c.id, "name": c.name, "difficulty": c.difficulty, "credits": credits[c.id]}
                                   for c in self.db.list_characters(user.id)]
             view["character"] = character.id if character else None
         return view
@@ -250,10 +251,15 @@ class CasinoHandler(BaseHTTPRequestHandler):
     timeout = 30
     app: CasinoApp
 
+    @property
+    def _path(self) -> str:
+        """The request path without its query string."""
+        return self.path.split("?")[0]
+
     def do_GET(self) -> None:
-        if self.path.split("?")[0].startswith("/api/"):
+        if self._path.startswith("/api/"):
             self._api({})
-        elif self.path.split("?")[0] == "/sso/login":
+        elif self._path == "/sso/login":
             self._sso_login()
         else:
             self._static()
@@ -289,7 +295,7 @@ class CasinoHandler(BaseHTTPRequestHandler):
             remaining -= len(chunk)
 
     def _api(self, data: Any) -> None:
-        path = self.path.split("?")[0][len("/api/"):]
+        path = self._path[len("/api/"):]
         cookies = self.headers.get("Cookie", "")
         reply = self.app.answer(self.command, path, data, read_cookie(cookies, COOKIE_NAME),
                                 read_cookie(cookies, PORTFOLIO_PENDING_COOKIE))
@@ -324,7 +330,7 @@ class CasinoHandler(BaseHTTPRequestHandler):
         self._send(status, JSON_TYPE, json.dumps(body).encode("utf-8"), headers, cookies)
 
     def _static(self) -> None:
-        found = static_file(self.path.split("?")[0])
+        found = static_file(self._path)
         if found is None:
             return self._send(404, "text/plain; charset=utf-8", b"Not found")
         self._send(200, *found, {**STATIC_HEADERS, "Content-Security-Policy": content_security_policy()})

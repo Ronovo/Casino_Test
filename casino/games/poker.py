@@ -55,8 +55,9 @@ class HoldemRound(Round):
         if action == "fold":
             self.folded = True
         else:
-            self.bets["play"] = Bet("Play", self.bets["ante"].amount * int(action.removeprefix("play")))
-            self.take(self.bets["play"].amount)
+            amount = self.bets["ante"].amount * int(action.removeprefix("play"))
+            self.take(amount)
+            self.bets["play"] = Bet("Play", amount)
         self._showdown()
 
     def _showdown(self) -> None:
@@ -66,7 +67,8 @@ class HoldemRound(Round):
         dealer_rank = rules.best_hand(self.dealer + self.board)
         qualifies = rules.dealer_qualifies(dealer_rank)
         notes = [f"You: {player_rank.description}",
-                 f"Dealer: {dealer_rank.description}" + ("" if qualifies else " (doesn't qualify, Ante pushes)")]
+                 f"Dealer: {dealer_rank.description}"
+                 + ("" if qualifies or self.folded else " (doesn't qualify, Ante pushes)")]
         settlements: list[Settlement] = []
         if self.folded:
             notes.insert(0, "You folded.")

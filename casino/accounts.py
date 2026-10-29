@@ -7,6 +7,7 @@ import re
 import secrets
 import threading
 import time
+from collections import deque
 
 from ronovo_portfolio_auth import security_questions
 from ronovo_portfolio_auth.login_limiter import LockedOut, LoginLimiter
@@ -15,21 +16,25 @@ from casino.config import DIFFICULTIES, load_starting_chips
 from casino.engine.bets import is_whole
 from casino.engine.db import Character, Database, DuplicateCharacter, DuplicateUser, User
 
-PBKDF2_ROUNDS = 240_000
+PBKDF2_ROUNDS = 600_000
 LOGIN_LIFETIME = 60 * 60 * 24 * 30
 USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_-]{3,20}")
 MIN_PASSWORD, MAX_PASSWORD = 6, 128
 MAX_CHARACTER_NAME = 30
 MAX_CHARACTERS = 8
 PORTFOLIO_CHOICE_SECONDS = 600
+REGISTRATION_WINDOW_SECONDS = 600
+MAX_REGISTRATIONS = 20
+NO_ACCOUNT = "There is no account with that username."
 
 
 class AccountError(ValueError):
     """A sign-up, login or character request that can't be honoured. The message is shown to the player."""
 
 
-def hash_password(password: str, salt: bytes | None = None, rounds: int = PBKDF2_ROUNDS) -> str:
+def hash_password(password: str, salt: bytes | None = None, rounds: int | None = None) -> str:
     salt = salt or secrets.token_bytes(16)
+    rounds = rounds or PBKDF2_ROUNDS
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, rounds)
     return f"pbkdf2_sha256${rounds}${salt.hex()}${digest.hex()}"
 
@@ -43,10 +48,6 @@ def verify_password(password: str, stored: str) -> bool:
     return hmac.compare_digest(candidate, stored)
 
 
-# Checked against when the username doesn't exist, so a wrong username costs the same one hash as a wrong password.
-DUMMY_HASH = hash_password("not a real password")
-
-
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -57,9 +58,8 @@ class Accounts:
         self._logins = LoginLimiter()
         self._pending: dict[str, tuple[str, str, float]] = {}
         self._lock = threading.Lock()
-        # The casino keeps no secret key, so a username with no account shows the same stand-in question
-        # until the server restarts.
-        self._stand_in_key = secrets.token_bytes(32)
+        self.max_registrations = MAX_REGISTRATIONS
+        self._registrations: deque[float] = deque()
 
     # ------------------------------------------------------------------ sign up and login
     def register(self, username: object, password: object, question: object, answer: object) -> User:
@@ -67,24 +67,33 @@ class Accounts:
             raise AccountError("Usernames are 3 to 20 letters, digits, dashes or underscores.")
         _check_password(password)
         _check_security_answer(question, answer)
+        self._count_registration()
         try:
-            user = self.db.create_user(username, hash_password(password))
+            with self.db.transaction():
+                user = self.db.create_user(username, hash_password(password))
+                self.db.set_security_question(user.id, question,
+                                              hash_password(security_questions.normalize_answer(answer)))
         except DuplicateUser:
             raise AccountError("That username is already taken.") from None
-        self.db.set_security_question(user.id, question, hash_password(security_questions.normalize_answer(answer)))
         return user
 
-    def login(self, username: object, password: object) -> str:
-        """Check a password and return a new login token."""
-        return self.issue_token(self.authenticate(username, password))
+    def _count_registration(self) -> None:
+        """Allows max_registrations new accounts in any window, across the whole casino."""
+        with self._lock:
+            now = time.monotonic()
+            while self._registrations and self._registrations[0] <= now - REGISTRATION_WINDOW_SECONDS:
+                self._registrations.popleft()
+            if len(self._registrations) >= self.max_registrations:
+                raise AccountError("Too many new accounts right now. Try again in a few minutes.")
+            self._registrations.append(now)
 
     def authenticate(self, username: object, password: object) -> User:
         if not isinstance(username, str) or not isinstance(password, str):
             raise AccountError("Wrong username or password.")
         user = self.db.get_user(username)
         try:
-            valid = self._logins.attempt(username, lambda: verify_password(
-                password, user.password_hash if user else DUMMY_HASH) and user is not None)
+            valid = self._logins.attempt(username, lambda: user is not None and verify_password(
+                password, user.password_hash))
         except LockedOut as locked:
             raise AccountError(str(locked)) from None
         if not valid:
@@ -100,23 +109,29 @@ class Accounts:
         self.db.delete_login(_token_hash(token))
 
     # ------------------------------------------------------------------ security questions and resets
-    def security_question(self, username: object) -> str:
+    def _reset_account(self, username: object) -> tuple[int, str, str, int, float]:
+        """Usernames are public (registering says when one is taken), so this says plainly when there is no such
+        account, and when the account logs in with the portfolio and has no question."""
         if not isinstance(username, str) or not username.strip():
             raise AccountError("Enter your username.")
+        if self.db.get_user(username.strip()) is None:
+            raise AccountError(NO_ACCOUNT)
         found = self.db.get_reset(username.strip())
-        return found[1] if found else security_questions.stand_in_question(username.strip(), self._stand_in_key)
+        if found is None:
+            raise AccountError("That account logs in with the portfolio and has no security question.")
+        return found
+
+    def security_question(self, username: object) -> str:
+        return self._reset_account(username)[1]
 
     def reset_password(self, username: object, answer: object, password: object) -> None:
         """Set a new password when the security answer is right. Too many wrong answers lock resets for a while."""
         _check_password(password)
-        found = self.db.get_reset(username.strip()) if isinstance(username, str) else None
-        if found is None:
-            verify_password(str(answer), DUMMY_HASH)
-            raise AccountError("That answer is wrong.")
-        user_id, _, answer_hash, _, _ = found
+        user_id, _, answer_hash, _, _ = self._reset_account(username)
         tries = self.db.count_reset_try(user_id, time.time())
         if tries is None or tries > security_questions.MAX_RESET_FAILURES:
-            raise AccountError("Too many wrong answers. Try again in 15 minutes.")
+            raise AccountError(f"Too many wrong answers. Try again in "
+                               f"{security_questions.RESET_LOCK_SECONDS // 60} minutes.")
         if not verify_password(security_questions.normalize_answer(answer), answer_hash):
             if tries == security_questions.MAX_RESET_FAILURES:
                 self.db.lock_resets(user_id, time.time() + security_questions.RESET_LOCK_SECONDS)
@@ -208,19 +223,6 @@ class Accounts:
         if not is_whole(character_id):
             return None
         return next((c for c in self.db.list_characters(user.id) if c.id == character_id), None)
-
-    def claim_character(self, character_name: str, username: str) -> Character:
-        """Hand a character that predates accounts to a user. Run from the command line, never from the web."""
-        user = self.db.get_user(username)
-        if user is None:
-            raise AccountError(f"No account named '{username}'. Register it in the web app first.")
-        character = self.db.get_character(character_name)
-        if character is None:
-            raise AccountError(f"No character named '{character_name}'.")
-        if character.user_id not in (None, user.id):
-            raise AccountError(f"'{character_name}' already belongs to another account.")
-        self.db.set_character_owner(character.id, user.id)
-        return character
 
 
 def _check_password(password: object) -> None:

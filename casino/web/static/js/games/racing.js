@@ -1,4 +1,4 @@
-import { add, credits, h } from '../dom.js';
+import { add, h } from '../dom.js';
 import { SLIP_HINT, betBar, betSlip, late, resultPanel, slipHandlers } from '../ui.js';
 
 const WINNER_MS = 11000;
@@ -9,7 +9,10 @@ const GATE_PX = 46;
 // Share of the distance covered at a given share of a horse's own running time: below 1 leads early, above 1 closes late.
 const STYLE_CURVE = { front: 0.82, stalker: 1, closer: 1.22 };
 const STYLE_NAMES = { front: 'Front-runner', stalker: 'Stalker', closer: 'Closer' };
-const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'];
+function ordinal(n) {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  return `${n}${teen ? 'th' : { 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'}`;
+}
 const KINDS = ['win', 'place', 'show'];
 
 function formText(recent) {
@@ -84,7 +87,7 @@ function trackEl(ctx, round) {
   const last = Math.max(...times);
   const horses = [];
   const lanes = round.runners.map((runner, index) => {
-    const badge = h('span', { class: `place-badge ${runner.position <= 3 ? 'paid' : ''}` }, ORDINALS[runner.position - 1]);
+    const badge = h('span', { class: `place-badge ${runner.position <= 3 ? 'paid' : ''}` }, ordinal(runner.position));
     const horse = h('div', { class: 'horse' }, h('span', { class: 'horse-icon' }, '🏇'), badge);
     horses.push(horse);
     return h('div', { class: 'lane' }, swatch(runner, index + 1), h('span', { class: 'lane-name' }, runner.name), horse);

@@ -17,10 +17,8 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from casino.config import TABLES_DIR
 from casino.games import load_games
 from casino.web.server import CasinoApp, make_server
-from Tests.helpers import DatabaseTestCase
-from ronovo_portfolio_auth.security_questions import QUESTIONS
+from Tests.helpers import DatabaseTestCase, SECURITY_BODY
 
-SECURITY_BODY = {"question": QUESTIONS[0], "answer": "rex"}
 
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PUBLIC_KEY = base64.b64encode(KEY.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)).decode()

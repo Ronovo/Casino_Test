@@ -7,7 +7,6 @@ export function render(ctx, mount) {
   const { round, table } = ctx;
   const felt = h('div', { class: 'felt red' });
   add(mount, felt);
-  const pays = Object.fromEntries(table.layout.bets.map((bet, index) => [bet.key, table.paytable[0].rows[index][1]]));
 
   if (!round) {
     const slip = betSlip(ctx);
@@ -16,7 +15,7 @@ export function render(ctx, mount) {
         seatEl('Banker', null, h('div', { class: 'hand' }))),
       h('div', { class: 'felt-legend' }, 'Closest to nine wins'),
       h('div', { class: 'spots' }, table.layout.bets.map((bet) =>
-        spotEl(ctx, slip, bet.key, bet.label, `pays ${pays[bet.key]}`, { wide: true }))));
+        spotEl(ctx, slip, bet.key, bet.label, `pays ${bet.pays}`, { wide: true }))));
     add(mount,
       betBar(ctx, slip, { label: 'Deal', onDeal: () => ctx.start({ ...slip.stakes }) }),
       h('p', { class: 'hint' }, 'Dragon 7 and Panda 8 need a Player or Banker bet on the same coup.'));
@@ -36,7 +35,7 @@ export function render(ctx, mount) {
     h('div', { class: 'hands' }, seat('Player', round.player, player), seat('Banker', round.banker, banker)),
     late(h('div', { class: 'felt-legend' }, WINNER_TEXT[round.winner]), reveal),
     h('div', { class: 'spots' }, table.layout.bets.filter((bet) => round.stakes[bet.key]).map((bet) =>
-      lockedSpot(ctx, bet.label, round.stakes[bet.key], `pays ${pays[bet.key]}`))));
+      lockedSpot(ctx, bet.label, round.stakes[bet.key], `pays ${bet.pays}`))));
   add(mount, resultPanel(ctx, round, { delay: reveal }));
   return reveal;
 }

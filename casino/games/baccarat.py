@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from casino.engine.bets import Bet, BetError, Outcome, Settlement, read_stake, settle
+from casino.engine.bets import Bet, BetError, Outcome, Settlement, format_ratio, read_stake, settle
 from casino.engine.cards import cards_view
 from casino.engine.game import Game, Round, pay_rows, pay_section
 from casino.engine.session import Session
@@ -86,7 +86,8 @@ class BaccaratGame(Game):
         return [pay_section(None, pay_rows((label, pay[key]) for key, label in BET_TYPES))]
 
     def layout(self) -> dict[str, Any]:
-        return {"bets": [{"key": key, "label": label} for key, label in BET_TYPES]}
+        pay = self.table.paytable
+        return {"bets": [{"key": key, "label": label, "pays": format_ratio(pay[key])} for key, label in BET_TYPES]}
 
     def start(self, session: Session, data: Mapping[str, Any]) -> BaccaratRound:
         table = self.table

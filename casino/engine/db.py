@@ -1,7 +1,5 @@
-"""SQLite persistence: characters, chip racks, per-game stats and achievements.
-
-Only long-lived data is stored. Bets in play live in memory for the length of a round.
-"""
+"""SQLite persistence: accounts and their logins, characters, chip racks, per-game stats, achievements, the credits
+on a table mid-round (so a lost round can be refunded) and saved per-table state such as a racing season."""
 from __future__ import annotations
 
 import json
@@ -12,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
-from casino.engine.chips import COLORS, Chips
+from casino.engine.chips import CHIP_VALUES, COLORS, Chips
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS Users (
@@ -30,7 +28,7 @@ CREATE TABLE IF NOT EXISTS Users (
 CREATE TABLE IF NOT EXISTS Logins (
     token_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    character_id INTEGER,
+    character_id INTEGER REFERENCES Characters (id),
     expires_at INTEGER NOT NULL,
     FOREIGN KEY (user_id) REFERENCES Users (id)
 );
@@ -38,8 +36,8 @@ CREATE TABLE IF NOT EXISTS Logins (
 CREATE TABLE IF NOT EXISTS Characters (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL COLLATE NOCASE,
-    difficulty TEXT,
-    user_id INTEGER REFERENCES Users (id)
+    difficulty TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES Users (id)
 );
 
 CREATE TABLE IF NOT EXISTS PlayerChips (
@@ -92,11 +90,11 @@ CREATE TABLE IF NOT EXISTS OpenStakes (
     FOREIGN KEY (character_id) REFERENCES Characters (id)
 );
 
-CREATE TABLE IF NOT EXISTS GameState (
+CREATE TABLE IF NOT EXISTS TableState (
     character_id INTEGER NOT NULL,
-    game_key TEXT NOT NULL,
+    table_key TEXT NOT NULL,
     data TEXT NOT NULL,
-    PRIMARY KEY (character_id, game_key),
+    PRIMARY KEY (character_id, table_key),
     FOREIGN KEY (character_id) REFERENCES Characters (id)
 );
 """
@@ -126,7 +124,7 @@ class Character:
     id: int
     name: str
     difficulty: str
-    user_id: int | None = None
+    user_id: int
 
 
 @dataclass(frozen=True)
@@ -193,16 +191,15 @@ class Database:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         with self.connect() as conn:
-            for group in data:
-                for category, achievements in group.items():
-                    for item in achievements:
-                        conn.execute(
-                            """INSERT INTO Achievements (name, category, display_name, description)
-                               VALUES (?, ?, ?, ?)
-                               ON CONFLICT(name) DO UPDATE SET category = excluded.category,
-                                   display_name = excluded.display_name, description = excluded.description""",
-                            (item["name"], category, item["displayName"], item["description"]),
-                        )
+            for category, achievements in data.items():
+                for item in achievements:
+                    conn.execute(
+                        """INSERT INTO Achievements (name, category, display_name, description)
+                           VALUES (?, ?, ?, ?)
+                           ON CONFLICT(name) DO UPDATE SET category = excluded.category,
+                               display_name = excluded.display_name, description = excluded.description""",
+                        (item["name"], category, item["displayName"], item["description"]),
+                    )
 
     # ------------------------------------------------------------------ accounts
     def create_user(self, username: str, password_hash: str, portfolio_sub: str | None = None) -> User:
@@ -297,25 +294,15 @@ class Database:
     # ------------------------------------------------------------------ characters
     @staticmethod
     def _character(row: sqlite3.Row) -> Character:
-        return Character(row["id"], row["name"], row["difficulty"] or "Medium", row["user_id"])
+        return Character(row["id"], row["name"], row["difficulty"], row["user_id"])
 
-    def list_characters(self, user_id: int | None = None) -> list[Character]:
-        """Every character, or only the ones owned by `user_id`."""
-        query = "SELECT id, name, difficulty, user_id FROM Characters"
+    def list_characters(self, user_id: int) -> list[Character]:
         with self.connect() as conn:
-            if user_id is None:
-                rows = conn.execute(f"{query} ORDER BY name").fetchall()
-            else:
-                rows = conn.execute(f"{query} WHERE user_id = ? ORDER BY name", (user_id,)).fetchall()
+            rows = conn.execute("SELECT id, name, difficulty, user_id FROM Characters WHERE user_id = ? ORDER BY name",
+                                (user_id,)).fetchall()
         return [self._character(row) for row in rows]
 
-    def get_character(self, name: str) -> Character | None:
-        with self.connect() as conn:
-            row = conn.execute("SELECT id, name, difficulty, user_id FROM Characters WHERE name = ?",
-                               (name,)).fetchone()
-        return self._character(row) if row else None
-
-    def create_character(self, name: str, difficulty: str, chips: Chips, user_id: int | None = None) -> Character:
+    def create_character(self, name: str, difficulty: str, chips: Chips, user_id: int) -> Character:
         with self.connect() as conn:
             try:
                 cursor = conn.execute("INSERT INTO Characters (name, difficulty, user_id) VALUES (?, ?, ?)",
@@ -326,11 +313,16 @@ class Database:
             self._write_chips(conn, character.id, chips)
         return character
 
-    def set_character_owner(self, character_id: int, user_id: int) -> None:
-        with self.connect() as conn:
-            conn.execute("UPDATE Characters SET user_id = ? WHERE id = ?", (user_id, character_id))
-
     # ------------------------------------------------------------------ chips
+    def character_credits(self, user_id: int) -> dict[int, int]:
+        """The credits each of an account's characters holds, in one query."""
+        values = " + ".join(f"P.{color.lower()} * {CHIP_VALUES[color]}" for color in COLORS)
+        with self.connect() as conn:
+            rows = conn.execute(f"""SELECT C.id, COALESCE({values}, 0) FROM Characters C
+                                    LEFT JOIN PlayerChips P ON P.character_id = C.id WHERE C.user_id = ?""",
+                                (user_id,)).fetchall()
+        return {row[0]: row[1] for row in rows}
+
     def load_chips(self, character_id: int) -> Chips:
         with self.connect() as conn:
             row = conn.execute(
@@ -381,17 +373,8 @@ class Database:
             ).fetchall()
         return {row["game_key"]: {field: row[field] for field in STAT_FIELDS} for row in rows}
 
-    def set_stats(self, character_id: int, game_key: str, stats: dict[str, int]) -> None:
-        values = [int(stats.get(field, 0)) for field in STAT_FIELDS]
-        with self.connect() as conn:
-            conn.execute(
-                f"""INSERT OR REPLACE INTO GameStats (character_id, game_key, {', '.join(STAT_FIELDS)})
-                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (character_id, game_key, *values),
-            )
-
     # ------------------------------------------------------------------ achievements
-    def unlock_achievement(self, character_id: int, name: str, date_unlocked: str | None = None) -> Achievement | None:
+    def unlock_achievement(self, character_id: int, name: str) -> Achievement | None:
         """Unlock an achievement. Returns it if newly unlocked, None if the character already had it."""
         with self.connect() as conn:
             row = conn.execute(
@@ -399,17 +382,10 @@ class Database:
             ).fetchone()
             if row is None:
                 raise KeyError(f"Unknown achievement: {name}")
-            if date_unlocked:
-                cursor = conn.execute(
-                    "INSERT OR IGNORE INTO CharacterAchievements (character_id, achievement_id, date_unlocked) "
-                    "VALUES (?, ?, ?)",
-                    (character_id, row["id"], date_unlocked),
-                )
-            else:
-                cursor = conn.execute(
-                    "INSERT OR IGNORE INTO CharacterAchievements (character_id, achievement_id) VALUES (?, ?)",
-                    (character_id, row["id"]),
-                )
+            cursor = conn.execute(
+                "INSERT OR IGNORE INTO CharacterAchievements (character_id, achievement_id) VALUES (?, ?)",
+                (character_id, row["id"]),
+            )
         if cursor.rowcount == 0:
             return None
         return Achievement(row["name"], row["category"], row["display_name"], row["description"], True)
@@ -448,14 +424,14 @@ class Database:
             conn.execute("DELETE FROM OpenStakes WHERE character_id = ?", (character_id,))
         return total
 
-    # ------------------------------------------------------------------ saved game state
-    def load_game_state(self, character_id: int, game_key: str) -> dict | None:
+    # ------------------------------------------------------------------ saved table state
+    def load_table_state(self, character_id: int, table_key: str) -> dict | None:
         with self.connect() as conn:
-            row = conn.execute("SELECT data FROM GameState WHERE character_id = ? AND game_key = ?",
-                               (character_id, game_key)).fetchone()
+            row = conn.execute("SELECT data FROM TableState WHERE character_id = ? AND table_key = ?",
+                               (character_id, table_key)).fetchone()
         return json.loads(row[0]) if row else None
 
-    def save_game_state(self, character_id: int, game_key: str, state: dict) -> None:
+    def save_table_state(self, character_id: int, table_key: str, state: dict) -> None:
         with self.connect() as conn:
-            conn.execute("INSERT OR REPLACE INTO GameState (character_id, game_key, data) VALUES (?, ?, ?)",
-                         (character_id, game_key, json.dumps(state)))
+            conn.execute("INSERT OR REPLACE INTO TableState (character_id, table_key, data) VALUES (?, ?, ?)",
+                         (character_id, table_key, json.dumps(state)))

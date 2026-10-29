@@ -45,14 +45,14 @@ class GuessRound(Round):
         settlements, notes = [], []
         for kind, bet in bets.items():
             resolution = rules.resolve(kind, bet.selection, self.number, difficulty, game.table.paytable)
-            settlements.append(settle(session.wallet, bet, resolution.outcome, resolution.ratio or 1))
+            settlements.append(settle(session.wallet, bet, resolution.outcome, resolution.ratio))
             if resolution.detail:
                 notes.append(f"{bet.label}: {resolution.detail}")
             if resolution.outcome is Outcome.WIN:
                 session.unlock("GTN_Win")
                 if kind == "pick" and bet.selection == self.number:
                     session.unlock("GTN_Exact")
-                    if difficulty.max_number >= 100_000_000:
+                    if difficulty == game.difficulties[-1]:
                         session.unlock("GTN_Impossible")
                 if kind == "lucky" and bet.selection[0] == self.number:
                     session.unlock("GTN_Lucky")

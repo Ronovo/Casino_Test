@@ -24,8 +24,7 @@ characters.
 
 ## How To Run
 - Install Python 3.10 or newer
-- Install the requirements once: `pip install -r requirements.txt` (portfolio login and its tests need them;
-  the casino itself runs on the standard library)
+- Install the requirements once: `pip install -r requirements.txt` (the casino needs them to start)
 - From a terminal: `python main.py`
 - Open the address it prints. `http://localhost:8000` on your own computer; other players use the
   "For other players" address (your computer's address on the local network). Windows may ask once to allow
@@ -51,8 +50,8 @@ python main.py --verbose            # log every request
   portfolio login from any device opens the linked account. A new account has no password of its own, so the
   portfolio is the only way into it. Without those two settings the app runs on its own.
 - An account holds up to 8 characters. Each character has its own chips, record, achievements and racing season.
-- Characters saved before accounts existed belong to nobody. Register an account, then hand one over:
-  `python main.py --claim "Ronovo Ronove" your_username`
+- Usernames are public: registering says when one is taken, and **Forgot password?** says when there is no such
+  account. At most 20 accounts can be made in any 10 minutes.
 - The server uses plain HTTP, which is fine on a home network. To open it to the internet, put it behind an
   HTTPS reverse proxy; the portfolio login callback address and the login cookie are still built for plain HTTP.
 
@@ -72,10 +71,10 @@ python main.py --verbose            # log every request
 ```
 python -m unittest discover -s Tests -t .
 ```
-The portfolio login tests need the requirements installed. The soak tests (`Tests/test_soak.py`) take about 100
-seconds, so they only run with `CASINO_SOAK=1` set. Game rules are pure functions (`casino/rules`). Full rounds are played through each game's `start`/`act`
-interface with stacked decks (`Tests/test_games.py`), thousands of random rounds check that no credit is ever
-created or lost (`Tests/test_soak.py`).
+The tests need the requirements installed. Game rules are pure functions (`casino/rules`). Full rounds are played
+through each game's `start`/`act` interface with stacked decks (`Tests/test_games.py`), and thousands of random
+rounds check that no credit is ever created or lost (`Tests/test_soak.py`). The longest of those soak tests take
+about 100 seconds, so they only run with `CASINO_SOAK=1` set.
 
 ## Project Layout
 ```
@@ -84,7 +83,6 @@ casino/
   config.py             paths, difficulties, starting chips
   accounts.py           sign-up, password hashing, login tokens, character ownership
   cashier.py            chip exchange maths (break / color up)
-  transfer.py           character JSON export/import
   engine/               shared engine used by every game
     chips.py            chip values, Chips type, change-making
     cards.py            Card and Shoe
@@ -92,7 +90,7 @@ casino/
     wallet.py           a character's chip rack (saved on every change)
     game.py             Game and Round base classes + TableConfig
     session.py          database, character, wallet, randomness and achievements for one sitting
-    db.py               SQLite schema, migrations, accounts, stats, achievements, saved seasons
+    db.py               SQLite schema, accounts, stats, achievements, saved per-table state
   rules/                pure rules per game (no input/output, no database)
   games/                games wired from rules + engine; registry in __init__.py
   web/
@@ -104,7 +102,6 @@ Data/
   horses.json           the racing stable
   achievements.json     achievement definitions (edits reach existing saves)
   Money/chips.json      starting chips per difficulty
-CharacterTool/          export/import scripts
 Tests/
 docker/git-sync.sh      updates the container from GitHub on start
 Dockerfile
@@ -125,16 +122,6 @@ It appears on the casino floor the next time the server starts.
 4. Add `casino/web/static/js/games/<game>.js` exporting `render(ctx, mount)` and list it in `GAMES` in
    `js/app.js`.
 
-## Character Tool
-```
-python CharacterTool/export_character.py "Ronovo Ronove"
-python CharacterTool/import_character.py "CharacterTool/Character/Ronovo Ronove.json" [--name "New Name"]
-```
-An imported character has no owner until it is claimed with `python main.py --claim`. Importing over an existing
-name replaces that character's chips and stats. A running server picks the imported chips up when that character
-starts its next round. An import made while that character has a round in progress is overwritten when the round
-settles.
-
 ## Saves
 Progress lives in `casino.db` next to `main.py` (set the `CASINO_DB` environment variable to use another file).
 
@@ -152,4 +139,4 @@ GitHub can't be reached the server starts on the code it already has.
 | `REPO_URL` | The repo to pull. Set it empty to run exactly what is in the image. | This repo on GitHub |
 | `REPO_BRANCH` | Branch to pull | `main` |
 | `SYNC_DIR` | Folder the code is pulled into | The app folder |
-| `BUILD_CMD` | Runs after pulling a commit that hasn't been built yet | `pip install -r requirements.txt` |
+| `BUILD_CMD` | Runs after pulling a commit that hasn't been built yet | `pip install --no-cache-dir --user -q -r requirements.txt` |

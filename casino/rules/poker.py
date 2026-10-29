@@ -6,14 +6,13 @@ from dataclasses import dataclass, field
 from itertools import combinations
 from typing import Sequence
 
-from casino.engine.cards import RANK_NAMES, Card
+from casino.engine.cards import RANK_NAMES, RANKS, Card
 
 CATEGORY_NAMES = {
     1: "High Card", 2: "Pair", 3: "Two Pair", 4: "Three of a Kind", 5: "Straight",
     6: "Flush", 7: "Full House", 8: "Four of a Kind", 9: "Straight Flush", 10: "Royal Flush",
 }
-VALUE_NAMES = {value: RANK_NAMES.get(rank, rank) for value, rank in
-               zip(range(2, 15), ("2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"))}
+VALUE_NAMES = {value: RANK_NAMES.get(rank, rank) for value, rank in zip(range(2, 15), RANKS)}
 
 
 def _plural(value: int) -> str:
@@ -105,14 +104,12 @@ def best_hand(cards: Sequence[Card]) -> HandRank:
 
 
 def describe_cards(cards: Sequence[Card]) -> str:
-    """Friendly description for any number of cards (used before the board is complete)."""
+    """Friendly description for any number of cards (before the board is out, that is just the two hole cards)."""
     if len(cards) >= 5:
         return best_hand(cards).description
     counts = Counter(card.value for card in cards)
     value, count = max(counts.items(), key=lambda item: (item[1], item[0]))
-    if count >= 2:
-        return {2: f"Pair of {_plural(value)}", 3: f"Three {_plural(value)}"}.get(count, f"Four {_plural(value)}")
-    return f"High Card, {VALUE_NAMES[value]}"
+    return f"Pair of {_plural(value)}" if count >= 2 else f"High Card, {VALUE_NAMES[value]}"
 
 
 def dealer_qualifies(rank: HandRank) -> bool:

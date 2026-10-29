@@ -1,193 +1,191 @@
-[
-  {
-    "Blackjack": [
-      {
-        "name": "Blackjack_Win",
-        "displayName": "Baby's First Win",
-        "description": "Win a game of Blackjack"
-      },
-      {
-        "name": "Blackjack_Lose",
-        "displayName": "The House Always Wins",
-        "description": "Lose a game of Blackjack"
-      },
-      {
-        "name": "Blackjack_Draw",
-        "displayName": "What are the chances?",
-        "description": "Draw a game of Blackjack"
-      },
-      {
-        "name": "Blackjack_21",
-        "displayName": "21!",
-        "description": "Get a Blackjack"
-      },
-      {
-        "name": "Blackjack_Double_Win",
-        "displayName": "Double or Nothing",
-        "description": "Win a hand you doubled down on"
-      },
-      {
-        "name": "Blackjack_Split",
-        "displayName": "Splitsville",
-        "description": "Split a pair"
-      }
-    ],
-    "Poker" : [
-      {
-        "name": "Poker_Win",
-        "displayName": "First Step...",
-        "description": "Win a game of Poker"
-      },
-      {
-        "name": "Poker_Lose",
-        "displayName": "...Into the Abyss",
-        "description": "Lose a game of Poker"
-      },
-      {
-        "name": "Poker_Lose_Walk1",
-        "displayName": "Best Bet Is To Not Play",
-        "description": "Walk Away From A Game Before You Bet"
-      },
-       {
-        "name": "Poker_Lose_Walk2",
-        "displayName": "Coward's Win",
-        "description": "Walk Away From A Game of Poker Just Before Showdown"
-      },
-      {
-        "name": "Poker_Push_Dealer",
-        "displayName": "Dealer's Fault",
-        "description": "Push by Dealer Not Qualifying"
-      },
-      {
-        "name": "Poker_Push_Tie",
-        "displayName": "Eye To Eye",
-        "description": "Push due to tie"
-      },
-      {
-        "name": "Poker_Trips",
-        "displayName": "What's Better Then 3 of a Kind?",
-        "description": "Win a Trips Bet"
-      },
-      {
-        "name": "Poker_Pairs",
-        "displayName": "Do What You Must, I Have Already Won",
-        "description": "Win a Pairs Bet"
-      },
-      {
-        "name": "Poker_Royal",
-        "displayName": "Royal Treatment",
-        "description": "Make a Royal Flush"
-      }
-    ],
-    "Baccarat": [
-      {
-        "name": "Baccarat_Win",
-        "displayName": "Shaken, Not Stirred",
-        "description": "Win a Player or Banker bet"
-      },
-      {
-        "name": "Baccarat_Tie",
-        "displayName": "Dead Heat",
-        "description": "Win a Tie bet"
-      },
-      {
-        "name": "Baccarat_Dragon7",
-        "displayName": "Enter the Dragon",
-        "description": "Win a Dragon 7 bonus bet"
-      },
-      {
-        "name": "Baccarat_Panda8",
-        "displayName": "Panda Express",
-        "description": "Win a Panda 8 bonus bet"
-      }
-    ],
-    "Guess The Number": [
-      {
-        "name": "GTN_Win",
-        "displayName": "Educated Guess",
-        "description": "Win any Guess the Number bet"
-      },
-      {
-        "name": "GTN_Exact",
-        "displayName": "Mind Reader",
-        "description": "Pick the dealer's exact number"
-      },
-      {
-        "name": "GTN_Lucky",
-        "displayName": "Lucky Number Slevin",
-        "description": "Hit your first Lucky Combo number"
-      },
-      {
-        "name": "GTN_Impossible",
-        "displayName": "Nothing Is Impossible",
-        "description": "Pick the exact number on Impossible difficulty"
-      }
-    ],
-    "Roulette": [
-      {
-        "name": "Roulette_Win",
-        "displayName": "Round and Round",
-        "description": "Win a Roulette bet"
-      },
-      {
-        "name": "Roulette_Straight",
-        "displayName": "Straight Up!",
-        "description": "Win a straight-up bet on a single number"
-      },
-      {
-        "name": "Roulette_Zero",
-        "displayName": "Green With Envy",
-        "description": "Win a straight-up bet on a zero"
-      }
-    ],
-    "Racing": [
-      {
-        "name": "Racing_Win",
-        "displayName": "And They're Off",
-        "description": "Win a bet at the racetrack"
-      },
-      {
-        "name": "Racing_Longshot",
-        "displayName": "Dark Horse",
-        "description": "Win a Win bet at 15:1 or longer"
-      },
-      {
-        "name": "Racing_Across",
-        "displayName": "Across the Board",
-        "description": "Collect on Win, Place and Show bets on the same horse"
-      },
-      {
-        "name": "Racing_Season",
-        "displayName": "Photo Finish",
-        "description": "Bet on the final race of a season and see a champion crowned"
-      }
-    ],
-    "Money": [
-       {
-        "name": "Money_100",
-        "displayName": "Just Scraping By",
-        "description": "Make 100 Credits starting from 10"
-      },
-      {
-        "name": "Money_1000",
-        "displayName": "...Now We Here",
-        "description": "Make 1000 Credits starting with less"
-      },
-      {
-        "name": "Money_10000",
-        "displayName": "Started from the Bottom...",
-        "description": "Reach 10,000 Credits, starting with less"
-      },
-      {
-        "name": "Money_100000",
-        "displayName": "We're in the Money!",
-        "description": "Reach 100,000"
-      },
-      {
-        "name": "Money_1000000",
-        "displayName": "Becoming the 1%",
-        "description": "Reach 1,000,000"
-      }
-    ]
-  }
-]
+{
+  "Blackjack": [
+    {
+      "name": "Blackjack_Win",
+      "displayName": "Baby's First Win",
+      "description": "Win a game of Blackjack"
+    },
+    {
+      "name": "Blackjack_Lose",
+      "displayName": "The House Always Wins",
+      "description": "Lose a game of Blackjack"
+    },
+    {
+      "name": "Blackjack_Draw",
+      "displayName": "What are the chances?",
+      "description": "Draw a game of Blackjack"
+    },
+    {
+      "name": "Blackjack_21",
+      "displayName": "21!",
+      "description": "Get a Blackjack"
+    },
+    {
+      "name": "Blackjack_Double_Win",
+      "displayName": "Double or Nothing",
+      "description": "Win a hand you doubled down on"
+    },
+    {
+      "name": "Blackjack_Split",
+      "displayName": "Splitsville",
+      "description": "Split a pair"
+    }
+  ],
+  "Poker": [
+    {
+      "name": "Poker_Win",
+      "displayName": "First Step...",
+      "description": "Win a game of Poker"
+    },
+    {
+      "name": "Poker_Lose",
+      "displayName": "...Into the Abyss",
+      "description": "Lose a game of Poker"
+    },
+    {
+      "name": "Poker_Lose_Walk1",
+      "displayName": "Best Bet Is To Not Play",
+      "description": "Walk Away From A Game Before You Bet"
+    },
+    {
+      "name": "Poker_Lose_Walk2",
+      "displayName": "Coward's Win",
+      "description": "Walk Away From A Game of Poker Just Before Showdown"
+    },
+    {
+      "name": "Poker_Push_Dealer",
+      "displayName": "Dealer's Fault",
+      "description": "Push by Dealer Not Qualifying"
+    },
+    {
+      "name": "Poker_Push_Tie",
+      "displayName": "Eye To Eye",
+      "description": "Push due to tie"
+    },
+    {
+      "name": "Poker_Trips",
+      "displayName": "What's Better Then 3 of a Kind?",
+      "description": "Win a Trips Bet"
+    },
+    {
+      "name": "Poker_Pairs",
+      "displayName": "Do What You Must, I Have Already Won",
+      "description": "Win a Pairs Bet"
+    },
+    {
+      "name": "Poker_Royal",
+      "displayName": "Royal Treatment",
+      "description": "Make a Royal Flush"
+    }
+  ],
+  "Baccarat": [
+    {
+      "name": "Baccarat_Win",
+      "displayName": "Shaken, Not Stirred",
+      "description": "Win a Player or Banker bet"
+    },
+    {
+      "name": "Baccarat_Tie",
+      "displayName": "Dead Heat",
+      "description": "Win a Tie bet"
+    },
+    {
+      "name": "Baccarat_Dragon7",
+      "displayName": "Enter the Dragon",
+      "description": "Win a Dragon 7 bonus bet"
+    },
+    {
+      "name": "Baccarat_Panda8",
+      "displayName": "Panda Express",
+      "description": "Win a Panda 8 bonus bet"
+    }
+  ],
+  "Guess The Number": [
+    {
+      "name": "GTN_Win",
+      "displayName": "Educated Guess",
+      "description": "Win any Guess the Number bet"
+    },
+    {
+      "name": "GTN_Exact",
+      "displayName": "Mind Reader",
+      "description": "Pick the dealer's exact number"
+    },
+    {
+      "name": "GTN_Lucky",
+      "displayName": "Lucky Number Slevin",
+      "description": "Hit your first Lucky Combo number"
+    },
+    {
+      "name": "GTN_Impossible",
+      "displayName": "Nothing Is Impossible",
+      "description": "Pick the exact number on Impossible difficulty"
+    }
+  ],
+  "Roulette": [
+    {
+      "name": "Roulette_Win",
+      "displayName": "Round and Round",
+      "description": "Win a Roulette bet"
+    },
+    {
+      "name": "Roulette_Straight",
+      "displayName": "Straight Up!",
+      "description": "Win a straight-up bet on a single number"
+    },
+    {
+      "name": "Roulette_Zero",
+      "displayName": "Green With Envy",
+      "description": "Win a straight-up bet on a zero"
+    }
+  ],
+  "Racing": [
+    {
+      "name": "Racing_Win",
+      "displayName": "And They're Off",
+      "description": "Win a bet at the racetrack"
+    },
+    {
+      "name": "Racing_Longshot",
+      "displayName": "Dark Horse",
+      "description": "Win a Win bet at 15:1 or longer"
+    },
+    {
+      "name": "Racing_Across",
+      "displayName": "Across the Board",
+      "description": "Collect on Win, Place and Show bets on the same horse"
+    },
+    {
+      "name": "Racing_Season",
+      "displayName": "Photo Finish",
+      "description": "Bet on the final race of a season and see a champion crowned"
+    }
+  ],
+  "Money": [
+    {
+      "name": "Money_100",
+      "displayName": "Just Scraping By",
+      "description": "Make 100 Credits starting from 10"
+    },
+    {
+      "name": "Money_1000",
+      "displayName": "...Now We Here",
+      "description": "Make 1000 Credits starting with less"
+    },
+    {
+      "name": "Money_10000",
+      "displayName": "Started from the Bottom...",
+      "description": "Reach 10,000 Credits, starting with less"
+    },
+    {
+      "name": "Money_100000",
+      "displayName": "We're in the Money!",
+      "description": "Reach 100,000"
+    },
+    {
+      "name": "Money_1000000",
+      "displayName": "Becoming the 1%",
+      "description": "Reach 1,000,000"
+    }
+  ]
+}

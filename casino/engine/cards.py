@@ -8,7 +8,6 @@ from typing import Iterable, Sequence
 RANKS: tuple[str, ...] = ("2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A")
 SUITS: tuple[str, ...] = ("S", "H", "D", "C")
 SUIT_SYMBOLS = {"S": "♠", "H": "♥", "D": "♦", "C": "♣"}
-SUIT_NAMES = {"S": "Spades", "H": "Hearts", "D": "Diamonds", "C": "Clubs"}
 RANK_NAMES = {"J": "Jack", "Q": "Queen", "K": "King", "A": "Ace"}
 
 
@@ -34,10 +33,6 @@ class Card:
     def value(self) -> int:
         """Poker ranking value: 2..14 with Ace high."""
         return RANKS.index(self.rank) + 2
-
-    @property
-    def name(self) -> str:
-        return f"{RANK_NAMES.get(self.rank, self.rank)} of {SUIT_NAMES[self.suit]}"
 
     def __str__(self) -> str:
         return f"{self.rank}{SUIT_SYMBOLS[self.suit]}"
@@ -78,5 +73,3 @@ class Shoe:
             raise ShoeEmpty("The shoe is empty")
         return self._cards.pop(0)
 
-    def __len__(self) -> int:
-        return len(self._cards)

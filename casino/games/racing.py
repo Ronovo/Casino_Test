@@ -25,10 +25,10 @@ def new_season(number: int, horses: list[Horse], conditions: Conditions, champio
 
 
 class RaceRound(Round):
-    def __init__(self, game: "HorseRacingGame", session: Session, bets: list[tuple[str, str, Bet, float]]):
+    def __init__(self, game: "HorseRacingGame", session: Session, bets: list[tuple[str, str, Bet, float]],
+                 season: dict[str, Any]):
         super().__init__(game, session, sum(bet.amount for _, _, bet, _ in bets))
         self.bets = bets
-        season = game.season(session)
         horses, records = game.horses, season["horses"]
         conditions = Conditions(**season["conditions"])
         weights = [records[horse.key]["weight"] for horse in horses]
@@ -71,7 +71,7 @@ class RaceRound(Round):
         else:
             conditions = game.draw_conditions(session)
             season["conditions"] = {"distance": conditions.distance, "going": conditions.going}
-        session.db.save_game_state(session.character.id, game.game_key, season)
+        session.db.save_table_state(session.character.id, game.table.key, season)
         self.finish(settlements, notes)
 
     def table_view(self) -> dict[str, Any]:
@@ -101,10 +101,10 @@ class HorseRacingGame(Game):
 
     def season(self, session: Session) -> dict[str, Any]:
         """The character's saved season, started fresh if there is none or the stable has changed."""
-        season = session.db.load_game_state(session.character.id, self.game_key)
+        season = session.db.load_table_state(session.character.id, self.table.key)
         if season is None or set(season["horses"]) != {horse.key for horse in self.horses}:
             season = new_season(1, self.horses, self.draw_conditions(session), None)
-            session.db.save_game_state(session.character.id, self.game_key, season)
+            session.db.save_table_state(session.character.id, self.table.key, season)
         return season
 
     def record_result(self, season: dict[str, Any], position: Mapping[str, int]) -> list[tuple[str, int, int]]:
@@ -145,7 +145,7 @@ class HorseRacingGame(Game):
         places = ("1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th")
         points = ", ".join(f"{value} for {place}" for value, place in zip(self.points, places))
         return [
-            [f"{len(self.horses)} horses race a {self.season_length}-race season for the stadium championship.",
+            [f"{len(self.horses)} horses race a {self.season_length}-race season for the racing championship.",
              "Before each race, bet on as many horses as you like, in as many ways as you like:",
              "Win: your horse finishes first.",
              "Place: your horse finishes first or second.",
@@ -188,7 +188,8 @@ class HorseRacingGame(Game):
 
     # ------------------------------------------------------------------ round
     def start(self, session: Session, data: Mapping[str, Any]) -> RaceRound:
-        prices = dict(zip((horse.key for horse in self.horses), self.odds(self.season(session))))
+        season = self.season(session)
+        prices = dict(zip((horse.key for horse in self.horses), self.odds(season)))
         names = {horse.key: horse.name for horse in self.horses}
 
         def spot(item: Mapping[str, Any]) -> tuple[tuple[str, str], str, str]:
@@ -200,4 +201,5 @@ class HorseRacingGame(Game):
             return (key, kind), BET_NAMES[kind], names[key]
 
         slip = gather_slip(data.get("bets"), spot, self.table.min_bet, self.table.max_bet)
-        return RaceRound(self, session, [(key, kind, bet, prices[key][kind]) for (key, kind), bet in slip.items()])
+        return RaceRound(self, session, [(key, kind, bet, prices[key][kind]) for (key, kind), bet in slip.items()],
+                         season)

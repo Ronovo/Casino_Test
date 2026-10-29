@@ -5,9 +5,8 @@ from casino.engine.chips import CHIP_VALUES, COLORS, Chips
 
 
 def break_chips(chips: Chips, color: str, count: int, into: str) -> Chips:
-    """Swap `count` chips of `color` for smaller `into` chips, with any remainder in the fewest chips."""
-    if CHIP_VALUES[into] >= CHIP_VALUES[color]:
-        raise ValueError("You can only break chips into a smaller color")
+    """Swap `count` chips of `color` for smaller `into` chips, with any remainder in the fewest chips. The floor
+    has already checked `into` is smaller."""
     remaining = chips - Chips({color: count})
     target, rest = divmod(CHIP_VALUES[color] * count, CHIP_VALUES[into])
     return remaining + Chips({into: target}) + Chips.make_change(rest)

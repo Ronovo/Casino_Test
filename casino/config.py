@@ -14,20 +14,19 @@ ACHIEVEMENTS_PATH = DATA_DIR / "achievements.json"
 CHIPS_PATH = DATA_DIR / "Money" / "chips.json"
 HORSES_PATH = DATA_DIR / "horses.json"
 DB_PATH = Path(os.environ.get("CASINO_DB") or ROOT / "casino.db")
-CHARACTER_EXPORT_DIR = ROOT / "CharacterTool" / "Character"
 
-# Stored difficulty name -> (menu label, column in chips.json)
-DIFFICULTIES: dict[str, tuple[str, str]] = {
-    "Easy": ("Easy - 10,000 credits", "easy_amount"),
-    "Medium": ("Normal - 1,000 credits", "medium_amount"),
-    "Hard": ("Hard - 100 credits", "hard_amount"),
-    "Very Hard": ("Very Hard - 10 credits", "vhard_amount"),
+# Difficulty name -> its column in chips.json
+DIFFICULTIES: dict[str, str] = {
+    "Easy": "easy_amount",
+    "Medium": "medium_amount",
+    "Hard": "hard_amount",
+    "Very Hard": "vhard_amount",
 }
 
 
 def load_starting_chips(difficulty: str, path: Path = CHIPS_PATH) -> Chips:
     """Starting rack for a difficulty, as defined in chips.json."""
-    column = DIFFICULTIES[difficulty][1]
+    column = DIFFICULTIES[difficulty]
     with open(path, encoding="utf-8") as f:
         rows = json.load(f)
     counts = {}

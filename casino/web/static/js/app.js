@@ -115,7 +115,15 @@ async function logout() {
 
 const SCREENS = { lobby: lobbyScreen, table: tableScreen, profile: profileScreen, cashier: cashierScreen };
 
+// Set by the table screen: tells the server the player got up, however they left the table.
+let leaveTable = null;
+
 async function route() {
+  if (leaveTable) {
+    const leaving = leaveTable;
+    leaveTable = null;
+    leaving();
+  }
   visit += 1;
   closeModal();
   drawTopbar();
@@ -394,7 +402,7 @@ async function profileScreen(_, mine) {
 
 // ------------------------------------------------------------------ cashier
 async function cashierScreen(_, mine) {
-  const body = await api.get('lobby');
+  const body = await api.get('cashier');
   if (mine !== visit) return;
   absorb(body);
   drawCashier();
@@ -529,16 +537,12 @@ async function tableScreen(key, mine) {
     }
   }
 
-  async function leave() {
+  leaveTable = () => {
     if (!ctx.round || ctx.round.finished) {
-      try {
-        absorb(await api.post(`tables/${encodeURIComponent(key)}/leave`));
-      } catch (error) {
-        fail(error);
-      }
+      api.post(`tables/${encodeURIComponent(key)}/leave`).then((reply) => absorb(reply), fail);
     }
-    go('#/lobby');
-  }
+  };
+  const leave = () => go('#/lobby');
 
   add(clear(screen),
     h('div', { class: 'table-head' },

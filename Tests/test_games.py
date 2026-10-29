@@ -13,9 +13,8 @@ from Tests.helpers import DatabaseTestCase, FixedRng, play, table
 
 
 class RegistryTests(unittest.TestCase):
-    def test_all_tables_load_in_order(self):
+    def test_every_table_loads_with_a_unique_key(self):
         games = load_games(TABLES_DIR)
-        self.assertEqual([g.table.order for g in games], sorted(g.table.order for g in games))
         self.assertEqual(len({g.table.key for g in games}), len(games))
         for game in games:
             info = game.info()

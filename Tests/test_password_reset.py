@@ -5,7 +5,7 @@ from casino.config import TABLES_DIR
 from casino.games import load_games
 from ronovo_portfolio_auth.security_questions import QUESTIONS
 from casino.web.server import CasinoApp
-from Tests.helpers import DatabaseTestCase
+from Tests.helpers import DatabaseTestCase, login
 
 QUESTION = QUESTIONS[1]
 
@@ -23,11 +23,11 @@ class PasswordResetTests(DatabaseTestCase):
                 self.accounts.register("Other", "hunter22", question, answer)
 
     def test_the_right_answer_sets_a_new_password_and_logs_out_everywhere(self):
-        token = self.accounts.login("Ronovo", "hunter22")
+        token = login(self.accounts, "Ronovo", "hunter22")
         self.assertEqual(self.accounts.security_question("ronovo"), QUESTION)
         self.accounts.reset_password("Ronovo", "mister whiskers", "newpass1")
         self.assertIsNone(self.accounts.resolve(token))
-        self.assertTrue(self.accounts.login("Ronovo", "newpass1"))
+        self.assertTrue(login(self.accounts, "Ronovo", "newpass1"))
 
     def test_wrong_answers_lock_resets(self):
         for _ in range(5):
@@ -36,16 +36,15 @@ class PasswordResetTests(DatabaseTestCase):
         with self.assertRaisesRegex(AccountError, "Too many"):
             self.accounts.reset_password("Ronovo", "mister whiskers", "newpass1")
 
-    def test_unknown_usernames_get_a_steady_stand_in_question(self):
-        question = self.accounts.security_question("ghost")
-        self.assertIn(question, QUESTIONS)
-        self.assertEqual(self.accounts.security_question("ghost"), question)
-        with self.assertRaises(AccountError):
+    def test_an_unknown_username_says_there_is_no_such_account(self):
+        with self.assertRaisesRegex(AccountError, "no account with that username"):
+            self.accounts.security_question("ghost")
+        with self.assertRaisesRegex(AccountError, "no account with that username"):
             self.accounts.reset_password("ghost", "anything", "newpass1")
 
     def test_portfolio_accounts_cannot_be_reset(self):
         self.accounts.portfolio_user("7", "player7")
-        with self.assertRaises(AccountError):
+        with self.assertRaisesRegex(AccountError, "logs in with the portfolio"):
             self.accounts.reset_password("player7", "", "newpass1")
 
 

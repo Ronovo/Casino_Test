@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from casino.engine.bets import Bet, Outcome, Settlement, read_stake, settle
+from casino.engine.bets import Bet, Outcome, Settlement, format_ratio, read_stake, settle
 from casino.engine.cards import Card, cards_view
 from casino.engine.chips import fmt_credits
 from casino.engine.game import Game, Round, pay_rows, pay_section
@@ -219,6 +219,9 @@ class BlackjackGame(Game):
             rows += pay_rows([("Natural with J♠ or J♣", pay["black_jack_bonus"])])
         rows += [["Push", "bet returned"], ["Surrender", "half your bet returned"]]
         return [pay_section(None, rows)]
+
+    def layout(self) -> dict[str, Any]:
+        return {"natural": format_ratio(self.table.paytable.get("natural", 1.5))}
 
     def start(self, session: Session, data: Mapping[str, Any]) -> BlackjackRound:
         amount = read_stake(data.get("bet"), "Bet", self.table.min_bet, self.table.max_bet)

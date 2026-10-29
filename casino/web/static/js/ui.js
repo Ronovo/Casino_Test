@@ -38,8 +38,9 @@ export function handEl(ctx, key, cards, { start = 0, step = 300, spread = false 
 }
 
 // ------------------------------------------------------------------ chips
-function chipLabel(value) {
-  return value >= 1000 ? `${value / 1000}K` : String(value);
+/* A chip or stake in thousands from 1,000 up, to one decimal: 1500 is 1.5K. */
+export function chipLabel(value) {
+  return value >= 1000 ? `${Math.floor(value / 100) / 10}K` : String(value);
 }
 
 export function chipEl(color, value, extra = '') {
@@ -116,7 +117,7 @@ export function chipTray(ctx) {
 
 export const SLIP_HINT = 'Click to add a chip, right-click to take one back';
 
-/** Click adds the chosen chip to this spot on the slip, right-click takes one back. */
+/* Click adds the chosen chip to this spot on the slip, right-click takes one back. */
 export function slipHandlers(slip, key) {
   return {
     onclick: () => slip.add(key),

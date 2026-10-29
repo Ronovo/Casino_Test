@@ -1,7 +1,7 @@
 """Chip denominations and the immutable Chips value type used wherever money moves."""
 from __future__ import annotations
 
-from typing import Iterator, Mapping
+from typing import Mapping
 
 CHIP_VALUES: dict[str, int] = {
     "White": 1,
@@ -53,9 +53,6 @@ class Chips:
     def total(self) -> int:
         return sum(count * CHIP_VALUES[color] for color, count in self._counts.items())
 
-    def contains(self, other: "Chips") -> bool:
-        return all(self._counts[color] >= other[color] for color in COLORS)
-
     def split_off(self, amount: int) -> tuple["Chips", "Chips"]:
         """Take exactly `amount` credits out of this stack, breaking a bigger chip for change if needed.
 
@@ -84,9 +81,6 @@ class Chips:
         if lowercase:
             return {color.lower(): count for color, count in self._counts.items()}
         return dict(self._counts)
-
-    def items(self) -> Iterator[tuple[str, int]]:
-        return iter(self._counts.items())
 
     def __getitem__(self, color: str) -> int:
         return self._counts[color.capitalize()]

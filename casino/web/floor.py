@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import random
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
@@ -15,6 +16,10 @@ from casino.engine.game import Game, Round
 from casino.engine.session import Session
 from casino.engine.wallet import Wallet
 from casino.games import GAME_TYPES
+
+
+# A seat with no round in progress is let go after this long unused; the next request seats the character again.
+SEAT_IDLE_SECONDS = 60 * 60
 
 
 class ApiError(Exception):
@@ -33,6 +38,7 @@ class Seat:
     # Tables this character has started a round at since sitting down there.
     played: set[str] = field(default_factory=set)
     lock: threading.RLock = field(default_factory=threading.RLock)
+    last_used: float = field(default_factory=time.monotonic)
 
 
 class Floor:
@@ -47,16 +53,22 @@ class Floor:
 
     def seat(self, character: Character) -> Seat:
         with self._lock:
+            now = time.monotonic()
+            for character_id, idle in list(self._seats.items()):
+                if not idle.rounds and now - idle.last_used > SEAT_IDLE_SECONDS:
+                    del self._seats[character_id]
             seat = self._seats.get(character.id)
             if seat is None:
                 session = Session(self.db, character, Wallet.load(self.db, character.id), rng=self._rng_factory())
                 seat = self._seats[character.id] = Seat(session)
                 # Stakes still on record belong to rounds that died with a previous server process.
-                refund = self.db.take_open_stakes(character.id)
-                if refund:
+                with self.db.transaction():
+                    refund = self.db.take_open_stakes(character.id)
                     session.wallet.deposit(refund)
+                if refund:
                     seat.notices.append(f"A round was interrupted last time. Your {fmt_credits(refund)} stake "
                                         "has been returned.")
+            seat.last_used = now
             return seat
 
     def _game(self, key: str) -> Game:
@@ -93,8 +105,6 @@ class Floor:
         if not isinstance(data, Mapping):
             raise ApiError(400, "Bets must be sent as an object.")
         def begin() -> Round:
-            # Chips may have changed outside this server since the seat was made, e.g. a CharacterTool import.
-            seat.session.wallet.reload()
             started = game.start(seat.session, data)
             if not started.finished:
                 self.db.set_open_stake(seat.session.character.id, key, started.staked)
@@ -122,6 +132,11 @@ class Floor:
             self._in_one_transaction(seat, play)
         except BetError as error:
             raise ApiError(400, str(error)) from None
+        except BaseException:
+            # The database went back to before the move, but the round object may be half-changed. Dropping it
+            # leaves its stake on record, which the next seating refunds.
+            del seat.rounds[key]
+            raise
         if current.finished:
             del seat.rounds[key]
         return self._reply(seat, round=current.view(), betting=game.betting_view(seat.session))
@@ -135,6 +150,10 @@ class Floor:
         except BaseException:
             seat.session.wallet.reload()
             raise
+
+    def snapshot(self, seat: Seat) -> dict[str, Any]:
+        """The player's chips and notices with nothing else, for the cashier page."""
+        return self._reply(seat)
 
     def leave(self, seat: Seat, key: str) -> dict[str, Any]:
         game = self._game(key)

@@ -46,7 +46,7 @@ def ratio_for(kind: str, tier: str, difficulty: Difficulty, paytable: Mapping[st
 
 def resolve(kind: str, selection: Any, number: int, difficulty: Difficulty,
             paytable: Mapping[str, float]) -> Resolution:
-    lose = Resolution(Outcome.LOSE, 0, "")
+    lose = Resolution(Outcome.LOSE, 1, "")
     match kind:
         case "pick":
             if selection == number:

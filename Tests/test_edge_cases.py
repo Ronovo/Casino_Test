@@ -70,7 +70,9 @@ class PokerEdgeCases(DatabaseTestCase):
             self.game().start(session, {"ante": 50})
         self.assertEqual(session.wallet.total, 100)
         current = self.game().start(session, {"ante": 33})
-        self.assertIn("play1", [a["id"] for a in (current.act("check"), current.act("check"), current.actions())[2]])
+        current.act("check")
+        current.act("check")
+        self.assertIn("play1", [a["id"] for a in current.actions()])
 
     def test_buy_in_covers_ante_blind_and_play(self):
         self.assertEqual(self.game().min_buy_in, 3)

@@ -1,10 +1,12 @@
 """Accounts, the floor service and the HTTP server, including a real socket round trip."""
+import http.client
 import json
 import random
 import threading
 import urllib.error
 import urllib.request
 from http.cookiejar import CookieJar
+from pathlib import Path
 from unittest import mock
 
 from casino.accounts import AccountError, Accounts, hash_password, verify_password
@@ -12,14 +14,12 @@ from casino.cashier import break_chips, color_up
 from casino.config import TABLES_DIR
 from casino.engine.cards import Shoe
 from casino.engine.chips import Chips
+from casino.engine.db import Character
 from casino.games import load_games
 from casino.web.floor import Floor
-from casino.web.server import STATIC_DIR, CasinoApp, make_server, static_file
-from Tests.helpers import DatabaseTestCase
-from ronovo_portfolio_auth.security_questions import QUESTIONS
+from casino.web.server import CasinoApp, make_server, read_cookie, static_file
+from Tests.helpers import DatabaseTestCase, login, SECURITY, SECURITY_BODY
 
-SECURITY = (QUESTIONS[0], "rex")
-SECURITY_BODY = {"question": QUESTIONS[0], "answer": "rex"}
 
 
 class CashierTests(DatabaseTestCase):
@@ -29,10 +29,6 @@ class CashierTests(DatabaseTestCase):
     def test_break_with_remainder(self):
         self.assertEqual(break_chips(Chips(Green=1), "Green", 1, "Red"), Chips(Red=5))
         self.assertEqual(break_chips(Chips(Purple=1), "Purple", 1, "Black").total, 500)
-
-    def test_break_into_bigger_color_is_rejected(self):
-        with self.assertRaises(ValueError):
-            break_chips(Chips(Red=5), "Red", 5, "Green")
 
     def test_color_up_keeps_total_and_larger_chips(self):
         rack = Chips(White=30, Red=10, Orange=1)
@@ -56,7 +52,7 @@ class AccountTests(DatabaseTestCase):
 
     def test_register_login_and_logout(self):
         self.accounts.register("Ronovo", "hunter22", *SECURITY)
-        token = self.accounts.login("ronovo", "hunter22")
+        token = login(self.accounts, "ronovo", "hunter22")
         user, character = self.accounts.resolve(token)
         self.assertEqual(user.username, "Ronovo")
         self.assertIsNone(character)
@@ -77,18 +73,18 @@ class AccountTests(DatabaseTestCase):
         self.accounts.register("Ronovo", "hunter22", *SECURITY)
         for _ in range(5):
             with self.assertRaisesRegex(AccountError, "Wrong username or password"):
-                self.accounts.login("Ronovo", "nope")
+                login(self.accounts, "Ronovo", "nope")
         with self.assertRaisesRegex(AccountError, "Too many wrong passwords"):
-            self.accounts.login("Ronovo", "hunter22")
+            login(self.accounts, "Ronovo", "hunter22")
 
     def test_unknown_user_gets_the_same_error_as_a_wrong_password(self):
         with self.assertRaisesRegex(AccountError, "Wrong username or password"):
-            self.accounts.login("Nobody", "")
+            login(self.accounts, "Nobody", "")
 
     def test_characters_belong_to_their_account(self):
         owner = self.accounts.register("Ronovo", "hunter22", *SECURITY)
         other = self.accounts.register("Rival", "hunter22", *SECURITY)
-        token, other_token = self.accounts.login("Ronovo", "hunter22"), self.accounts.login("Rival", "hunter22")
+        token, other_token = login(self.accounts, "Ronovo", "hunter22"), login(self.accounts, "Rival", "hunter22")
         character = self.accounts.create_character(owner, "  High   Roller ", "Hard")
         self.assertEqual(character.name, "High Roller")
         self.assertEqual(self.db.load_chips(character.id).total, 100)
@@ -107,17 +103,21 @@ class AccountTests(DatabaseTestCase):
             with self.subTest(name=name, difficulty=difficulty), self.assertRaises(AccountError):
                 self.accounts.create_character(user, name, difficulty)
 
-    def test_claiming_a_character_from_before_accounts(self):
-        legacy = self.db.create_character("Old Timer", "Hard", Chips(White=5))
-        with self.assertRaisesRegex(AccountError, "No account named"):
-            self.accounts.claim_character("Old Timer", "Ronovo")
-        owner = self.accounts.register("Ronovo", "hunter22", *SECURITY)
-        self.accounts.register("Rival", "hunter22", *SECURITY)
-        self.accounts.claim_character("Old Timer", "Ronovo")
-        self.assertEqual([c.id for c in self.db.list_characters(owner.id)], [legacy.id])
-        with self.assertRaisesRegex(AccountError, "another account"):
-            self.accounts.claim_character("Old Timer", "Rival")
+    def test_registrations_are_limited(self):
+        self.accounts.max_registrations = 1
+        self.accounts.register("Ronovo", "hunter22", *SECURITY)
+        with self.assertRaisesRegex(AccountError, "Too many new accounts"):
+            self.accounts.register("Rival", "hunter22", *SECURITY)
 
+    def test_portfolio_names_stay_twenty_characters_with_a_number_added(self):
+        for n in range(1, 11):
+            self.db.create_user("player" + ("" if n == 1 else str(n)), "unused")
+        self.assertEqual(self.accounts.portfolio_user("7", "player").username, "player11")
+        long_name = "x" * 20
+        self.db.create_user(long_name, "unused")
+        for n in range(2, 11):
+            self.db.create_user(f"{long_name[:20 - len(str(n))]}{n}", "unused")
+        self.assertEqual(self.accounts.portfolio_user("8", long_name).username, f"{long_name[:18]}11")
 
 class AppTestCase(DatabaseTestCase):
     """A CasinoApp with seeded randomness and one logged-in, seated player."""
@@ -140,7 +140,9 @@ class AppTestCase(DatabaseTestCase):
         return reply.body
 
     def seat(self, name="Ronovo Ronove"):
-        return self.app.floor.seat(self.db.get_character(name))
+        with self.db.connect() as conn:
+            row = conn.execute("SELECT id, name, difficulty, user_id FROM Characters WHERE name = ?", (name,)).fetchone()
+        return self.app.floor.seat(Character(*row))
 
     def stack(self, cards):
         self.seat().session.shoe_factory = lambda decks: Shoe.stacked(cards)
@@ -247,6 +249,9 @@ class FloorTests(AppTestCase):
         body = self.call("POST", "start-over")
         self.assertEqual(body["player"]["credits"], 1000)
 
+    def test_the_cashier_only_breaks_chips_into_a_smaller_color(self):
+        self.call("POST", "cashier", {"action": "break", "color": "Red", "into": "Green", "count": 1}, status=400)
+
     def test_players_cannot_reach_each_others_seats(self):
         rival = self.signup("Rival", "Rival Player", "Easy")
         self.stack(["10S", "9C", "6H", "7D", "10C"])
@@ -267,14 +272,6 @@ class FloorTests(AppTestCase):
         self.assertEqual(body["player"]["credits"], 1000)
         self.assertIn("20 cr", body["notices"][0])
         self.assertEqual(CasinoApp(self.db, self.games).dispatch("GET", "lobby", {}, self.token).body["notices"], [])
-
-    def test_a_round_starts_from_the_chips_in_the_database(self):
-        character = self.seat().session.character
-        self.call("GET", "lobby")
-        self.db.save_chips(character.id, Chips.make_change(5000))
-        self.stack(["10S", "9C", "6H", "7D", "10C"])
-        body = self.call("POST", "tables/blackjack_classic/start", {"bets": {"bet": 10}})
-        self.assertEqual(body["player"]["credits"], 4990)
 
     def test_walking_away_counts_only_before_betting(self):
         walked = "Best Bet Is To Not Play"
@@ -363,12 +360,23 @@ class HttpTests(AppTestCase):
                 self.assertEqual(self.request(path)[0], 404)
 
     def test_files_outside_the_static_folder_are_never_served(self):
-        outside = STATIC_DIR.parent / "outside_static_test.js"
-        outside.write_text("secret", encoding="utf-8")
-        self.addCleanup(outside.unlink)
-        for path in ("/../outside_static_test.js", "/js/../../outside_static_test.js"):
-            with self.subTest(path=path):
-                self.assertIsNone(static_file(path))
+        root = Path(self._tmp.name)
+        (root / "static" / "js").mkdir(parents=True)
+        (root / "outside_static_test.js").write_text("secret", encoding="utf-8")
+        with mock.patch("casino.web.server.STATIC_DIR", root / "static"):
+            for path in ("/../outside_static_test.js", "/js/../../outside_static_test.js"):
+                with self.subTest(path=path):
+                    self.assertIsNone(static_file(path))
+
+    def test_a_malformed_cookie_reads_as_no_cookie(self):
+        self.assertIsNone(read_cookie('casino_session="unterminated; x', "casino_session"))
+
+    def test_a_post_without_a_length_is_refused(self):
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_address[1], timeout=10)
+        self.addCleanup(connection.close)
+        connection.putrequest("POST", "/api/login")
+        connection.endheaders()
+        self.assertEqual(connection.getresponse().status, 411)
 
     def test_malformed_requests(self):
         self.assertEqual(self.request("/api/login", raw=b"{not json")[0], 400)

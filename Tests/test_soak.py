@@ -9,14 +9,11 @@ from casino.engine.bets import BetError
 from casino.engine.chips import Chips
 from casino.games import load_games
 from casino.rules import baccarat, roulette
-from casino.engine.cards import Shoe
+from casino.engine.cards import Card, RANKS, SUITS
 from casino.web.floor import Floor
 from casino.web.server import CasinoApp
-from Tests.helpers import DatabaseTestCase
-from ronovo_portfolio_auth.security_questions import QUESTIONS
+from Tests.helpers import DatabaseTestCase, SECURITY_BODY
 
-SECURITY = (QUESTIONS[0], "rex")
-SECURITY_BODY = {"question": QUESTIONS[0], "answer": "rex"}
 
 GAMES = {game.table.key: game for game in load_games(TABLES_DIR)}
 
@@ -157,8 +154,10 @@ class OddsTests(DatabaseTestCase):
         rng = random.Random(2024)
         counts = {"player": 0, "banker": 0, "tie": 0, "dragon7": 0, "panda8": 0}
         coups = 60_000
+        # A coup takes at most six cards, so six drawn at random from eight decks stand in for a fresh shoe.
+        eight_decks = [Card(rank, suit) for rank in RANKS for suit in SUITS] * 8
         for _ in range(coups):
-            coup = baccarat.play_coup(Shoe.shuffled(8, rng).draw)
+            coup = baccarat.play_coup(iter(rng.sample(eight_decks, 6)).__next__)
             counts[coup.winner] += 1
             counts["dragon7"] += coup.dragon7
             counts["panda8"] += coup.panda8
@@ -186,7 +185,11 @@ class HostileInputTests(DatabaseTestCase):
         self.app = CasinoApp(self.db, self.games, Floor(self.db, self.games, rng_factory=lambda: random.Random(3)))
         self.token = self.app.dispatch("POST", "register", {"username": "Fuzzer", "password": "hunter22", **SECURITY_BODY}, None).token
         self.app.dispatch("POST", "characters", {"name": "Fuzzer", "difficulty": "Medium"}, self.token)
-        self.wallet = self.app.floor.seat(self.db.get_character("Fuzzer")).session.wallet
+        self.wallet = self.app.floor.seat(self.fuzzer()).session.wallet
+
+    def fuzzer(self):
+        user = self.app.accounts.resolve(self.token)[0]
+        return self.db.list_characters(user.id)[0]
 
     def test_garbage_never_crashes_the_server_or_moves_credits(self):
         rng = random.Random(99)
@@ -215,11 +218,11 @@ class HostileInputTests(DatabaseTestCase):
             statuses.add(reply.status)
             if reply.status == 200 and path == "characters/select":
                 self.app.dispatch("POST", "characters/select",
-                                  {"id": self.db.get_character("Fuzzer").id}, self.token)
+                                  {"id": self.fuzzer().id}, self.token)
         self.assertLessEqual(statuses, {200, 400, 404, 409})
         in_play = sum(current.staked for current in
-                      self.app.floor.seat(self.db.get_character("Fuzzer")).rounds.values())
-        stats = self.db.get_stats(self.db.get_character("Fuzzer").id)
+                      self.app.floor.seat(self.fuzzer()).rounds.values())
+        stats = self.db.get_stats(self.fuzzer().id)
         self.assertEqual(self.wallet.total + in_play, 1000 + sum(row["net_credits"] for row in stats.values()))
 
     def test_simultaneous_all_in_bets_cannot_overdraw(self):

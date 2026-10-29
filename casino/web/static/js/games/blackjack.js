@@ -5,8 +5,7 @@ export function render(ctx, mount) {
   const { round, table } = ctx;
   const felt = h('div', { class: 'felt' });
   add(mount, felt);
-  const natural = table.paytable[0].rows.find((row) => row[0].startsWith('Natural'));
-  const legend = h('div', { class: 'felt-legend' }, `Blackjack pays ${natural[1].replace(':', ' to ')}`);
+  const legend = h('div', { class: 'felt-legend' }, `Blackjack pays ${table.layout.natural.replace(':', ' to ')}`);
 
   if (!round) {
     const slip = betSlip(ctx);

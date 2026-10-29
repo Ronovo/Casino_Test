@@ -1,5 +1,5 @@
 import { add, credits, h } from '../dom.js';
-import { SLIP_HINT, betBar, betSlip, resultPanel, slipHandlers } from '../ui.js';
+import { chipLabel, SLIP_HINT, betBar, betSlip, resultPanel, slipHandlers } from '../ui.js';
 
 const SPIN_MS = 5000;
 const FULL_TURNS = 5;
@@ -33,7 +33,7 @@ function wheelEl(ctx, pocket) {
     const rest = `rotate(${-(wheel.indexOf(pocket) * step) - 360 * FULL_TURNS}deg)`;
     const settle = () => {
       hub.textContent = pocket;
-      hub.classList.add(colorOf(ctx.table, pocket));
+      hub.classList.add(ctx.round.color);
     };
     if (ctx.local.spun) {
       disc.style.transform = rest;
@@ -61,7 +61,7 @@ function boardEl(ctx, slip, winner) {
       class: `cell ${extra} ${won ? 'winner' : ''}`, style, disabled: !playing,
       title: playing ? SLIP_HINT : '',
       ...slipHandlers(slip, key),
-    }, label, amount ? h('span', { class: 'marker' }, amount >= 1000 ? `${Math.floor(amount / 100) / 10}K` : amount) : null);
+    }, label, amount ? h('span', { class: 'marker' }, chipLabel(amount)) : null);
     if (won) el.style.animationDelay = `${SPIN_MS}ms`;
     return el;
   };

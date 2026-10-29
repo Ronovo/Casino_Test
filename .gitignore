@@ -6,9 +6,5 @@ __pycache__/
 venv/
 .env
 
-# The live database and the tests' throwaway copy
+# The live database
 casino.db
-Tests/test_casino.db
-
-# A CharacterTool export made while testing
-/CharacterTool/Character/Ronovo_blackjack_winner.json

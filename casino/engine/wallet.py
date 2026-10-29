@@ -1,7 +1,7 @@
 """A character's chip rack. Every change is written to the database immediately."""
 from __future__ import annotations
 
-from casino.engine.chips import Chips, InsufficientChips
+from casino.engine.chips import Chips
 from casino.engine.db import Database
 
 
@@ -16,8 +16,7 @@ class Wallet:
         return cls(db, character_id, db.load_chips(character_id))
 
     def reload(self) -> None:
-        """Re-reads the rack: at the start of each round, and after a failed round rolled back chip changes this
-        copy had already made."""
+        """Re-reads the rack after a failed round rolled back chip changes this copy had already made."""
         self._chips = self._db.load_chips(self._character_id)
 
     @property
@@ -31,20 +30,10 @@ class Wallet:
     def can_afford(self, amount: int) -> bool:
         return 0 <= amount <= self.total
 
-    def withdraw(self, stake: Chips | int) -> int:
-        """Remove a stake. Exact chips are taken when present; otherwise chips are broken for change."""
-        if isinstance(stake, Chips):
-            amount = stake.total
-            remaining = self._chips - stake if self._chips.contains(stake) else self._chips.split_off(amount)[1]
-        else:
-            amount = int(stake)
-            if amount < 0:
-                raise ValueError("Cannot withdraw a negative amount")
-            if amount > self.total:
-                raise InsufficientChips(f"Need {amount} credits but only {self.total} available")
-            remaining = self._chips.split_off(amount)[1]
-        self._set(remaining)
-        return amount
+    def withdraw(self, amount: int) -> None:
+        """Remove credits, breaking chips for change when needed. split_off refuses a negative amount or more than
+        the rack holds."""
+        self._set(self._chips.split_off(amount)[1])
 
     def deposit(self, amount: int) -> None:
         if amount < 0:
