@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git \
     && chmod +x /usr/local/bin/git-sync
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt gunicorn==23.0.0
 
 COPY . .
 
@@ -28,4 +28,5 @@ VOLUME ["/app/data"]
 EXPOSE 8000
 
 ENTRYPOINT ["git-sync"]
-CMD ["python", "main.py", "--host", "0.0.0.0", "--port", "8000"]
+# One worker: the floor keeps seated players and their locks in memory.
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--threads", "8", "casino.web.server:create_app()"]

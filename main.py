@@ -1,10 +1,7 @@
 """Ronovo's Casino. Run with: python main.py"""
 import argparse
 
-from casino.config import ACHIEVEMENTS_PATH, DB_PATH, TABLES_DIR
-from casino.engine.db import Database
-from casino.games import load_games
-from casino.web.server import CasinoApp, serve
+from casino.web.server import open_casino, serve
 
 
 def main() -> None:
@@ -15,9 +12,7 @@ def main() -> None:
     parser.add_argument("--verbose", action="store_true", help="log every request")
     args = parser.parse_args()
 
-    db = Database(DB_PATH)
-    db.initialize(ACHIEVEMENTS_PATH)
-    serve(CasinoApp(db, load_games(TABLES_DIR)), args.host, args.port, args.verbose)
+    serve(open_casino(), args.host, args.port, args.verbose)
 
 
 if __name__ == "__main__":

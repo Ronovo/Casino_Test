@@ -17,7 +17,7 @@ from casino.engine.chips import Chips
 from casino.engine.db import Character
 from casino.games import load_games
 from casino.web.floor import Floor
-from casino.web.server import CasinoApp, make_server, read_cookie, static_file
+from casino.web.server import CasinoApp, make_server, static_file
 from Tests.helpers import DatabaseTestCase, login, SECURITY, SECURITY_BODY
 
 
@@ -369,7 +369,9 @@ class HttpTests(AppTestCase):
                     self.assertIsNone(static_file(path))
 
     def test_a_malformed_cookie_reads_as_no_cookie(self):
-        self.assertIsNone(read_cookie('casino_session="unterminated; x', "casino_session"))
+        status, body, _ = self.request("/api/session", headers={"Cookie": 'casino_login="unterminated; x'})
+        self.assertEqual(status, 200)
+        self.assertIsNone(json.loads(body)["user"])
 
     def test_a_post_without_a_length_is_refused(self):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_address[1], timeout=10)

@@ -2,25 +2,28 @@
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 import socket
 import traceback
 from dataclasses import dataclass
-from http.cookies import CookieError, SimpleCookie
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
+from flask import Flask, Response, g, redirect, request
 from ronovo_portfolio_auth import portfolio_sso
 from ronovo_portfolio_auth.security_questions import QUESTIONS
+from werkzeug.serving import BaseWSGIServer, WSGIRequestHandler
+from werkzeug.serving import make_server as make_wsgi_server
 
 from casino import APP_NAME, APP_VERSION
 from casino.accounts import LOGIN_LIFETIME, PORTFOLIO_CHOICE_SECONDS, AccountError, Accounts
-from casino.config import load_starting_chips, DIFFICULTIES
+from casino.config import ACHIEVEMENTS_PATH, DB_PATH, TABLES_DIR, load_starting_chips, DIFFICULTIES
 from casino.engine.chips import CHIP_VALUES
 from casino.engine.db import Character, Database, User
 from casino.engine.game import Game
+from casino.games import load_games
 from casino.web.floor import ApiError, Floor, Seat
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -210,14 +213,6 @@ def parse_json_body(content_type: str, body: bytes) -> Any:
         raise ApiError(400, "Malformed JSON.") from None
 
 
-def read_cookie(cookie_header: str, name: str) -> str | None:
-    try:
-        cookie = SimpleCookie(cookie_header)
-    except CookieError:
-        return None
-    return cookie[name].value if name in cookie else None
-
-
 def content_security_policy() -> str:
     """The page may also ask the portfolio which portfolio account the browser is logged in to."""
     connect = "'self'"
@@ -227,141 +222,131 @@ def content_security_policy() -> str:
     return f"default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src {connect}; frame-ancestors 'none'"
 
 
-def reply_cookies(reply: Reply) -> list[str]:
-    cookies = [] if reply.token is None else [set_cookie(COOKIE_NAME, reply.token, LOGIN_LIFETIME)]
+def set_cookie(response: Response, name: str, value: str, max_age: int, path: str = "/",
+               same_site: str = "Strict") -> None:
+    """An empty value clears the cookie."""
+    response.set_cookie(name, value, max_age=max_age if value else 0, path=path, httponly=True, samesite=same_site)
+
+
+def set_reply_cookies(response: Response, reply: Reply) -> Response:
+    if reply.token is not None:
+        set_cookie(response, COOKIE_NAME, reply.token, LOGIN_LIFETIME)
     if reply.pending is not None:
-        cookies.append(set_cookie(PORTFOLIO_PENDING_COOKIE, reply.pending, PORTFOLIO_CHOICE_SECONDS))
-    return cookies
+        set_cookie(response, PORTFOLIO_PENDING_COOKIE, reply.pending, PORTFOLIO_CHOICE_SECONDS)
+    return response
 
 
-def set_cookie(name: str, value: str, max_age: int, path: str = "/", same_site: str = "Strict") -> str:
-    """A Set-Cookie value; an empty value clears the cookie."""
-    return f"{name}={value}; Path={path}; Max-Age={max_age if value else 0}; HttpOnly; SameSite={same_site}"
-
-
-def state_cookie(state: str) -> str:
+def set_state_cookie(response: Response, state: str) -> Response:
     """Holds a portfolio login's state until its callback."""
-    return set_cookie(SSO_STATE_COOKIE, state, SSO_STATE_SECONDS, "/sso", "Lax")
+    set_cookie(response, SSO_STATE_COOKIE, state, SSO_STATE_SECONDS, "/sso", "Lax")
+    return response
 
 
-class CasinoHandler(BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
-    server_version = "RonovoCasino"
-    # A client that stops sending mid-request frees its thread after this many seconds.
-    timeout = 30
-    app: CasinoApp
+def json_response(body: dict[str, Any], status: int = 200, close: bool = False) -> Response:
+    headers = dict(JSON_HEADERS)
+    if close:
+        headers["Connection"] = "close"
+    return Response(json.dumps(body), status, headers, content_type=JSON_TYPE)
 
-    @property
-    def _path(self) -> str:
-        """The request path without its query string."""
-        return self.path.split("?")[0]
 
-    def do_GET(self) -> None:
-        if self._path.startswith("/api/"):
-            self._api({})
-        elif self._path == "/sso/login":
-            self._sso_login()
-        else:
-            self._static()
+def drain(length: int) -> None:
+    """Read and throw away an oversized body, up to a limit, so the refusal can be delivered."""
+    remaining = min(length, MAX_DRAIN_BYTES)
+    while remaining > 0:
+        chunk = request.stream.read(min(remaining, 64 * 1024))
+        if not chunk:
+            break
+        remaining -= len(chunk)
 
-    def do_POST(self) -> None:
-        try:
-            length = int(self.headers.get("Content-Length", ""))
-        except ValueError:
-            return self._json({"error": "Content-Length required."}, 411, close=True)
-        if not 0 <= length <= MAX_BODY_BYTES:
-            self._drain(length)
-            return self._json({"error": "Request too large."}, 413, close=True)
+
+def open_casino() -> CasinoApp:
+    """The casino in the configured database, with every table loaded."""
+    db = Database(DB_PATH)
+    db.initialize(ACHIEVEMENTS_PATH)
+    return CasinoApp(db, load_games(TABLES_DIR))
+
+
+def create_app(casino: CasinoApp | None = None) -> Flask:
+    """The web app around a casino. With no casino it opens the one in the configured database."""
+    if casino is None:
+        casino = open_casino()
+    app = Flask(__name__, static_folder=None)
+
+    @app.before_request
+    def read_body() -> Response | None:
+        if request.method != "POST":
+            return None
+        length = request.content_length
+        if length is None:
+            return json_response({"error": "Content-Length required."}, 411, close=True)
+        if length > MAX_BODY_BYTES:
+            drain(length)
+            return json_response({"error": "Request too large."}, 413, close=True)
         # The body is read even for requests about to be refused: closing a socket with unread data resets
         # the connection, and the client would see that instead of the error message.
-        body = self.rfile.read(length)
-        if self.path == "/sso/callback":
-            return self._sso_callback(body)
-        if not self.path.startswith("/api/"):
-            return self._json({"error": "Not found."}, 404)
+        g.body = request.get_data(cache=False)
+        return None
+
+    @app.after_request
+    def common_headers(response: Response) -> Response:
+        response.headers.update(COMMON_HEADERS)
+        return response
+
+    @app.route("/api/", defaults={"path": ""}, methods=["GET", "POST"])
+    @app.route("/api/<path:path>", methods=["GET", "POST"])
+    def api(path: str) -> Response:
+        data: Any = {}
+        if request.method == "POST":
+            try:
+                data = parse_json_body(request.headers.get("Content-Type", ""), g.body)
+            except ApiError as error:
+                return json_response({"error": error.message}, error.status)
+        reply = casino.answer(request.method, path, data, request.cookies.get(COOKIE_NAME),
+                              request.cookies.get(PORTFOLIO_PENDING_COOKIE))
+        return set_reply_cookies(json_response(reply.body, reply.status), reply)
+
+    @app.get("/sso/login")
+    def sso_login() -> Response:
         try:
-            data = parse_json_body(self.headers.get("Content-Type", ""), body)
+            location, state = casino.portfolio_authorize_url(request.host)
         except ApiError as error:
-            return self._json({"error": error.message}, error.status)
-        self._api(data)
+            return json_response({"error": error.message}, error.status)
+        return set_state_cookie(redirect(location, 303), state)
 
-    def _drain(self, length: int) -> None:
-        """Read and throw away an oversized body, up to a limit, so the refusal can be delivered."""
-        remaining = min(max(length, 0), MAX_DRAIN_BYTES)
-        while remaining > 0:
-            chunk = self.rfile.read(min(remaining, 64 * 1024))
-            if not chunk:
-                break
-            remaining -= len(chunk)
-
-    def _api(self, data: Any) -> None:
-        path = self._path[len("/api/"):]
-        cookies = self.headers.get("Cookie", "")
-        reply = self.app.answer(self.command, path, data, read_cookie(cookies, COOKIE_NAME),
-                                read_cookie(cookies, PORTFOLIO_PENDING_COOKIE))
-        self._json(reply.body, reply.status, reply_cookies(reply))
-
-    def _sso_login(self) -> None:
+    @app.post("/sso/callback")
+    def sso_callback() -> Response:
+        form = {key: values[0] for key, values in parse_qs(g.body.decode("utf-8", "replace")).items()}
         try:
-            location, state = self.app.portfolio_authorize_url(self.headers.get("Host", ""))
+            reply = casino.portfolio_callback(form, request.cookies.get(SSO_STATE_COOKIE),
+                                              request.cookies.get(COOKIE_NAME))
         except ApiError as error:
-            return self._json({"error": error.message}, error.status)
-        self._redirect(location, [state_cookie(state)])
+            return json_response({"error": error.message}, error.status)
+        return set_reply_cookies(set_state_cookie(redirect("/", 303), ""), reply)
 
-    def _sso_callback(self, body: bytes) -> None:
-        form = {key: values[0] for key, values in parse_qs(body.decode("utf-8", "replace")).items()}
-        cookies = self.headers.get("Cookie", "")
-        try:
-            reply = self.app.portfolio_callback(form, read_cookie(cookies, SSO_STATE_COOKIE),
-                                                read_cookie(cookies, COOKIE_NAME))
-        except ApiError as error:
-            return self._json({"error": error.message}, error.status)
-        self._redirect("/", [state_cookie("")] + reply_cookies(reply))
-
-    def _redirect(self, location: str, cookies: list[str]) -> None:
-        self._send(303, "text/plain; charset=utf-8", b"", {"Location": location}, cookies)
-
-    def _json(self, body: dict[str, Any], status: int = 200, cookies: list[str] | None = None,
-              close: bool = False) -> None:
-        headers = dict(JSON_HEADERS)
-        if close:
-            headers["Connection"] = "close"
-            self.close_connection = True
-        self._send(status, JSON_TYPE, json.dumps(body).encode("utf-8"), headers, cookies)
-
-    def _static(self) -> None:
-        found = static_file(self._path)
+    @app.route("/", defaults={"path": ""}, methods=["GET", "POST"])
+    @app.route("/<path:path>", methods=["GET", "POST"])
+    def client(path: str) -> Response:
+        if request.method == "POST":
+            return json_response({"error": "Not found."}, 404)
+        found = static_file(path)
         if found is None:
-            return self._send(404, "text/plain; charset=utf-8", b"Not found")
-        self._send(200, *found, {**STATIC_HEADERS, "Content-Security-Policy": content_security_policy()})
+            return Response(b"Not found", 404, content_type="text/plain; charset=utf-8")
+        content_type, payload = found
+        return Response(payload, headers={**STATIC_HEADERS, "Content-Security-Policy": content_security_policy()},
+                        content_type=content_type)
 
-    def _send(self, status: int, content_type: str, payload: bytes, headers: dict[str, str] | None = None,
-              cookies: list[str] | None = None) -> None:
-        self.send_response(status)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(payload)))
-        for name, value in {**COMMON_HEADERS, **(headers or {})}.items():
-            self.send_header(name, value)
-        for cookie in cookies or []:
-            self.send_header("Set-Cookie", cookie)
-        self.end_headers()
-        self.wfile.write(payload)
-
-    def log_message(self, format: str, *args: Any) -> None:
-        if self.server.verbose:
-            super().log_message(format, *args)
+    return app
 
 
-class CasinoServer(ThreadingHTTPServer):
-    daemon_threads = True
-    verbose = False
+class RequestHandler(WSGIRequestHandler):
+    # A client that stops sending mid-request frees its thread after this many seconds.
+    timeout = 30
 
 
-def make_server(app: CasinoApp, host: str, port: int, verbose: bool = False) -> CasinoServer:
-    handler = type("BoundCasinoHandler", (CasinoHandler,), {"app": app})
-    server = CasinoServer((host, port), handler)
-    server.verbose = verbose
-    return server
+def make_server(casino: CasinoApp, host: str, port: int, verbose: bool = False) -> BaseWSGIServer:
+    if not verbose:
+        logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    return make_wsgi_server(host, port, create_app(casino), threaded=True, request_handler=RequestHandler)
 
 
 def lan_address() -> str | None:

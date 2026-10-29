@@ -95,7 +95,7 @@ casino/
   games/                games wired from rules + engine; registry in __init__.py
   web/
     floor.py            every request a seated player can make, as plain functions returning JSON
-    server.py           HTTP server, routing, cookies, static files
+    server.py           Flask app: routing, cookies, static files
     static/             the browser client: index.html, css/, js/ (one module per game in js/games/)
 Data/
   Tables/*.json         one file per table (scenario)
@@ -140,3 +140,7 @@ GitHub can't be reached the server starts on the code it already has.
 | `REPO_BRANCH` | Branch to pull | `main` |
 | `SYNC_DIR` | Folder the code is pulled into | The app folder |
 | `BUILD_CMD` | Runs after pulling a commit that hasn't been built yet | `pip install --no-cache-dir --user -q -r requirements.txt` |
+
+## License
+
+BSD 2-Clause. See [LICENSE](LICENSE).
