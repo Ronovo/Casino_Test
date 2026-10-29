@@ -86,6 +86,10 @@ class PortfolioLoginTests(DatabaseTestCase):
     def session(self, browser):
         return browser.request("/api/session")[2]
 
+    def test_the_callback_keeps_the_scheme_of_the_app_address(self):
+        location, _ = CasinoApp(self.db, load_games(TABLES_DIR)).portfolio_authorize_url("https://casino.ronovo.io/")
+        self.assertEqual(parse_qs(urlsplit(location).query)["return"], ["https://casino.ronovo.io/sso/callback"])
+
     def test_first_login_asks_before_making_an_account(self):
         phone = Browser(self.base)
         session = self.session(phone)

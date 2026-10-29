@@ -19,7 +19,7 @@ from werkzeug.serving import make_server as make_wsgi_server
 
 from casino import APP_NAME, APP_VERSION
 from casino.accounts import LOGIN_LIFETIME, PORTFOLIO_CHOICE_SECONDS, AccountError, Accounts
-from casino.config import ACHIEVEMENTS_PATH, DB_PATH, TABLES_DIR, load_starting_chips, DIFFICULTIES
+from casino.config import ACHIEVEMENTS_PATH, DB_PATH, SECURE_COOKIES, TABLES_DIR, load_starting_chips, DIFFICULTIES
 from casino.engine.chips import CHIP_VALUES
 from casino.engine.db import Character, Database, User
 from casino.engine.game import Game
@@ -156,13 +156,13 @@ class CasinoApp:
         return Reply(self._session_view(user, None), token=self.accounts.issue_token(user), pending=pending)
 
     # ------------------------------------------------------------------ portfolio login
-    def portfolio_authorize_url(self, host: str) -> tuple[str, str]:
+    def portfolio_authorize_url(self, base_url: str) -> tuple[str, str]:
         """Where to send the browser to log in with a portfolio account, and the state to hold in its cookie
-        meanwhile."""
+        meanwhile. base_url is this app's address, ending in a slash."""
         if not portfolio_sso.enabled():
             raise ApiError(404, "Not found.")
         state = portfolio_sso.new_state()
-        return portfolio_sso.authorize_url("casino", f"http://{host}/sso/callback", state), state
+        return portfolio_sso.authorize_url("casino", f"{base_url}{portfolio_sso.CALLBACK_PATH}", state), state
 
     def portfolio_callback(self, form: dict[str, str], expected_state: str | None, old_token: str | None = None) -> Reply:
         """Logs in to the casino account linked to the portfolio account, or holds the login until the player
@@ -225,7 +225,8 @@ def content_security_policy() -> str:
 def set_cookie(response: Response, name: str, value: str, max_age: int, path: str = "/",
                same_site: str = "Strict") -> None:
     """An empty value clears the cookie."""
-    response.set_cookie(name, value, max_age=max_age if value else 0, path=path, httponly=True, samesite=same_site)
+    response.set_cookie(name, value, max_age=max_age if value else 0, path=path, httponly=True, samesite=same_site,
+                        secure=SECURE_COOKIES)
 
 
 def set_reply_cookies(response: Response, reply: Reply) -> Response:
@@ -308,7 +309,7 @@ def create_app(casino: CasinoApp | None = None) -> Flask:
     @app.get("/sso/login")
     def sso_login() -> Response:
         try:
-            location, state = casino.portfolio_authorize_url(request.host)
+            location, state = casino.portfolio_authorize_url(request.host_url)
         except ApiError as error:
             return json_response({"error": error.message}, error.status)
         return set_state_cookie(redirect(location, 303), state)
