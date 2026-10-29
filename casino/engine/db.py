@@ -13,14 +13,17 @@ from typing import Iterator
 
 from casino.engine.chips import COLORS, Chips
 
-SCHEMA_VERSION = 2
-
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS Users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL COLLATE NOCASE,
     password_hash TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    portfolio_sub TEXT UNIQUE,
+    security_question TEXT,
+    security_answer_hash TEXT,
+    reset_failures INTEGER NOT NULL DEFAULT 0,
+    reset_locked_until REAL NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS Logins (
@@ -97,20 +100,9 @@ CREATE TABLE IF NOT EXISTS GameState (
 );
 """
 
-# Pre-2.0 databases kept win/loss counters in one table per game, linked from Characters.
-LEGACY_STATS = (("Blackjack", "blackjack_id", "blackjack"), ("Poker", "poker_id", "poker"),
-                ("GuessTheNumber", "gtn_id", "gtn"))
 STAT_FIELDS = ("wins", "losses", "pushes", "net_credits", "biggest_win")
 # Expired logins are swept once they are this many seconds older than a newly issued one.
 LOGIN_PURGE_MARGIN = 60 * 60 * 24 * 60
-# Users columns added after the first release, so they are created on older databases as well
-USER_COLUMNS = {
-    "portfolio_sub": "TEXT",
-    "security_question": "TEXT",
-    "security_answer_hash": "TEXT",
-    "reset_failures": "INTEGER NOT NULL DEFAULT 0",
-    "reset_locked_until": "REAL NOT NULL DEFAULT 0",
-}
 
 
 class DuplicateCharacter(ValueError):
@@ -171,33 +163,9 @@ class Database:
     # ------------------------------------------------------------------ setup
     def initialize(self, achievements_path: str | Path | None = None) -> None:
         with self.connect() as conn:
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
             conn.executescript(SCHEMA)
-            if version < 1:
-                self._migrate_legacy_stats(conn)
-            if "user_id" not in {row[1] for row in conn.execute("PRAGMA table_info(Characters)")}:
-                conn.execute("ALTER TABLE Characters ADD COLUMN user_id INTEGER REFERENCES Users (id)")
-            user_columns = {row[1] for row in conn.execute("PRAGMA table_info(Users)")}
-            for column, kind in USER_COLUMNS.items():
-                if column not in user_columns:
-                    conn.execute(f"ALTER TABLE Users ADD COLUMN {column} {kind}")
-            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_portfolio_sub ON Users (portfolio_sub)")
-            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         if achievements_path:
             self.sync_achievements(achievements_path)
-
-    @staticmethod
-    def _migrate_legacy_stats(conn: sqlite3.Connection) -> None:
-        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(Characters)")}
-        for table, link, game_key in LEGACY_STATS:
-            if table in tables and link in columns:
-                conn.execute(
-                    f"""INSERT OR IGNORE INTO GameStats (character_id, game_key, wins, losses, pushes)
-                        SELECT c.id, ?, t.wins, t.losses, t.draws
-                        FROM Characters c JOIN {table} t ON t.{link} = c.{link}""",
-                    (game_key,),
-                )
 
     def sync_achievements(self, path: str | Path) -> None:
         """Upsert achievements from JSON so edits to the file reach existing databases."""
@@ -272,11 +240,6 @@ class Database:
             conn.execute("DELETE FROM Logins WHERE token_hash = ?", (token_hash,))
 
     # ------------------------------------------------------------------ security questions
-    def has_security_question(self, user_id: int) -> bool:
-        with self.connect() as conn:
-            row = conn.execute("SELECT security_answer_hash FROM Users WHERE id = ?", (user_id,)).fetchone()
-        return bool(row and row[0])
-
     def set_security_question(self, user_id: int, question: str, answer_hash: str) -> None:
         with self.connect() as conn:
             conn.execute("UPDATE Users SET security_question = ?, security_answer_hash = ? WHERE id = ?",
@@ -290,10 +253,18 @@ class Database:
                    FROM Users WHERE username = ? AND security_answer_hash IS NOT NULL""", (username,)).fetchone()
         return tuple(row) if row else None
 
-    def set_reset_failures(self, user_id: int, failures: int, locked_until: float) -> None:
+    def count_reset_try(self, user_id: int, now: float) -> int | None:
+        """Count one more reset try and return the count so far, or None while resets are locked. It is one
+        statement, so tries sent at the same moment each get their own count."""
         with self.connect() as conn:
-            conn.execute("UPDATE Users SET reset_failures = ?, reset_locked_until = ? WHERE id = ?",
-                         (failures, locked_until, user_id))
+            row = conn.execute("""UPDATE Users SET reset_failures = reset_failures + 1
+                                  WHERE id = ? AND reset_locked_until <= ? RETURNING reset_failures""",
+                               (user_id, now)).fetchone()
+        return row[0] if row else None
+
+    def lock_resets(self, user_id: int, until: float) -> None:
+        with self.connect() as conn:
+            conn.execute("UPDATE Users SET reset_failures = 0, reset_locked_until = ? WHERE id = ?", (until, user_id))
 
     def reset_password(self, user_id: int, password_hash: str) -> None:
         """Set a new password and log the account out everywhere."""

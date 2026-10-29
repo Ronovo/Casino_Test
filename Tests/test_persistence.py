@@ -1,10 +1,9 @@
 import json
-import sqlite3
 import unittest
 
 from casino.config import ACHIEVEMENTS_PATH, CHARACTER_EXPORT_DIR, load_starting_chips
 from casino.engine.chips import Chips, InsufficientChips
-from casino.engine.db import SCHEMA_VERSION, Database, DuplicateCharacter
+from casino.engine.db import DuplicateCharacter
 from casino.engine.wallet import Wallet
 from casino.transfer import export_character, import_character, read_import
 from Tests.helpers import DatabaseTestCase
@@ -20,9 +19,12 @@ class StartingChipsTests(unittest.TestCase):
 class DatabaseTests(DatabaseTestCase):
     def test_initialize_is_idempotent(self):
         self.db.initialize(ACHIEVEMENTS_PATH)
+        count = "SELECT COUNT(*) FROM Achievements"
+        with self.db.connect() as conn:
+            before = conn.execute(count).fetchone()[0]
         self.db.initialize(ACHIEVEMENTS_PATH)
         with self.db.connect() as conn:
-            self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
+            self.assertEqual(conn.execute(count).fetchone()[0], before)
 
     def test_duplicate_character_names_are_rejected(self):
         self.db.create_character("Ronovo", "Hard", Chips(White=10))
@@ -56,33 +58,6 @@ class DatabaseTests(DatabaseTestCase):
         character = self.db.create_character("Ronovo", "Hard", Chips())
         achievement = self.db.unlock_achievement(character.id, "Blackjack_Win")
         self.assertEqual(achievement.display_name, "Renamed")
-
-    def test_legacy_database_stats_are_migrated(self):
-        legacy = Database(self.db_path.parent / "legacy.db")
-        conn = sqlite3.connect(legacy.path)
-        conn.executescript("""
-            CREATE TABLE Characters (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,
-                credits INTEGER DEFAULT 0, difficulty TEXT, blackjack_id INTEGER DEFAULT 0,
-                poker_id INTEGER DEFAULT 0, gtn_id INTEGER DEFAULT 0, baccarat_id INTEGER DEFAULT 0);
-            CREATE TABLE Blackjack (blackjack_id INTEGER PRIMARY KEY AUTOINCREMENT, current_bet INTEGER DEFAULT 0,
-                wins INTEGER DEFAULT 0, losses INTEGER DEFAULT 0, draws INTEGER DEFAULT 0);
-            CREATE TABLE PlayerChips (p_chip_id INTEGER PRIMARY KEY AUTOINCREMENT, character_id INTEGER NOT NULL,
-                white INTEGER NOT NULL DEFAULT 0, red INTEGER NOT NULL DEFAULT 0, green INTEGER NOT NULL DEFAULT 0,
-                black INTEGER NOT NULL DEFAULT 0, purple INTEGER NOT NULL DEFAULT 0,
-                orange INTEGER NOT NULL DEFAULT 0);
-            INSERT INTO Blackjack (wins, losses, draws) VALUES (139, 166, 26);
-            INSERT INTO Characters (name, credits, difficulty, blackjack_id) VALUES ('Old Timer', 111, 'Very Hard', 1);
-            INSERT INTO PlayerChips (character_id, white, green) VALUES (1, 11, 4);
-        """)
-        conn.commit()
-        conn.close()
-
-        legacy.initialize(ACHIEVEMENTS_PATH)
-        character = legacy.get_character("Old Timer")
-        self.assertEqual(legacy.load_chips(character.id).total, 111)
-        self.assertEqual(legacy.get_stats(character.id)["blackjack"]["wins"], 139)
-        legacy.initialize(ACHIEVEMENTS_PATH)  # running again must not duplicate anything
-        self.assertEqual(legacy.get_stats(character.id)["blackjack"]["pushes"], 26)
 
 
 class WalletTests(DatabaseTestCase):
@@ -130,7 +105,7 @@ class SessionAchievementTests(DatabaseTestCase):
 
 
 class TransferTests(DatabaseTestCase):
-    def test_import_legacy_export_file(self):
+    def test_import_export_file(self):
         character = read_import(self.db, CHARACTER_EXPORT_DIR / "Ronovo Ronove.json")
         self.assertEqual(character.difficulty, "Very Hard")
         self.assertEqual(self.db.load_chips(character.id), Chips(White=11, Green=4))

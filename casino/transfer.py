@@ -1,4 +1,4 @@
-"""Export characters to JSON and import them back (including the pre-2.0 export format)."""
+"""Export characters to JSON and import them back."""
 from __future__ import annotations
 
 import datetime
@@ -10,7 +10,6 @@ from casino.engine.chips import Chips
 from casino.engine.db import Character, Database
 
 EXPORT_VERSION = "2.0"
-LEGACY_GAME_SECTIONS = ("blackjack", "poker")
 
 
 def export_character(db: Database, name: str) -> dict[str, Any]:
@@ -53,13 +52,7 @@ def import_character(db: Database, data: dict[str, Any], name: str | None = None
     else:
         character = db.create_character(name, character_data.get("difficulty") or "Medium", chips)
 
-    stats = dict(data.get("stats") or {})
-    for section in LEGACY_GAME_SECTIONS:
-        legacy = data.get(section)
-        if legacy and section not in stats:
-            stats[section] = {"wins": legacy.get("wins", 0), "losses": legacy.get("losses", 0),
-                              "pushes": legacy.get("draws", 0)}
-    for game_key, values in stats.items():
+    for game_key, values in (data.get("stats") or {}).items():
         db.set_stats(character.id, game_key, values)
 
     for achievement in data.get("achievements", []):

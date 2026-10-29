@@ -1,6 +1,6 @@
 # Edge Case Report
 
-How the games were tested, what broke, what was fixed, and what was left for you to decide.
+How the games were tested, what broke, what was fixed, and the balance questions still open.
 
 ## How it was tested
 
@@ -15,7 +15,7 @@ How the games were tested, what broke, what was fixed, and what was left for you
 | Real HTTP round trip | `Tests/test_web.py` | Cookies, logout, path traversal, oversized and malformed bodies |
 | Client code run in Node against a live server with a stand-in DOM | not in the repo | Every screen and every game, including a full 40-race season |
 
-Result: 159 tests pass. The client was **not** opened in a real browser, so layout and animation are unverified. See "For you to look at" at the bottom.
+Result: 174 tests pass (the portfolio login tests need `requirements.txt` installed). The client has not been opened in a real browser, so layout and animation are unverified; see "To check in a browser" at the bottom.
 
 ## Fixed: game rules
 
@@ -63,25 +63,25 @@ Effect of handicapping over 400 simulated seasons:
 - Racing: win, place and show frequencies over 40,000 simulated races match the calculated probabilities to within 0.8 points for every horse.
 - Chip change-making (`Chips.split_off`) never loses or creates a credit.
 
-## Left as is: your call
+## Left as is: balance and policy choices
 
-These work as coded. They are balance or policy choices, so I did not change them.
+These work as coded. They are balance or policy choices, so they are unchanged until decided.
 
 | | What | Numbers | If you want to change it |
 |---|---|---|---|
 | A | **Guess the Number, "Pick a Number" favors the player.** Exact plus the "close" payout add up to more than the losing chance. | Player edge +20% on Easy, +11% Medium, +10% Hard | `"close": 1` in `Data/Tables/06_guess_the_number.json` gives 0%, -9%, -10% |
-| B | **Blackjack: Ronovo Classic favors the player.** Naturals pay 2:1 and any winning 21 pays 2:1. The table description calls these the original house rules, so I took it as intended. | +8.1% to the player over 30,000 hands with a crude hit-to-17 strategy. High Roller: -4.8% with the same strategy | `natural` and `twenty_one` in `Data/Tables/01_blackjack_classic.json` |
+| B | **Blackjack: Ronovo Classic favors the player.** Naturals pay 2:1 and any winning 21 pays 2:1. The table description calls these the original house rules. | +8.1% to the player over 30,000 hands with a crude hit-to-17 strategy. High Roller: -4.8% with the same strategy | `natural` and `twenty_one` in `Data/Tables/01_blackjack_classic.json` |
 | C | Guess the Number High/Low and Even/Odd pay 1:1 on a 50% chance: no house edge. | 0% | Paytable |
 | D | Blackjack pairs are matched by rank, so 10 + King cannot be split. | | `can_split` in `casino/rules/blackjack.py` |
 | E | Surrender on an odd bet returns half rounded down (5 cr returns 2). | | |
 | F | Racing: a 1 cr bet at 1:20 wins 0 because winnings round down. | | |
 | G | The server speaks plain HTTP. On a home network that is normal; over the internet, passwords would travel unencrypted. | | Put it behind an HTTPS reverse proxy |
-| H | Five wrong passwords lock an account for 60 seconds, which also lets someone lock *your* account for 60 seconds by guessing. | | `MAX_FAILURES`, `LOCKOUT_SECONDS` in `casino/accounts.py` |
-| I | Characters saved before accounts existed (your "Ronovo") belong to nobody until claimed. | | Register in the app, then `python main.py --claim "Ronovo" <username>` |
+| H | Five wrong passwords lock an account for 60 seconds, which also lets someone lock *your* account for 60 seconds by guessing. | | `MAX_FAILURES`, `LOCK_SECONDS` in `ronovo_portfolio_auth/login_limiter.py` |
+| I | Characters saved before accounts existed (such as "Ronovo Ronove") belong to nobody until claimed. | | Register in the app, then `python main.py --claim "Ronovo Ronove" <username>` |
 
-## For you to look at in a browser
+## To check in a browser
 
-I could not look at the pages. Worth a glance:
+Not yet checked in a real browser:
 
 1. Card deal and flip animations on blackjack, hold'em and baccarat.
 2. Roulette: the wheel should stop with the winning number under the white pointer, and the hub should show that number.

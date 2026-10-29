@@ -12,8 +12,10 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
-from casino import APP_NAME, APP_VERSION, portfolio_sso
-from casino.security_questions import QUESTIONS
+from ronovo_portfolio_auth import portfolio_sso
+from ronovo_portfolio_auth.security_questions import QUESTIONS
+
+from casino import APP_NAME, APP_VERSION
 from casino.accounts import LOGIN_LIFETIME, PORTFOLIO_CHOICE_SECONDS, AccountError, Accounts
 from casino.config import DIFFICULTIES
 from casino.engine.chips import CHIP_VALUES
@@ -95,7 +97,7 @@ class CasinoApp:
             else:
                 user = self.accounts.portfolio_user(sub, name)
             self.accounts.drop_portfolio_login(pending)
-            return self._logged_in(user, pending="", ask_security_question=route[1] == "portfolio/link")
+            return self._logged_in(user, pending="")
         if route == ("POST", "reset-question"):
             return Reply({"question": self.accounts.security_question(data.get("username"))})
         if route == ("POST", "reset-password"):
@@ -110,9 +112,6 @@ class CasinoApp:
         if login is None:
             raise ApiError(401, "Log in to play.")
         user, character = login
-        if route == ("POST", "security-question"):
-            self.accounts.set_security_question(user, data.get("question"), data.get("answer"))
-            return Reply(self._session_view(user, character))
         if route == ("POST", "characters"):
             created = self.accounts.create_character(user, data.get("name"), data.get("difficulty"))
             self.accounts.select_character(token, user, created.id)
@@ -146,13 +145,9 @@ class CasinoApp:
             traceback.print_exc()
             return Reply({"error": "Something went wrong at the table."}, 500)
 
-    def _logged_in(self, user: User, pending: str | None = None, ask_security_question: bool = True) -> Reply:
+    def _logged_in(self, user: User, pending: str | None = None) -> Reply:
         new_token = self.accounts.issue_token(user)
-        view = self._session_view(user, None)
-        # Accounts made before security questions are asked to set one straight after logging in. Accounts made
-        # for a portfolio login have no password, so they need none.
-        view["needs_security_question"] = ask_security_question and not self.accounts.has_security_question(user)
-        return Reply(view, token=new_token, pending=pending)
+        return Reply(self._session_view(user, None), token=new_token, pending=pending)
 
     # ------------------------------------------------------------------ portfolio login
     def portfolio_authorize_url(self, host: str) -> tuple[str, str]:
@@ -167,7 +162,7 @@ class CasinoApp:
         """Logs in to the casino account linked to the portfolio account, or holds the login until the player
         chooses one. Raises ApiError for a bad callback."""
         state = form.get("state", "")
-        if not expected_state or not secrets.compare_digest(expected_state, state):
+        if not expected_state or not secrets.compare_digest(expected_state.encode(), state.encode()):
             raise ApiError(400, "Invalid portfolio login.")
         account = portfolio_sso.verify(form.get("token", ""), "casino")
         if account is None:

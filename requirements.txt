@@ -1,1 +1,2 @@
-pyjwt[crypto]>=2.8
+pyjwt[crypto]==2.15.1
+ronovo-portfolio-auth @ https://github.com/Ronovo/ronovo-portfolio-auth/archive/refs/tags/v1.0.0.tar.gz

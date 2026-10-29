@@ -156,8 +156,7 @@ function authScreen(mode = 'login', notice = '') {
         username: username.value.trim(), password: password.value,
         question: security.question.value, answer: security.answer.value,
       });
-      if (state.session.needs_security_question) securityScreen();
-      else go('#/lobby');
+      go('#/lobby');
     } catch (problem) {
       error.textContent = problem.message;
     }
@@ -220,8 +219,7 @@ function accountLinkScreen() {
     error.textContent = '';
     try {
       state.session = await api.post(path, data);
-      if (state.session.needs_security_question) securityScreen();
-      else go('#/lobby');
+      go('#/lobby');
     } catch (problem) {
       error.textContent = problem.message;
     }
@@ -284,27 +282,6 @@ function resetScreen() {
       h('button', { type: 'button', class: 'link', style: { marginTop: '8px' }, onclick: () => authScreen('login') }, 'Back'),
       error)));
   username.focus();
-}
-
-// Accounts made before security questions set one straight after logging in.
-function securityScreen() {
-  const security = securityFields();
-  const error = h('div', { class: 'error-text' });
-  const submit = async (event) => {
-    event.preventDefault();
-    try {
-      state.session = await api.post('security-question', { question: security.question.value, answer: security.answer.value });
-      go('#/lobby');
-    } catch (problem) {
-      error.textContent = problem.message;
-    }
-  };
-  add(clear(screen), h('div', { class: 'narrow' },
-    h('form', { class: 'panel', onsubmit: submit },
-      h('h2', null, 'Pick a security question'),
-      security.fields,
-      h('button', { class: 'primary', type: 'submit', style: { width: '100%' } }, 'Save'),
-      error)));
 }
 
 function charactersScreen() {

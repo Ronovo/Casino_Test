@@ -15,7 +15,7 @@ from casino.games import load_games
 from casino.web.floor import Floor
 from casino.web.server import CasinoApp, make_server
 from Tests.helpers import DatabaseTestCase
-from casino.security_questions import QUESTIONS
+from ronovo_portfolio_auth.security_questions import QUESTIONS
 
 SECURITY = (QUESTIONS[0], "rex")
 SECURITY_BODY = {"question": QUESTIONS[0], "answer": "rex"}

@@ -23,7 +23,9 @@ characters.
 - Day/Night cycle (a certain number of games a day)
 
 ## How To Run
-- Install Python 3.10 or newer (no extra packages needed)
+- Install Python 3.10 or newer
+- Install the requirements once: `pip install -r requirements.txt` (portfolio login and its tests need them;
+  the casino itself runs on the standard library)
 - From a terminal: `python main.py`
 - Open the address it prints. `http://localhost:8000` on your own computer; other players use the
   "For other players" address (your computer's address on the local network). Windows may ask once to allow
@@ -39,8 +41,9 @@ python main.py --verbose            # log every request
 - Each player creates an account (username and password) on the login page, and picks a security question.
   Passwords and answers are stored as salted PBKDF2 hashes, and a login lasts 30 days per browser.
 - **Forgot password?** resets the password with the security answer and logs the account out everywhere. Five
-  wrong answers lock resets for 15 minutes. Accounts from before security questions pick one at their next login.
-- With `PORTFOLIO_SSO_URL` (the portfolio's address, such as `http://ronovo.lan`) and `PORTFOLIO_SSO_PUBLIC_KEY`
+  wrong answers lock resets for 15 minutes. A question can't be changed once it is set. Five wrong passwords in a row lock a username's logins for a
+  minute.
+- With `PORTFOLIO_SSO_URL` (the portfolio's address) and `PORTFOLIO_SSO_PUBLIC_KEY`
   (printed by the portfolio's `python sso.py`) set, the login page offers to log in with a portfolio account. It
   reads **Log in as** and the portfolio username when this browser is logged in to the portfolio. The first
   portfolio login here asks whether to link a casino account the player already has, by logging in to it once,
@@ -51,7 +54,7 @@ python main.py --verbose            # log every request
 - Characters saved before accounts existed belong to nobody. Register an account, then hand one over:
   `python main.py --claim "Ronovo Ronove" your_username`
 - The server uses plain HTTP, which is fine on a home network. To open it to the internet, put it behind an
-  HTTPS reverse proxy.
+  HTTPS reverse proxy; the portfolio login callback address and the login cookie are still built for plain HTTP.
 
 ## Horse Racing
 - Every horse in `Data/horses.json` has a rating, a preferred trip (sprinter or stayer), a preferred surface
@@ -69,7 +72,8 @@ python main.py --verbose            # log every request
 ```
 python -m unittest discover -s Tests -t .
 ```
-Game rules are pure functions (`casino/rules`). Full rounds are played through each game's `start`/`act`
+The portfolio login tests need the requirements installed, and the soak tests (`Tests/test_soak.py`) take
+about 100 seconds of the run. Game rules are pure functions (`casino/rules`). Full rounds are played through each game's `start`/`act`
 interface with stacked decks (`Tests/test_games.py`), thousands of random rounds check that no credit is ever
 created or lost (`Tests/test_soak.py`), and `EDGE_CASES.md` lists what that turned up.
 
@@ -77,6 +81,7 @@ created or lost (`Tests/test_soak.py`), and `EDGE_CASES.md` lists what that turn
 ```
 main.py                 entry point: starts the web server
 casino/
+  config.py             paths, difficulties, starting chips
   accounts.py           sign-up, password hashing, login tokens, character ownership
   cashier.py            chip exchange maths (break / color up)
   transfer.py           character JSON export/import
@@ -101,6 +106,10 @@ Data/
   Money/chips.json      starting chips per difficulty
 CharacterTool/          export/import scripts
 Tests/
+docker/git-sync.sh      updates the container from GitHub on start
+Dockerfile
+requirements.txt        PyJWT and ronovo-portfolio-auth (portfolio login, security questions, login lock)
+EDGE_CASES.md           how the games were tested and the open balance questions
 ```
 
 ## Adding a Table (new scenario, no code)
@@ -123,8 +132,26 @@ python CharacterTool/export_character.py "Ronovo Ronove"
 python CharacterTool/import_character.py "CharacterTool/Character/Ronovo Ronove.json" [--name "New Name"]
 ```
 Exports from before version 2.0 still import (chips, blackjack/poker records and achievements). An imported
-character has no owner until it is claimed with `python main.py --claim`.
+character has no owner until it is claimed with `python main.py --claim`. Importing over an existing name replaces
+that character's chips and stats. Stop the server first: a running server keeps each seated character's chips in
+memory and would write them back over the import.
 
 ## Saves
 Progress lives in `casino.db` next to `main.py` (set the `CASINO_DB` environment variable to use another file).
 Older databases upgrade automatically on launch: characters, chips and achievements are kept.
+
+## Docker
+The image serves on port 8000 and keeps the database at `/app/data/casino.db` (`CASINO_DB`), so mount a volume
+at `/app/data` to keep it.
+
+On every start the container runs `docker/git-sync.sh` before the server. It fetches the latest commit on GitHub
+`main`, so a pushed commit goes live on the next restart without rebuilding the image. When that commit hasn't
+been built yet it reinstalls `requirements.txt` first, and a failed install is tried again on the next start. If
+GitHub can't be reached the server starts on the code it already has.
+
+| Variable | What it does | Default in the image |
+|---|---|---|
+| `REPO_URL` | The repo to pull. Set it empty to run exactly what is in the image. | This repo on GitHub |
+| `REPO_BRANCH` | Branch to pull | `main` |
+| `SYNC_DIR` | Folder the code is pulled into | The app folder |
+| `BUILD_CMD` | Runs after pulling a commit that hasn't been built yet | `pip install -r requirements.txt` |

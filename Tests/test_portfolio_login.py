@@ -18,7 +18,7 @@ from casino.config import TABLES_DIR
 from casino.games import load_games
 from casino.web.server import CasinoApp, make_server
 from Tests.helpers import DatabaseTestCase
-from casino.security_questions import QUESTIONS
+from ronovo_portfolio_auth.security_questions import QUESTIONS
 
 SECURITY_BODY = {"question": QUESTIONS[0], "answer": "rex"}
 
@@ -104,7 +104,6 @@ class PortfolioLoginTests(DatabaseTestCase):
         status, _, body = phone.request("/api/portfolio/new", "POST", {})
         self.assertEqual(status, 200, body)
         self.assertEqual(body["user"], "player1")
-        self.assertFalse(body["needs_security_question"])
         status, _, body = phone.request("/api/characters", "POST", {"name": "Lucky", "difficulty": "Medium"})
         self.assertEqual(status, 200, body)
 

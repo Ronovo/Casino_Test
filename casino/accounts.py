@@ -8,7 +8,9 @@ import secrets
 import threading
 import time
 
-from casino import security_questions
+from ronovo_portfolio_auth import security_questions
+from ronovo_portfolio_auth.login_limiter import LockedOut, LoginLimiter
+
 from casino.config import DIFFICULTIES, load_starting_chips
 from casino.engine.db import Character, Database, DuplicateCharacter, DuplicateUser, User
 
@@ -18,8 +20,6 @@ USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_-]{3,20}")
 MIN_PASSWORD, MAX_PASSWORD = 6, 128
 MAX_CHARACTER_NAME = 30
 MAX_CHARACTERS = 8
-# After this many wrong passwords in a row an account refuses logins for LOCKOUT_SECONDS.
-MAX_FAILURES, LOCKOUT_SECONDS = 5, 60
 PORTFOLIO_CHOICE_SECONDS = 600
 
 
@@ -49,7 +49,7 @@ def _token_hash(token: str) -> str:
 class Accounts:
     def __init__(self, db: Database):
         self.db = db
-        self._failures: dict[str, tuple[int, float]] = {}
+        self._logins = LoginLimiter()
         self._pending: dict[str, tuple[str, str, float]] = {}
         self._lock = threading.Lock()
         # The casino keeps no secret key, so a username with no account shows the same stand-in question
@@ -66,7 +66,7 @@ class Accounts:
             user = self.db.create_user(username, hash_password(password))
         except DuplicateUser:
             raise AccountError("That username is already taken.") from None
-        self.set_security_question(user, question, answer)
+        self.db.set_security_question(user.id, question, hash_password(security_questions.normalize_answer(answer)))
         return user
 
     def login(self, username: object, password: object) -> str:
@@ -76,22 +76,15 @@ class Accounts:
     def authenticate(self, username: object, password: object) -> User:
         if not isinstance(username, str) or not isinstance(password, str):
             raise AccountError("Wrong username or password.")
-        key = username.lower()
-        with self._lock:
-            failures, locked_until = self._failures.get(key, (0, 0.0))
-            if time.monotonic() < locked_until:
-                raise AccountError("Too many wrong passwords. Wait a minute and try again.")
         user = self.db.get_user(username)
-        # A missing account still costs one hash so response time doesn't reveal which usernames exist.
-        valid = verify_password(password, user.password_hash if user else hash_password(""))
-        with self._lock:
-            if user and valid:
-                self._failures.pop(key, None)
-            else:
-                failures += 1
-                locked = time.monotonic() + LOCKOUT_SECONDS if failures >= MAX_FAILURES else 0.0
-                self._failures[key] = (0 if locked else failures, locked)
-                raise AccountError("Wrong username or password.")
+        try:
+            # A missing account still costs one hash so response time doesn't reveal which usernames exist.
+            valid = self._logins.attempt(username, lambda: verify_password(
+                password, user.password_hash if user else hash_password("")) and user is not None)
+        except LockedOut as locked:
+            raise AccountError(str(locked)) from None
+        if not valid:
+            raise AccountError("Wrong username or password.")
         return user
 
     def issue_token(self, user: User) -> str:
@@ -103,13 +96,6 @@ class Accounts:
         self.db.delete_login(_token_hash(token))
 
     # ------------------------------------------------------------------ security questions and resets
-    def has_security_question(self, user: User) -> bool:
-        return self.db.has_security_question(user.id)
-
-    def set_security_question(self, user: User, question: object, answer: object) -> None:
-        _check_security_answer(question, answer)
-        self.db.set_security_question(user.id, question, hash_password(security_questions.normalize_answer(answer)))
-
     def security_question(self, username: object) -> str:
         if not isinstance(username, str) or not username.strip():
             raise AccountError("Enter your username.")
@@ -123,20 +109,19 @@ class Accounts:
         if found is None:
             hash_password("")
             raise AccountError("That answer is wrong.")
-        user_id, _, answer_hash, failures, locked_until = found
-        if time.time() < locked_until:
+        user_id, _, answer_hash, _, _ = found
+        tries = self.db.count_reset_try(user_id, time.time())
+        if tries is None or tries > security_questions.MAX_RESET_FAILURES:
             raise AccountError("Too many wrong answers. Try again in 15 minutes.")
         if not verify_password(security_questions.normalize_answer(answer), answer_hash):
-            failures += 1
-            locked = failures >= security_questions.MAX_RESET_FAILURES
-            self.db.set_reset_failures(user_id, 0 if locked else failures,
-                                       time.time() + security_questions.RESET_LOCK_SECONDS if locked else 0)
+            if tries == security_questions.MAX_RESET_FAILURES:
+                self.db.lock_resets(user_id, time.time() + security_questions.RESET_LOCK_SECONDS)
             raise AccountError("That answer is wrong.")
         self.db.reset_password(user_id, hash_password(password))
 
-    # The first portfolio login here asks whether to link an account the player already has or make a new one,
-    # so it waits here, under a code kept in the browser's cookie, until they choose.
     def hold_portfolio_login(self, sub: str, username: str) -> str:
+        """The first portfolio login here asks whether to link an account the player already has or make a new one,
+        so it waits here, under a code kept in the browser's cookie, until they choose."""
         code = secrets.token_urlsafe(24)
         now = time.monotonic()
         with self._lock:

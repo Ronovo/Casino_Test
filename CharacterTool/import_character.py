@@ -1,4 +1,4 @@
-"""Import a character from a JSON export (new or pre-2.0 format).
+"""Import a character from a JSON export.
 
 Usage (from any folder):
     python CharacterTool/import_character.py "CharacterTool/Character/Ronovo Ronove.json"

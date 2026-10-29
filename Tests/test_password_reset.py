@@ -3,7 +3,7 @@ import unittest
 from casino.accounts import AccountError, Accounts
 from casino.config import TABLES_DIR
 from casino.games import load_games
-from casino.security_questions import QUESTIONS
+from ronovo_portfolio_auth.security_questions import QUESTIONS
 from casino.web.server import CasinoApp
 from Tests.helpers import DatabaseTestCase
 
@@ -54,20 +54,13 @@ class ApiTests(DatabaseTestCase):
         super().setUp()
         self.app = CasinoApp(self.db, load_games(TABLES_DIR))
 
-    def test_reset_and_old_accounts_through_the_api(self):
+    def test_reset_through_the_api(self):
         body = {"username": "Ronovo", "password": "hunter22", "question": QUESTION, "answer": "rex"}
-        self.assertFalse(self.app.dispatch("POST", "register", body, None).body["needs_security_question"])
+        self.app.dispatch("POST", "register", body, None)
         self.assertEqual(self.app.dispatch("POST", "reset-question", {"username": "Ronovo"}, None).body,
                          {"question": QUESTION})
         reset = {"username": "Ronovo", "answer": "REX", "password": "newpass1"}
         self.assertEqual(self.app.dispatch("POST", "reset-password", reset, None).body, {"reset": True})
-
-        old = self.db.create_user("Old", self.app.accounts.db.get_user("Ronovo").password_hash)
-        login = self.app.dispatch("POST", "login", {"username": "Old", "password": "newpass1"}, None)
-        self.assertTrue(login.body["needs_security_question"])
-        saved = self.app.dispatch("POST", "security-question", {"question": QUESTION, "answer": "rex"}, login.token)
-        self.assertEqual(saved.status, 200)
-        self.assertTrue(self.app.accounts.has_security_question(old))
 
 
 if __name__ == "__main__":
