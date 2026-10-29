@@ -105,7 +105,7 @@ STAT_FIELDS = ("wins", "losses", "pushes", "net_credits", "biggest_win")
 LOGIN_PURGE_MARGIN = 60 * 60 * 24 * 60
 # Users columns added after the first release, so they are created on older databases as well
 USER_COLUMNS = {
-    "ronovo_sub": "TEXT",
+    "portfolio_sub": "TEXT",
     "security_question": "TEXT",
     "security_answer_hash": "TEXT",
     "reset_failures": "INTEGER NOT NULL DEFAULT 0",
@@ -181,7 +181,7 @@ class Database:
             for column, kind in USER_COLUMNS.items():
                 if column not in user_columns:
                     conn.execute(f"ALTER TABLE Users ADD COLUMN {column} {kind}")
-            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_ronovo_sub ON Users (ronovo_sub)")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_portfolio_sub ON Users (portfolio_sub)")
             conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         if achievements_path:
             self.sync_achievements(achievements_path)
@@ -216,11 +216,11 @@ class Database:
                         )
 
     # ------------------------------------------------------------------ accounts
-    def create_user(self, username: str, password_hash: str, ronovo_sub: str | None = None) -> User:
+    def create_user(self, username: str, password_hash: str, portfolio_sub: str | None = None) -> User:
         with self.connect() as conn:
             try:
-                cursor = conn.execute("INSERT INTO Users (username, password_hash, ronovo_sub) VALUES (?, ?, ?)",
-                                      (username, password_hash, ronovo_sub))
+                cursor = conn.execute("INSERT INTO Users (username, password_hash, portfolio_sub) VALUES (?, ?, ?)",
+                                      (username, password_hash, portfolio_sub))
             except sqlite3.IntegrityError:
                 raise DuplicateUser(username) from None
         return User(cursor.lastrowid, username, password_hash)
@@ -231,9 +231,18 @@ class Database:
                                (username,)).fetchone()
         return User(*row) if row else None
 
-    def get_ronovo_user(self, sub: str) -> User | None:
+    def link_portfolio(self, user_id: int, sub: str) -> bool:
+        """Links an account to a portfolio account. False when the account is already linked to one."""
         with self.connect() as conn:
-            row = conn.execute("SELECT id, username, password_hash FROM Users WHERE ronovo_sub = ?",
+            try:
+                return conn.execute("UPDATE Users SET portfolio_sub = ? WHERE id = ? AND portfolio_sub IS NULL",
+                                    (sub, user_id)).rowcount == 1
+            except sqlite3.IntegrityError:
+                raise DuplicateUser(sub) from None
+
+    def get_portfolio_user(self, sub: str) -> User | None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT id, username, password_hash FROM Users WHERE portfolio_sub = ?",
                                (sub,)).fetchone()
         return User(*row) if row else None
 

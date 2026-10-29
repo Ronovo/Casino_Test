@@ -43,8 +43,8 @@ class PasswordResetTests(DatabaseTestCase):
         with self.assertRaises(AccountError):
             self.accounts.reset_password("ghost", "anything", "newpass1")
 
-    def test_ronovo_accounts_cannot_be_reset(self):
-        self.accounts.ronovo_user("7", "player7")
+    def test_portfolio_accounts_cannot_be_reset(self):
+        self.accounts.portfolio_user("7", "player7")
         with self.assertRaises(AccountError):
             self.accounts.reset_password("player7", "", "newpass1")
 

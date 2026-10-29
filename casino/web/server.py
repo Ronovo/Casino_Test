@@ -10,11 +10,11 @@ from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 
-from casino import APP_NAME, APP_VERSION, ronovo_sso
+from casino import APP_NAME, APP_VERSION, portfolio_sso
 from casino.security_questions import QUESTIONS
-from casino.accounts import LOGIN_LIFETIME, AccountError, Accounts
+from casino.accounts import LOGIN_LIFETIME, PORTFOLIO_CHOICE_SECONDS, AccountError, Accounts
 from casino.config import DIFFICULTIES
 from casino.engine.chips import CHIP_VALUES
 from casino.engine.db import Character, Database, User
@@ -27,13 +27,13 @@ MIME_TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=ut
 COOKIE_NAME = "casino_login"
 SSO_STATE_COOKIE = "casino_sso_state"
 SSO_STATE_SECONDS = 600
+PORTFOLIO_PENDING_COOKIE = "casino_portfolio_pending"
 MAX_BODY_BYTES = 64 * 1024
 MAX_DRAIN_BYTES = 1024 * 1024
-CONTENT_SECURITY_POLICY = "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
 JSON_TYPE = "application/json; charset=utf-8"
 COMMON_HEADERS = {"X-Content-Type-Options": "nosniff"}
 JSON_HEADERS = {"Cache-Control": "no-store"}
-STATIC_HEADERS = {"Cache-Control": "no-cache", "Content-Security-Policy": CONTENT_SECURITY_POLICY}
+STATIC_HEADERS = {"Cache-Control": "no-cache"}
 
 
 @dataclass
@@ -42,6 +42,8 @@ class Reply:
     status: int = 200
     # A new login token to store in the cookie, or "" to clear it. None leaves the cookie alone.
     token: str | None = None
+    # The same for the code of a portfolio login waiting for the player to choose an account.
+    pending: str | None = None
 
 
 class CasinoApp:
@@ -58,32 +60,42 @@ class CasinoApp:
             ("POST", "cashier"): self.floor.exchange,
         }
 
-    def dispatch(self, method: str, path: str, data: Any, token: str | None) -> Reply:
+    def dispatch(self, method: str, path: str, data: Any, token: str | None, pending: str | None = None) -> Reply:
         try:
-            return self._route(method, [part for part in path.split("/") if part], data, token)
+            return self._route(method, [part for part in path.split("/") if part], data, token, pending)
         except ApiError as error:
             return Reply({"error": error.message}, error.status)
         except AccountError as error:
             return Reply({"error": str(error)}, 400)
 
-    def _route(self, method: str, parts: list[str], data: Any, token: str | None) -> Reply:
+    def _route(self, method: str, parts: list[str], data: Any, token: str | None, pending: str | None) -> Reply:
         if not isinstance(data, dict):
             raise ApiError(400, "Requests must be JSON objects.")
         login = self.accounts.resolve(token)
         route = (method, "/".join(parts))
 
         if route == ("GET", "session"):
-            return Reply(self._session_view(*login) if login else self._session_view(None, None))
+            view = self._session_view(*login) if login else self._session_view(None, None)
+            held = self.accounts.held_portfolio_login(pending)
+            view["portfolio_pending"] = held[1] if held else None
+            return Reply(view)
         if route in (("POST", "register"), ("POST", "login")):
             if route[1] == "register":
                 self.accounts.register(data.get("username"), data.get("password"), data.get("question"),
                                        data.get("answer"))
-            new_token = self.accounts.login(data.get("username"), data.get("password"))
-            user, character = self.accounts.resolve(new_token)
-            view = self._session_view(user, character)
-            # Accounts made before security questions are asked to set one straight after logging in.
-            view["needs_security_question"] = not self.accounts.has_security_question(user)
-            return Reply(view, token=new_token)
+            return self._logged_in(self.accounts.authenticate(data.get("username"), data.get("password")))
+        if route in (("POST", "portfolio/link"), ("POST", "portfolio/new")):
+            held = self.accounts.held_portfolio_login(pending)
+            if held is None:
+                raise ApiError(400, "Log in with your portfolio account again.")
+            sub, name = held
+            if route[1] == "portfolio/link":
+                user = self.accounts.authenticate(data.get("username"), data.get("password"))
+                self.accounts.link_portfolio(user, sub)
+            else:
+                user = self.accounts.portfolio_user(sub, name)
+            self.accounts.drop_portfolio_login(pending)
+            return self._logged_in(user, pending="", ask_security_question=route[1] == "portfolio/link")
         if route == ("POST", "reset-question"):
             return Reply({"question": self.accounts.security_question(data.get("username"))})
         if route == ("POST", "reset-password"):
@@ -92,7 +104,8 @@ class CasinoApp:
         if route == ("POST", "logout"):
             if token:
                 self.accounts.logout(token)
-            return Reply(self._session_view(None, None), token="")
+            self.accounts.drop_portfolio_login(pending)
+            return Reply(self._session_view(None, None), token="", pending="")
 
         if login is None:
             raise ApiError(401, "Log in to play.")
@@ -125,35 +138,50 @@ class CasinoApp:
                     return Reply(self.floor.leave(seat, key))
         raise ApiError(404, "Not found.")
 
-    def answer(self, method: str, path: str, data: Any, token: str | None) -> Reply:
+    def answer(self, method: str, path: str, data: Any, token: str | None, pending: str | None = None) -> Reply:
         """`dispatch`, with any unexpected error logged and turned into a 500 reply."""
         try:
-            return self.dispatch(method, path, data, token)
+            return self.dispatch(method, path, data, token, pending)
         except Exception:
             traceback.print_exc()
             return Reply({"error": "Something went wrong at the table."}, 500)
 
-    # ------------------------------------------------------------------ Ronovo login
-    def ronovo_authorize_url(self, host: str) -> tuple[str, str]:
-        """Where to send the browser to log in with Ronovo, and the state to hold in its cookie meanwhile."""
-        if not ronovo_sso.enabled():
-            raise ApiError(404, "Not found.")
-        state = ronovo_sso.new_state()
-        return ronovo_sso.authorize_url("casino", f"http://{host}/sso/callback", state), state
+    def _logged_in(self, user: User, pending: str | None = None, ask_security_question: bool = True) -> Reply:
+        new_token = self.accounts.issue_token(user)
+        view = self._session_view(user, None)
+        # Accounts made before security questions are asked to set one straight after logging in. Accounts made
+        # for a portfolio login have no password, so they need none.
+        view["needs_security_question"] = ask_security_question and not self.accounts.has_security_question(user)
+        return Reply(view, token=new_token, pending=pending)
 
-    def ronovo_callback(self, form: dict[str, str], expected_state: str | None) -> str:
-        """A login token for the casino account tied to the Ronovo account. Raises ApiError for a bad callback."""
+    # ------------------------------------------------------------------ portfolio login
+    def portfolio_authorize_url(self, host: str) -> tuple[str, str]:
+        """Where to send the browser to log in with a portfolio account, and the state to hold in its cookie
+        meanwhile."""
+        if not portfolio_sso.enabled():
+            raise ApiError(404, "Not found.")
+        state = portfolio_sso.new_state()
+        return portfolio_sso.authorize_url("casino", f"http://{host}/sso/callback", state), state
+
+    def portfolio_callback(self, form: dict[str, str], expected_state: str | None) -> Reply:
+        """Logs in to the casino account linked to the portfolio account, or holds the login until the player
+        chooses one. Raises ApiError for a bad callback."""
         state = form.get("state", "")
         if not expected_state or not secrets.compare_digest(expected_state, state):
-            raise ApiError(400, "Invalid Ronovo login.")
-        account = ronovo_sso.verify(form.get("token", ""), "casino")
+            raise ApiError(400, "Invalid portfolio login.")
+        account = portfolio_sso.verify(form.get("token", ""), "casino")
         if account is None:
-            raise ApiError(400, "Invalid Ronovo login.")
-        return self.accounts.issue_token(self.accounts.ronovo_user(account["sub"], account["username"]))
+            raise ApiError(400, "Invalid portfolio login.")
+        user = self.db.get_portfolio_user(account["sub"])
+        if user is None:
+            return Reply({}, pending=self.accounts.hold_portfolio_login(account["sub"], account["username"]))
+        return Reply({}, token=self.accounts.issue_token(user))
 
     def _session_view(self, user: User | None, character: Character | None) -> dict[str, Any]:
         view: dict[str, Any] = {"app": APP_NAME, "version": APP_VERSION, "user": None, "characters": [],
-                                "ronovo": ronovo_sso.enabled(), "questions": QUESTIONS,
+                                "portfolio": portfolio_sso.enabled(),
+                                "portfolio_url": portfolio_sso.portfolio_url() if portfolio_sso.enabled() else None,
+                                "questions": QUESTIONS,
                                 "character": None, "chip_values": CHIP_VALUES,
                                 "difficulties": [{"key": key, "label": label}
                                                  for key, (label, _) in DIFFICULTIES.items()]}
@@ -192,6 +220,20 @@ def read_cookie(cookie_header: str, name: str) -> str | None:
     return cookie[name].value if name in cookie else None
 
 
+def content_security_policy() -> str:
+    """The page may also ask the portfolio which portfolio account the browser is logged in to."""
+    connect = "'self'"
+    if portfolio_sso.enabled():
+        portfolio = urlsplit(portfolio_sso.portfolio_url())
+        connect += f" {portfolio.scheme}://{portfolio.netloc}"
+    return f"default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src {connect}; frame-ancestors 'none'"
+
+
+def reply_cookies(reply: Reply) -> list[str]:
+    cookies = [] if reply.token is None else [login_cookie(reply.token)]
+    return cookies if reply.pending is None else cookies + [pending_cookie(reply.pending)]
+
+
 def login_cookie(token: str) -> str:
     """Set-Cookie value storing a login token, or clearing it when `token` is ""."""
     age = LOGIN_LIFETIME if token else 0
@@ -199,9 +241,16 @@ def login_cookie(token: str) -> str:
 
 
 def state_cookie(state: str) -> str:
-    """Set-Cookie value holding a Ronovo login's state until its callback, or clearing it when `state` is ""."""
+    """Set-Cookie value holding a portfolio login's state until its callback, or clearing it when `state` is ""."""
     age = SSO_STATE_SECONDS if state else 0
     return f"{SSO_STATE_COOKIE}={state}; Path=/sso; Max-Age={age}; HttpOnly; SameSite=Lax"
+
+
+def pending_cookie(code: str) -> str:
+    """Set-Cookie value holding the code of a portfolio login waiting for the player to choose an account, or
+    clearing it when `code` is ""."""
+    age = PORTFOLIO_CHOICE_SECONDS if code else 0
+    return f"{PORTFOLIO_PENDING_COOKIE}={code}; Path=/; Max-Age={age}; HttpOnly; SameSite=Strict"
 
 
 class CasinoHandler(BaseHTTPRequestHandler):
@@ -249,12 +298,14 @@ class CasinoHandler(BaseHTTPRequestHandler):
 
     def _api(self, data: Any) -> None:
         path = self.path.split("?")[0][len("/api/"):]
-        reply = self.app.answer(self.command, path, data, read_cookie(self.headers.get("Cookie", ""), COOKIE_NAME))
-        self._json(reply.body, reply.status, None if reply.token is None else login_cookie(reply.token))
+        cookies = self.headers.get("Cookie", "")
+        reply = self.app.answer(self.command, path, data, read_cookie(cookies, COOKIE_NAME),
+                                read_cookie(cookies, PORTFOLIO_PENDING_COOKIE))
+        self._json(reply.body, reply.status, reply_cookies(reply))
 
     def _sso_login(self) -> None:
         try:
-            location, state = self.app.ronovo_authorize_url(self.headers.get("Host", ""))
+            location, state = self.app.portfolio_authorize_url(self.headers.get("Host", ""))
         except ApiError as error:
             return self._json({"error": error.message}, error.status)
         self._redirect(location, [state_cookie(state)])
@@ -263,10 +314,10 @@ class CasinoHandler(BaseHTTPRequestHandler):
         form = {key: values[0] for key, values in parse_qs(body.decode("utf-8", "replace")).items()}
         expected = read_cookie(self.headers.get("Cookie", ""), SSO_STATE_COOKIE)
         try:
-            token = self.app.ronovo_callback(form, expected)
+            reply = self.app.portfolio_callback(form, expected)
         except ApiError as error:
             return self._json({"error": error.message}, error.status)
-        self._redirect("/", [state_cookie(""), login_cookie(token)])
+        self._redirect("/", [state_cookie("")] + reply_cookies(reply))
 
     def _redirect(self, location: str, cookies: list[str]) -> None:
         self.send_response(303)
@@ -278,27 +329,29 @@ class CasinoHandler(BaseHTTPRequestHandler):
             self.send_header(name, value)
         self.end_headers()
 
-    def _json(self, body: dict[str, Any], status: int = 200, cookie: str | None = None, close: bool = False) -> None:
+    def _json(self, body: dict[str, Any], status: int = 200, cookies: list[str] | None = None,
+              close: bool = False) -> None:
         headers = dict(JSON_HEADERS)
-        if cookie:
-            headers["Set-Cookie"] = cookie
         if close:
             headers["Connection"] = "close"
             self.close_connection = True
-        self._send(status, JSON_TYPE, json.dumps(body).encode("utf-8"), headers)
+        self._send(status, JSON_TYPE, json.dumps(body).encode("utf-8"), headers, cookies)
 
     def _static(self) -> None:
         found = static_file(self.path.split("?")[0])
         if found is None:
             return self._send(404, "text/plain; charset=utf-8", b"Not found")
-        self._send(200, *found, STATIC_HEADERS)
+        self._send(200, *found, {**STATIC_HEADERS, "Content-Security-Policy": content_security_policy()})
 
-    def _send(self, status: int, content_type: str, payload: bytes, headers: dict[str, str] | None = None) -> None:
+    def _send(self, status: int, content_type: str, payload: bytes, headers: dict[str, str] | None = None,
+              cookies: list[str] | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
         for name, value in {**COMMON_HEADERS, **(headers or {})}.items():
             self.send_header(name, value)
+        for cookie in cookies or []:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
         self.wfile.write(payload)
 

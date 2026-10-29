@@ -119,7 +119,7 @@ async function route() {
   visit += 1;
   closeModal();
   drawTopbar();
-  if (!state.session.user) return authScreen();
+  if (!state.session.user) return state.session.portfolio_pending ? accountLinkScreen() : authScreen();
   if (state.session.character == null) return charactersScreen();
   const [name, argument] = location.hash.replace(/^#\/?/, '').split('/');
   try {
@@ -168,10 +168,7 @@ function authScreen(mode = 'login', notice = '') {
       h('h1', null, state.session.app),
       h('p', { class: 'muted' }, 'Blackjack · Hold\'em · Baccarat · Roulette · Racing')),
     notice && h('p', { class: 'muted', style: { textAlign: 'center' } }, notice),
-    state.session.ronovo && h('button', {
-      class: 'primary', type: 'button', style: { width: '100%', marginBottom: '12px' },
-      onclick: () => { location.href = '/sso/login'; },
-    }, 'Log in with Ronovo'),
+    state.session.portfolio && portfolioButton(),
     h('form', { class: 'panel', onsubmit: submit },
       h('div', { class: 'tabs' },
         h('button', { type: 'button', class: mode === 'login' ? 'on' : '', onclick: () => authScreen('login') }, 'Log in'),
@@ -182,12 +179,70 @@ function authScreen(mode = 'login', notice = '') {
       mode === 'register' && h('p', { class: 'muted', style: { fontSize: '12px', marginBottom: '12px' } },
         '3 to 20 letters, digits, dashes or underscores. Passwords need at least 6 characters.'),
       mode === 'register' && security.fields,
-      h('button', { class: state.session.ronovo ? '' : 'primary', type: 'submit', style: { width: '100%' } },
+      h('button', { class: state.session.portfolio ? '' : 'primary', type: 'submit', style: { width: '100%' } },
         mode === 'login' ? 'Log in' : 'Create account'),
       mode === 'login' && h('button', { type: 'button', class: 'link', style: { marginTop: '8px' }, onclick: resetScreen },
         'Forgot password?'),
       error)));
   username.focus();
+}
+
+let portfolioNameRequest = null;
+
+// The portfolio account this browser is logged in to, or null when there is none or the portfolio can't be reached.
+function portfolioName() {
+  portfolioNameRequest ??= fetch(`${state.session.portfolio_url}/sso/me`,
+    { credentials: 'include', signal: AbortSignal.timeout(5000) })
+    .then((response) => (response.ok ? response.json() : {}))
+    .then((data) => data.username || null)
+    .catch(() => null);
+  return portfolioNameRequest;
+}
+
+function portfolioButton() {
+  const button = h('button', {
+    class: 'primary', type: 'button', style: { width: '100%', marginBottom: '12px' },
+    onclick: () => { location.href = '/sso/login'; },
+  }, 'Log in with portfolio account');
+  portfolioName().then((name) => {
+    if (name) button.textContent = `Log in as ${name}`;
+  });
+  return button;
+}
+
+// The first portfolio login here: link a casino account the player already has, or make a new one.
+function accountLinkScreen() {
+  const name = state.session.portfolio_pending;
+  const username = h('input', { autocomplete: 'username', maxLength: 20, value: name });
+  const password = h('input', { type: 'password', autocomplete: 'current-password' });
+  const error = h('div', { class: 'error-text' });
+  const choose = async (path, data) => {
+    error.textContent = '';
+    try {
+      state.session = await api.post(path, data);
+      if (state.session.needs_security_question) securityScreen();
+      else go('#/lobby');
+    } catch (problem) {
+      error.textContent = problem.message;
+    }
+  };
+  const link = (event) => {
+    event.preventDefault();
+    choose('portfolio/link', { username: username.value.trim(), password: password.value });
+  };
+  add(clear(screen), h('div', { class: 'narrow' },
+    h('form', { class: 'panel', onsubmit: link },
+      h('h2', null, 'Link your account'),
+      h('p', { class: 'muted' }, `This is the first time ${name} has logged in here. If you already have a casino `
+        + 'account, log in to it once to link it. After that, your portfolio account opens it on any device.'),
+      h('div', { class: 'field' }, h('label', null, 'Username'), username),
+      h('div', { class: 'field' }, h('label', null, 'Password'), password),
+      h('button', { class: 'primary', type: 'submit', style: { width: '100%' } }, 'Link this account'),
+      h('button', { type: 'button', style: { width: '100%', marginTop: '8px' }, onclick: () => choose('portfolio/new') },
+        'Make a new account'),
+      h('button', { type: 'button', class: 'link', style: { marginTop: '8px' }, onclick: logout }, 'Cancel'),
+      error)));
+  password.focus();
 }
 
 // Two steps: the username brings up its security question, then the answer and a new password change it.

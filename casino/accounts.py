@@ -20,6 +20,7 @@ MAX_CHARACTER_NAME = 30
 MAX_CHARACTERS = 8
 # After this many wrong passwords in a row an account refuses logins for LOCKOUT_SECONDS.
 MAX_FAILURES, LOCKOUT_SECONDS = 5, 60
+PORTFOLIO_CHOICE_SECONDS = 600
 
 
 class AccountError(ValueError):
@@ -49,6 +50,7 @@ class Accounts:
     def __init__(self, db: Database):
         self.db = db
         self._failures: dict[str, tuple[int, float]] = {}
+        self._pending: dict[str, tuple[str, str, float]] = {}
         self._lock = threading.Lock()
         # The casino keeps no secret key, so a username with no account shows the same stand-in question
         # until the server restarts.
@@ -69,6 +71,9 @@ class Accounts:
 
     def login(self, username: object, password: object) -> str:
         """Check a password and return a new login token."""
+        return self.issue_token(self.authenticate(username, password))
+
+    def authenticate(self, username: object, password: object) -> User:
         if not isinstance(username, str) or not isinstance(password, str):
             raise AccountError("Wrong username or password.")
         key = username.lower()
@@ -87,7 +92,7 @@ class Accounts:
                 locked = time.monotonic() + LOCKOUT_SECONDS if failures >= MAX_FAILURES else 0.0
                 self._failures[key] = (0 if locked else failures, locked)
                 raise AccountError("Wrong username or password.")
-        return self.issue_token(user)
+        return user
 
     def issue_token(self, user: User) -> str:
         token = secrets.token_urlsafe(32)
@@ -129,10 +134,38 @@ class Accounts:
             raise AccountError("That answer is wrong.")
         self.db.reset_password(user_id, hash_password(password))
 
-    def ronovo_user(self, sub: str, username: str) -> User:
-        """The account tied to a Ronovo account, created on its first login and named after it. Its password is
-        random and never shown, so logging in with Ronovo is the only way in."""
-        user = self.db.get_ronovo_user(sub)
+    # The first portfolio login here asks whether to link an account the player already has or make a new one,
+    # so it waits here, under a code kept in the browser's cookie, until they choose.
+    def hold_portfolio_login(self, sub: str, username: str) -> str:
+        code = secrets.token_urlsafe(24)
+        now = time.monotonic()
+        with self._lock:
+            self._pending = {c: held for c, held in self._pending.items() if held[2] > now}
+            self._pending[code] = (sub, username, now + PORTFOLIO_CHOICE_SECONDS)
+        return code
+
+    def held_portfolio_login(self, code: str | None) -> tuple[str, str] | None:
+        """The portfolio account (sub, username) waiting under a code, or None"""
+        with self._lock:
+            held = self._pending.get(code or "")
+        return held[:2] if held and held[2] > time.monotonic() else None
+
+    def drop_portfolio_login(self, code: str | None) -> None:
+        with self._lock:
+            self._pending.pop(code or "", None)
+
+    def link_portfolio(self, user: User, sub: str) -> None:
+        try:
+            linked = self.db.link_portfolio(user.id, sub)
+        except DuplicateUser:
+            raise AccountError("Your portfolio account is already linked to another casino account.") from None
+        if not linked:
+            raise AccountError("That account is already linked to another portfolio account.")
+
+    def portfolio_user(self, sub: str, username: str) -> User:
+        """A new account linked to a portfolio account and named after it. Its password is random and never shown,
+        so logging in with the portfolio account is the only way in."""
+        user = self.db.get_portfolio_user(sub)
         base = username if USERNAME_PATTERN.fullmatch(username) else "player"
         n = 1
         while user is None:
@@ -140,8 +173,8 @@ class Accounts:
             try:
                 user = self.db.create_user(name, hash_password(secrets.token_urlsafe(32)), sub)
             except DuplicateUser:
-                # Either the name is taken, or a second login for this Ronovo account got there first.
-                user = self.db.get_ronovo_user(sub)
+                # Either the name is taken, or a second login for this portfolio account got there first.
+                user = self.db.get_portfolio_user(sub)
                 n += 1
         return user
 
