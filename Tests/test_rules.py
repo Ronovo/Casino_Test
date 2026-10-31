@@ -1,7 +1,8 @@
+import random
 import unittest
 
-from casino.engine.bets import Outcome, format_ratio, payout
-from casino.engine.cards import Card, parse_cards
+from casino.engine.bets import BetError, Outcome, format_ratio, payout, read_stake
+from casino.engine.cards import RANKS, SUITS, Card, Shoe, ShoeEmpty, parse_cards
 from casino.rules import baccarat, blackjack, gtn, poker, roulette
 
 
@@ -23,10 +24,46 @@ class BetMathTests(unittest.TestCase):
         self.assertEqual(format_ratio(50_000_000), "50,000,000:1")
 
 
+class ReadStakeTests(unittest.TestCase):
+    def test_accepts_whole_credits_inside_the_limits(self):
+        self.assertEqual(read_stake(5, "Bet", 5, 100), 5)
+        self.assertEqual(read_stake(100, "Bet", 5, 100), 100)
+        self.assertEqual(read_stake(7, "Bet"), 7)
+
+    def test_limits_are_enforced(self):
+        with self.assertRaisesRegex(BetError, "minimum stake is 5 cr"):
+            read_stake(4, "Bet", 5, 100)
+        with self.assertRaisesRegex(BetError, "maximum stake is 100 cr"):
+            read_stake(101, "Bet", 5, 100)
+
+    def test_optional_stakes_may_be_missing_or_zero(self):
+        self.assertEqual(read_stake(None, "Trips", optional=True), 0)
+        self.assertEqual(read_stake(0, "Trips", optional=True), 0)
+        with self.assertRaises(BetError):
+            read_stake(0, "Bet")
+
+    def test_rejects_anything_that_is_not_a_positive_whole_number(self):
+        for bad in (-5, 2.5, 10.0, "10", True, None, [10], {"amount": 10}, float("nan"), float("inf")):
+            with self.subTest(value=bad), self.assertRaises(BetError):
+                read_stake(bad, "Bet", 1, 100)
+            with self.subTest(value=bad, optional=True):
+                if bad is not None:
+                    with self.assertRaises(BetError):
+                        read_stake(bad, "Bet", 1, 100, optional=True)
+
+
 class CardTests(unittest.TestCase):
     def test_parse(self):
         self.assertEqual(Card.parse("th"), Card("10", "H"))
         self.assertEqual(str(Card.parse("AS")), "A♠")
+
+    def test_invalid_cards_and_an_empty_shoe_are_refused(self):
+        with self.assertRaises(ValueError):
+            Card("1", "S")
+        shoe = Shoe.stacked(["AS"])
+        shoe.draw()
+        with self.assertRaises(ShoeEmpty):
+            shoe.draw()
 
 
 class BlackjackRuleTests(unittest.TestCase):
@@ -54,9 +91,9 @@ class BlackjackRuleTests(unittest.TestCase):
         self.assertIs(blackjack.compare(cards("10S", "8H"), cards("10D", "8C", "9S")), Outcome.WIN)
         self.assertIs(blackjack.compare(cards("10S", "8H"), cards("9D", "9C")), Outcome.PUSH)
         self.assertTrue(blackjack.can_split(cards("8S", "8H")))
-        self.assertFalse(blackjack.can_split(cards("KS", "QH")))
-        self.assertTrue(blackjack.has_black_jack(cards("JC", "AH")))
-        self.assertFalse(blackjack.has_black_jack(cards("JH", "AH")))
+        self.assertTrue(blackjack.can_split(cards("KS", "QH")))
+        self.assertFalse(blackjack.can_split(cards("AS", "KH")))
+        self.assertFalse(blackjack.can_split(cards("8S", "8H", "8D")))
 
 
 class PokerRuleTests(unittest.TestCase):
@@ -98,6 +135,15 @@ class PokerRuleTests(unittest.TestCase):
         self.assertEqual(self.rank("KS", "KH", "AD", "3C", "2S").description, "Pair of Kings")
         self.assertEqual(self.rank("QS", "QC", "QH", "5S", "5C").description, "Full House, Queens over 5s")
         self.assertEqual(poker.describe_cards(cards("7S", "7D")), "Pair of 7s")
+        self.assertEqual(self.rank("QS", "QC", "QH", "5S", "2C").description, "Three Queens")
+        self.assertEqual(self.rank("9S", "8C", "7H", "6S", "5C").description, "Straight, 9 high")
+        self.assertEqual(self.rank("2S", "6S", "8S", "JS", "KS").description, "Flush, King high")
+
+    def test_hands_need_five_cards(self):
+        with self.assertRaises(ValueError):
+            poker.evaluate5(cards("AS", "KS", "QS", "JS"))
+        with self.assertRaises(ValueError):
+            poker.best_hand(cards("AS", "KS", "QS", "JS"))
 
     def test_dealer_qualifies_and_pairs_bonus(self):
         self.assertFalse(poker.dealer_qualifies(self.rank("AS", "JC", "4D", "7H", "9C")))
@@ -169,13 +215,19 @@ class GuessTheNumberRuleTests(unittest.TestCase):
     def test_lucky(self):
         self.assertEqual(gtn.resolve("lucky", (3, 8), 3, self.MEDIUM, self.PAY).ratio, 30)
         self.assertEqual(gtn.resolve("lucky", (3, 8), 8, self.MEDIUM, self.PAY).ratio, 10)
+        self.assertIs(gtn.resolve("lucky", (3, 8), 5, self.MEDIUM, self.PAY).outcome, Outcome.LOSE)
+
+    def test_unknown_bet_kinds_are_refused(self):
+        with self.assertRaises(ValueError):
+            gtn.resolve("exacta", 1, 1, self.EASY, self.PAY)
+        with self.assertRaises(ValueError):
+            roulette.wins("split", "17", "17")
 
 
 class RouletteRuleTests(unittest.TestCase):
-    def test_wheels(self):
-        self.assertEqual(len(roulette.EUROPEAN_WHEEL), 37)
-        self.assertEqual(len(set(roulette.AMERICAN_WHEEL)), 38)
-        self.assertEqual(set(roulette.EUROPEAN_WHEEL), {str(n) for n in range(37)})
+    def test_wheel(self):
+        self.assertEqual(len(roulette.WHEEL), 38)
+        self.assertEqual(set(roulette.WHEEL), {str(n) for n in range(37)} | {"00"})
 
     def test_bets(self):
         self.assertTrue(roulette.wins("straight", "17", "17"))
@@ -188,6 +240,35 @@ class RouletteRuleTests(unittest.TestCase):
         self.assertFalse(roulette.wins("red_black", "Red", "0"))
         self.assertTrue(roulette.wins("straight", "00", "00"))
         self.assertEqual(roulette.color_of("00"), "green")
+
+
+class OddsTests(unittest.TestCase):
+    """Long-run frequencies against published figures, as a check on the drawing rules."""
+
+    def test_baccarat_outcome_frequencies(self):
+        rng = random.Random(2024)
+        counts = {"player": 0, "banker": 0, "tie": 0, "dragon7": 0, "panda8": 0}
+        coups = 60_000
+        # A coup takes at most six cards, so six drawn at random from eight decks stand in for a fresh shoe.
+        eight_decks = [Card(rank, suit) for rank in RANKS for suit in SUITS] * 8
+        for _ in range(coups):
+            coup = baccarat.play_coup(iter(rng.sample(eight_decks, 6)).__next__)
+            counts[coup.winner] += 1
+            counts["dragon7"] += coup.dragon7
+            counts["panda8"] += coup.panda8
+        expected = {"banker": 0.4586, "player": 0.4462, "tie": 0.0952, "dragon7": 0.0225, "panda8": 0.0345}
+        for key, share in expected.items():
+            with self.subTest(outcome=key):
+                self.assertAlmostEqual(counts[key] / coups, share, delta=0.006)
+
+    def test_roulette_bets_cover_the_right_number_of_pockets(self):
+        wheel = roulette.WHEEL
+        for kind, selections, pockets in (("red_black", ("Red", "Black"), 18), ("odd_even", ("Odd", "Even"), 18),
+                                          ("low_high", ("Low", "High"), 18), ("dozen", (1, 2, 3), 12),
+                                          ("column", (1, 2, 3), 12), ("straight", wheel, 1)):
+            for selection in selections:
+                cover = sum(roulette.wins(kind, selection, pocket) for pocket in wheel)
+                self.assertEqual(cover, pockets, (kind, selection))
 
 
 if __name__ == "__main__":

@@ -1,15 +1,12 @@
 {
-  "key": "roulette_european",
+  "key": "roulette",
   "game": "roulette",
-  "title": "Roulette: European",
-  "version": "1.0",
+  "title": "Roulette",
   "order": 50,
   "min_bet": 1,
   "max_bet": 5000,
-  "description": "A single-zero wheel with the best odds in the house.",
-  "settings": {
-    "wheel": "european"
-  },
+  "description": "The Vegas double-zero wheel: 0 and 00 both belong to the house.",
+  "settings": {},
   "paytable": {
     "straight": 35,
     "red_black": 1,

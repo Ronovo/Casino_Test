@@ -1,4 +1,4 @@
-"""Blackjack: you against the dealer, with doubling, one split and surrender."""
+"""Blackjack: you against the dealer, with doubling, splitting up to four hands, surrender and insurance."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,6 +10,8 @@ from casino.engine.chips import fmt_credits
 from casino.engine.game import Game, Round, pay_rows, pay_section
 from casino.engine.session import Session
 from casino.rules import blackjack as rules
+
+MAX_HANDS = 4
 
 
 @dataclass
@@ -42,23 +44,26 @@ class BlackjackRound(Round):
         self.dealer.append(self.shoe.draw())
         self.hands = [PlayerHand(player, Bet("Hand", amount))]
         self.active = 0
-
-        if rules.is_natural(player) or rules.is_natural(self.dealer):
-            self._finish([self._settle_naturals()], [self._natural_note()])
-        else:
-            self._advance()
+        self.insurance: Bet | None = None
+        # With an Ace up, the dealer only checks the hole card once the player has decided on insurance.
+        self.insuring = self.dealer[0].rank == "A"
+        if not self.insuring:
+            self._peek()
 
     # ------------------------------------------------------------------ player
     def actions(self) -> list[dict[str, str]]:
+        if self.insuring:
+            return self._insurance_actions()
         game, wallet, hand = self.game, self.session.wallet, self.hands[self.active]
         stake = fmt_credits(hand.bet.amount)
         actions = [{"id": "hit", "label": "Hit"}, {"id": "stand", "label": "Stand"}]
         two_cards = len(hand.cards) == 2
-        if (two_cards and game.setting("allow_double", True) and wallet.can_afford(hand.bet.amount)
+        affordable = wallet.can_afford(hand.bet.amount)
+        if (two_cards and game.setting("allow_double", True) and affordable
                 and (not hand.from_split or game.setting("double_after_split", True))):
             actions.append({"id": "double", "label": f"Double (+{stake})"})
-        if (len(self.hands) == 1 and rules.can_split(hand.cards) and game.setting("allow_split", True)
-                and wallet.can_afford(hand.bet.amount)):
+        if (rules.can_split(hand.cards) and game.setting("allow_split", True) and affordable
+                and len(self.hands) < MAX_HANDS):
             actions.append({"id": "split", "label": f"Split (+{stake})"})
         # Surrender returns half the bet rounded down, so a 1 credit bet would get nothing back.
         if (len(self.hands) == 1 and two_cards and game.setting("allow_surrender", True)
@@ -66,7 +71,29 @@ class BlackjackRound(Round):
             actions.append({"id": "surrender", "label": "Surrender"})
         return actions
 
+    @property
+    def premium(self) -> int:
+        return self.hands[0].bet.amount // 2
+
+    def _insurance_actions(self) -> list[dict[str, str]]:
+        if rules.is_natural(self.hands[0].cards):
+            return [{"id": "even_money", "label": "Even money"}, {"id": "no_insurance", "label": "No thanks"}]
+        actions = []
+        if self.premium >= 1 and self.session.wallet.can_afford(self.premium):
+            actions.append({"id": "insurance", "label": f"Insurance (+{fmt_credits(self.premium)})"})
+        actions.append({"id": "no_insurance", "label": "No insurance"})
+        return actions
+
     def perform(self, action: str) -> None:
+        if action == "even_money":
+            self._even_money()
+            return
+        if action in ("insurance", "no_insurance"):
+            if action == "insurance":
+                self.take(self.premium)
+                self.insurance = Bet("Insurance", self.premium)
+            self._peek()
+            return
         hand = self.hands[self.active]
         if action == "hit":
             hand.cards.append(self.shoe.draw())
@@ -79,17 +106,43 @@ class BlackjackRound(Round):
             hand.cards.append(self.shoe.draw())
             hand.finished = True
         elif action == "split":
-            self.take(hand.bet.amount)
-            split_card = hand.cards.pop()
-            hand.cards.append(self.shoe.draw())
-            second = PlayerHand([split_card, self.shoe.draw()], Bet("Hand 2", hand.bet.amount), from_split=True)
-            hand.bet.name, hand.from_split = "Hand 1", True
-            self.hands.append(second)
-            if split_card.rank == "A":
-                hand.finished = second.finished = True
+            self._split(hand)
         else:
             hand.surrendered = hand.finished = True
         self._advance()
+
+    def _split(self, hand: PlayerHand) -> None:
+        self.take(hand.bet.amount)
+        split_card = hand.cards.pop()
+        hand.cards.append(self.shoe.draw())
+        second = PlayerHand([split_card, self.shoe.draw()], Bet("Hand", hand.bet.amount), from_split=True)
+        hand.from_split = True
+        self.hands.insert(self.active + 1, second)
+        for number, each in enumerate(self.hands, 1):
+            each.bet.name = f"Hand {number}"
+        if split_card.rank == "A":
+            hand.finished = second.finished = True
+
+    def _even_money(self) -> None:
+        """A natural paid 1:1 before the dealer checks the hole card."""
+        self.insuring = False
+        self.session.unlock("Blackjack_21")
+        settlement = settle(self.session.wallet, self.hands[0].bet, Outcome.WIN, self.game.win_pays)
+        self._finish([settlement], ["Blackjack! You take even money."])
+
+    def _peek(self) -> None:
+        """Check the hole card: a natural on either side ends the round at once, otherwise play goes on."""
+        self.insuring = False
+        dealer_natural = rules.is_natural(self.dealer)
+        if self.insurance:
+            outcome = Outcome.WIN if dealer_natural else Outcome.LOSE
+            self.settlements.append(settle(self.session.wallet, self.insurance, outcome, 2))
+        if self.dealer[0].rank == "A" and not dealer_natural:
+            self.notes.append("Dealer doesn't have blackjack.")
+        if dealer_natural or rules.is_natural(self.hands[0].cards):
+            self._finish([self._settle_naturals()], [self._natural_note()])
+        else:
+            self._advance()
 
     def _advance(self) -> None:
         """Move to the next hand that still needs a decision, or play out the dealer when none is left."""
@@ -115,19 +168,13 @@ class BlackjackRound(Round):
         return notes
 
     # ------------------------------------------------------------------ settlement
-    def _natural_ratio(self, cards: list[Card]) -> float:
-        pay = self.game.table.paytable
-        if pay.get("black_jack_bonus") and rules.has_black_jack(cards):
-            return pay["black_jack_bonus"]
-        return pay.get("natural", 1.5)
-
     def _settle_naturals(self) -> Settlement:
         hand, wallet = self.hands[0], self.session.wallet
         if rules.is_natural(hand.cards) and rules.is_natural(self.dealer):
             return settle(wallet, hand.bet, Outcome.PUSH)
         if rules.is_natural(hand.cards):
             self.session.unlock("Blackjack_21")
-            return settle(wallet, hand.bet, Outcome.WIN, self._natural_ratio(hand.cards))
+            return settle(wallet, hand.bet, Outcome.WIN, self.game.natural_pays)
         return settle(wallet, hand.bet, Outcome.LOSE)
 
     def _natural_note(self) -> str:
@@ -140,12 +187,7 @@ class BlackjackRound(Round):
         wallet = self.session.wallet
         if hand.surrendered:
             return settle(wallet, hand.bet, Outcome.LOSE, returned=hand.bet.amount // 2)
-        outcome = rules.compare(hand.cards, self.dealer)
-        pay = self.game.table.paytable
-        ratio = pay.get("win", 1)
-        if outcome is Outcome.WIN and rules.total(hand.cards) == 21 and pay.get("twenty_one"):
-            ratio = pay["twenty_one"]
-        return settle(wallet, hand.bet, outcome, ratio)
+        return settle(wallet, hand.bet, rules.compare(hand.cards, self.dealer), self.game.win_pays)
 
     def _finish(self, settlements: list[Settlement], notes: list[str]) -> None:
         session = self.session
@@ -160,7 +202,7 @@ class BlackjackRound(Round):
             session.unlock("Blackjack_Double_Win")
         if len(self.hands) > 1:
             session.unlock("Blackjack_Split")
-        self.finish(settlements, notes)
+        self.finish(self.settlements + settlements, self.notes + notes)
 
     # ------------------------------------------------------------------ view
     def table_view(self) -> dict[str, Any]:
@@ -175,7 +217,7 @@ class BlackjackRound(Round):
             hands.append({"name": hand.bet.name, "cards": cards_view(hand.cards), "bet": hand.bet.amount,
                           "status": status, "active": not self.finished and index == self.active,
                           **total_view(hand.cards, hand.from_split)})
-        return {"dealer": dealer, "hands": hands}
+        return {"dealer": dealer, "hands": hands, "insurance": self.insurance.amount if self.insurance else 0}
 
 
 class BlackjackGame(Game):
@@ -194,6 +236,14 @@ class BlackjackGame(Game):
     def hit_soft_17(self) -> bool:
         return bool(self.setting("dealer_hits_soft_17", False))
 
+    @property
+    def win_pays(self) -> float:
+        return self.table.paytable.get("win", 1)
+
+    @property
+    def natural_pays(self) -> float:
+        return self.table.paytable.get("natural", 1.5)
+
     def rules_pages(self) -> list[list[str]]:
         soft = "hits" if self.hit_soft_17 else "stands on"
         return [
@@ -205,23 +255,22 @@ class BlackjackGame(Game):
              "Hit: take another card.",
              "Stand: keep your total.",
              "Double: double your bet and take exactly one more card.",
-             "Split: turn a pair into two hands with a bet each (once per round; split Aces get one card).",
+             f"Split: turn a pair, or any two ten-value cards, into two hands with a bet each. Split again up to "
+             f"{MAX_HANDS} hands; split Aces get one card each.",
              "Surrender: give up on your first two cards and get half your bet back.",
+             "Insurance (dealer shows an Ace): a side bet of half your bet that pays 2:1 if the dealer has blackjack. "
+             "With a natural of your own it is offered as even money.",
              "A two-card 21 is a natural. If you or the dealer has one, the round ends immediately."],
         ]
 
     def paytable(self) -> list[dict[str, Any]]:
-        pay = self.table.paytable
-        rows = pay_rows([("Win", pay.get("win", 1)), ("Natural (two-card 21)", pay.get("natural", 1.5))])
-        if pay.get("twenty_one"):
-            rows += pay_rows([("Any other winning 21", pay["twenty_one"])])
-        if pay.get("black_jack_bonus"):
-            rows += pay_rows([("Natural with J♠ or J♣", pay["black_jack_bonus"])])
+        rows = pay_rows([("Win", self.win_pays), ("Natural (two-card 21, rounded down)", self.natural_pays),
+                         ("Insurance", 2)])
         rows += [["Push", "bet returned"], ["Surrender", "half your bet returned"]]
         return [pay_section(None, rows)]
 
     def layout(self) -> dict[str, Any]:
-        return {"natural": format_ratio(self.table.paytable.get("natural", 1.5))}
+        return {"natural": format_ratio(self.natural_pays)}
 
     def start(self, session: Session, data: Mapping[str, Any]) -> BlackjackRound:
         amount = read_stake(data.get("bet"), "Bet", self.table.min_bet, self.table.max_bet)

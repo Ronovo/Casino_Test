@@ -100,8 +100,6 @@ CREATE TABLE IF NOT EXISTS TableState (
 """
 
 STAT_FIELDS = ("wins", "losses", "pushes", "net_credits", "biggest_win")
-# Expired logins are swept once they are this many seconds older than a newly issued one.
-LOGIN_PURGE_MARGIN = 60 * 60 * 24 * 60
 
 
 class DuplicateCharacter(ValueError):
@@ -232,9 +230,10 @@ class Database:
     def get_portfolio_user(self, sub: str) -> User | None:
         return self._find_user("portfolio_sub", sub)
 
-    def add_login(self, token_hash: str, user_id: int, expires_at: int) -> None:
+    def add_login(self, token_hash: str, user_id: int, now: int, expires_at: int) -> None:
+        """Also sweeps out the logins that have expired."""
         with self.connect() as conn:
-            conn.execute("DELETE FROM Logins WHERE expires_at < ?", (expires_at - LOGIN_PURGE_MARGIN,))
+            conn.execute("DELETE FROM Logins WHERE expires_at <= ?", (now,))
             conn.execute("INSERT INTO Logins (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
                          (token_hash, user_id, expires_at))
 
@@ -263,12 +262,12 @@ class Database:
             conn.execute("UPDATE Users SET security_question = ?, security_answer_hash = ? WHERE id = ?",
                          (question, answer_hash, user_id))
 
-    def get_reset(self, username: str) -> tuple[int, str, str, int, float] | None:
-        """Id, security question, answer hash, wrong answers so far and lock time of an account that has a question."""
+    def get_reset(self, username: str) -> tuple[int, str, str] | None:
+        """Id, security question and answer hash of an account that has a question."""
         with self.connect() as conn:
-            row = conn.execute(
-                """SELECT id, security_question, security_answer_hash, reset_failures, reset_locked_until
-                   FROM Users WHERE username = ? AND security_answer_hash IS NOT NULL""", (username,)).fetchone()
+            row = conn.execute("""SELECT id, security_question, security_answer_hash
+                                  FROM Users WHERE username = ? AND security_answer_hash IS NOT NULL""",
+                               (username,)).fetchone()
         return tuple(row) if row else None
 
     def count_reset_try(self, user_id: int, now: float) -> int | None:
@@ -416,13 +415,12 @@ class Database:
                 conn.execute("DELETE FROM OpenStakes WHERE character_id = ? AND table_key = ?",
                              (character_id, table_key))
 
-    def take_open_stakes(self, character_id: int) -> int:
-        """Remove and return the total of a character's recorded open stakes."""
+    def take_open_stakes(self, character_id: int, table_key: str | None = None) -> int:
+        """Remove and return the total of a character's recorded open stakes, at every table or just one."""
         with self.connect() as conn:
-            total = conn.execute("SELECT COALESCE(SUM(amount), 0) FROM OpenStakes WHERE character_id = ?",
-                                 (character_id,)).fetchone()[0]
-            conn.execute("DELETE FROM OpenStakes WHERE character_id = ?", (character_id,))
-        return total
+            rows = conn.execute("""DELETE FROM OpenStakes WHERE character_id = ? AND (? IS NULL OR table_key = ?)
+                                   RETURNING amount""", (character_id, table_key, table_key)).fetchall()
+        return sum(row[0] for row in rows)
 
     # ------------------------------------------------------------------ saved table state
     def load_table_state(self, character_id: int, table_key: str) -> dict | None:

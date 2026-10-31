@@ -9,11 +9,12 @@ const GATE_PX = 46;
 // Share of the distance covered at a given share of a horse's own running time: below 1 leads early, above 1 closes late.
 const STYLE_CURVE = { front: 0.82, stalker: 1, closer: 1.22 };
 const STYLE_NAMES = { front: 'Front-runner', stalker: 'Stalker', closer: 'Closer' };
+const KINDS = ['win', 'place', 'show'];
+
 function ordinal(n) {
   const teen = n % 100 >= 11 && n % 100 <= 13;
   return `${n}${teen ? 'th' : { 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'}`;
 }
-const KINDS = ['win', 'place', 'show'];
 
 function formText(recent) {
   return recent.length ? recent.slice(-5).join('-') : 'first run';
@@ -46,7 +47,7 @@ function standingsEl(ctx, standings, raced) {
         h('td', { class: 'muted' }, formText(row.recent)))))));
 }
 
-function cardEl(ctx, slip) {
+function raceCardEl(ctx, slip) {
   const { runners } = ctx.betting;
   const priceCell = (runner, kind) => {
     const price = runner.odds[kind];
@@ -58,7 +59,7 @@ function cardEl(ctx, slip) {
       ...slipHandlers(slip, key),
     }, price || '-', amount ? h('span', { class: 'marker' }, amount) : null));
   };
-  return h('table', { class: 'data race-card' },
+  return h('div', { class: 'tote' }, h('table', { class: 'data race-card' },
     h('thead', null, h('tr', null, ['', 'Horse', 'Style', 'Handicap', 'Last five', 'Win', 'Place', 'Show']
       .map((title) => h('th', null, title)))),
     h('tbody', null, runners.map((runner, index) => h('tr', null,
@@ -67,7 +68,7 @@ function cardEl(ctx, slip) {
       h('td', { class: 'muted' }, STYLE_NAMES[runner.style]),
       h('td', { class: runner.weight ? 'lose' : 'muted' }, weightText(runner.weight)),
       h('td', { class: 'muted' }, formText(runner.recent)),
-      KINDS.map((kind) => priceCell(runner, kind))))));
+      KINDS.map((kind) => priceCell(runner, kind)))))));
 }
 
 function toBets(stakes) {
@@ -132,8 +133,8 @@ export function render(ctx, mount) {
     }
     add(felt,
       h('div', { class: 'felt-legend' }, `Season ${betting.season} · Race ${betting.race} of ${ctx.table.layout.season_length} · ${conditionsText(betting.conditions)}`),
-      betting.champion && h('div', { class: 'muted' }, `🏆 Reigning champion: ${betting.champion}`),
-      cardEl(ctx, slip));
+      betting.champion && h('div', { class: 'champion' }, `🏆 Reigning champion: ${betting.champion}`),
+      raceCardEl(ctx, slip));
     add(mount,
       betBar(ctx, slip, { label: 'Run the race', onDeal: () => ctx.start({ bets: toBets(slip.stakes) }) }),
       h('p', { class: 'hint' }, 'Pick a chip, then click any price to bet on it. Bet on as many horses as you like. Right-click takes a chip back.'),

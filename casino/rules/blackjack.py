@@ -35,12 +35,8 @@ def is_bust(cards: Sequence[Card]) -> bool:
 
 
 def can_split(cards: Sequence[Card]) -> bool:
-    return len(cards) == 2 and cards[0].rank == cards[1].rank
-
-
-def has_black_jack(cards: Sequence[Card]) -> bool:
-    """A literal black jack: the Jack of Spades or Clubs."""
-    return any(card.rank == "J" and card.suit in ("S", "C") for card in cards)
+    """Two cards of the same value: a pair, or any two ten-value cards."""
+    return len(cards) == 2 and card_points(cards[0]) == card_points(cards[1])
 
 
 def dealer_should_hit(cards: Sequence[Card], stands_on: int = 17, hit_soft_17: bool = False) -> bool:

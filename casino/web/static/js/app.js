@@ -1,5 +1,5 @@
 import { ApiError, api } from './api.js';
-import { add, clear, credits, h, limits, signedCredits } from './dom.js';
+import { add, clear, credits, h, limits, netClass, signedCredits } from './dom.js';
 import { chipEl } from './ui.js';
 import * as baccarat from './games/baccarat.js';
 import * as blackjack from './games/blackjack.js';
@@ -9,7 +9,6 @@ import * as racing from './games/racing.js';
 import * as roulette from './games/roulette.js';
 
 const GAMES = { blackjack, poker, baccarat, gtn, roulette, racing };
-const ICONS = { blackjack: '🃏', poker: '♠️', baccarat: '🎴', gtn: '🔢', roulette: '🎡', racing: '🏇' };
 
 const screen = document.getElementById('screen');
 const topbar = document.getElementById('topbar');
@@ -44,7 +43,7 @@ function absorb(body, delay = 0) {
   setTimeout(() => {
     drawTopbar();
     for (const unlocked of body.achievements || []) {
-      toast(unlocked.description, 'achievement-toast', `★ ${unlocked.display_name}`);
+      toast(unlocked.description, 'achievement-toast', unlocked.display_name);
     }
   }, delay);
   for (const notice of body.notices || []) toast(notice);
@@ -82,15 +81,16 @@ function drawTopbar() {
       h('span', { class: 'who' }, `${player.name} · ${player.difficulty}`),
       h('span', { class: 'spacer' }),
       h('span', { class: 'purse', title: 'Your chips' }, credits(player.credits)),
-      h('button', { class: 'link', onclick: () => go('#/lobby') }, 'Tables'),
-      h('button', { class: 'link', onclick: () => go('#/profile') }, 'Profile'),
-      h('button', { class: 'link', onclick: () => go('#/cashier') }, 'Cashier'),
-      h('button', { class: 'link', onclick: switchCharacter }, 'Switch character'),
+      h('nav', { class: 'nav' },
+        h('button', { class: 'link', onclick: () => go('#/lobby') }, 'Tables'),
+        h('button', { class: 'link', onclick: () => go('#/profile') }, 'Profile'),
+        h('button', { class: 'link', onclick: () => go('#/cashier') }, 'Cashier'),
+        h('button', { class: 'link', onclick: switchCharacter }, 'Switch character')),
     ]);
   } else {
     add(topbar, [h('span', { class: 'who' }, `Signed in as ${session.user}`), h('span', { class: 'spacer' })]);
   }
-  add(topbar, h('button', { class: 'link', onclick: logout }, 'Log out'));
+  add(topbar, h('button', { class: 'link logout', onclick: logout }, 'Log out'));
 }
 
 async function switchCharacter() {
@@ -146,8 +146,7 @@ function securityFields() {
   const fields = [
     h('div', { class: 'field' }, h('label', null, 'Security question'), question),
     h('div', { class: 'field' }, h('label', null, 'Answer'), answer),
-    h('p', { class: 'muted', style: { fontSize: '12px', marginBottom: '12px' } },
-      'You need this answer to reset your password.'),
+    h('p', { class: 'muted field-hint' }, 'You need this answer to reset your password.'),
   ];
   return { question, answer, fields };
 }
@@ -171,10 +170,11 @@ function authScreen(mode = 'login', notice = '') {
   };
   add(clear(screen), h('div', { class: 'narrow' },
     h('div', { class: 'hero' },
-      h('div', { class: 'suits' }, '♠', h('span', { class: 'red' }, '♥'), '♣', h('span', { class: 'red' }, '♦')),
+      h('div', { class: 'suits' }, h('span', null, '♠'), h('span', { class: 'red' }, '♥'), h('span', null, '♣'),
+        h('span', { class: 'red' }, '♦')),
       h('h1', null, state.session.app),
-      h('p', { class: 'muted' }, 'Blackjack · Hold\'em · Baccarat · Roulette · Racing')),
-    notice && h('p', { class: 'muted', style: { textAlign: 'center' } }, notice),
+      h('p', { class: 'muted tagline' }, 'Blackjack · Hold\'em · Baccarat · Guess the Number · Roulette · Racing')),
+    notice && h('p', { class: 'muted auth-notice' }, notice),
     state.session.portfolio && portfolioButton(),
     h('form', { class: 'panel', onsubmit: submit },
       h('div', { class: 'tabs' },
@@ -183,13 +183,12 @@ function authScreen(mode = 'login', notice = '') {
           'Create account')),
       h('div', { class: 'field' }, h('label', null, 'Username'), username),
       h('div', { class: 'field' }, h('label', null, 'Password'), password),
-      mode === 'register' && h('p', { class: 'muted', style: { fontSize: '12px', marginBottom: '12px' } },
+      mode === 'register' && h('p', { class: 'muted field-hint' },
         '3 to 20 letters, digits, dashes or underscores. Passwords need at least 6 characters.'),
       mode === 'register' && security.fields,
-      h('button', { class: state.session.portfolio ? '' : 'primary', type: 'submit', style: { width: '100%' } },
+      h('button', { class: `full ${state.session.portfolio ? '' : 'primary'}`, type: 'submit' },
         mode === 'login' ? 'Log in' : 'Create account'),
-      mode === 'login' && h('button', { type: 'button', class: 'link', style: { marginTop: '8px' }, onclick: resetScreen },
-        'Forgot password?'),
+      mode === 'login' && h('button', { type: 'button', class: 'link below', onclick: resetScreen }, 'Forgot password?'),
       error)));
   username.focus();
 }
@@ -208,8 +207,7 @@ function portfolioName() {
 
 function portfolioButton() {
   const button = h('button', {
-    class: 'primary', type: 'button', style: { width: '100%', marginBottom: '12px' },
-    onclick: () => { location.href = '/sso/login'; },
+    class: 'primary full portfolio', type: 'button', onclick: () => { location.href = '/sso/login'; },
   }, 'Log in with portfolio account');
   portfolioName().then((name) => {
     if (name) button.textContent = `Log in as ${name}`;
@@ -243,10 +241,9 @@ function accountLinkScreen() {
         + 'account, log in to it once to link it. After that, your portfolio account opens it on any device.'),
       h('div', { class: 'field' }, h('label', null, 'Username'), username),
       h('div', { class: 'field' }, h('label', null, 'Password'), password),
-      h('button', { class: 'primary', type: 'submit', style: { width: '100%' } }, 'Link this account'),
-      h('button', { type: 'button', style: { width: '100%', marginTop: '8px' }, onclick: () => choose('portfolio/new') },
-        'Make a new account'),
-      h('button', { type: 'button', class: 'link', style: { marginTop: '8px' }, onclick: logout }, 'Cancel'),
+      h('button', { class: 'primary full', type: 'submit' }, 'Link this account'),
+      h('button', { type: 'button', class: 'full below', onclick: () => choose('portfolio/new') }, 'Make a new account'),
+      h('button', { type: 'button', class: 'link below', onclick: logout }, 'Cancel'),
       error)));
   password.focus();
 }
@@ -261,7 +258,7 @@ function resetScreen() {
     question,
     h('div', { class: 'field' }, h('label', null, 'Answer'), answer),
     h('div', { class: 'field' }, h('label', null, 'New password'), password));
-  const button = h('button', { class: 'primary', type: 'submit', style: { width: '100%' } }, 'Next');
+  const button = h('button', { class: 'primary full', type: 'submit' }, 'Next');
   const error = h('div', { class: 'error-text' });
   const submit = async (event) => {
     event.preventDefault();
@@ -287,7 +284,7 @@ function resetScreen() {
       h('div', { class: 'field' }, h('label', null, 'Username'), username),
       second,
       button,
-      h('button', { type: 'button', class: 'link', style: { marginTop: '8px' }, onclick: () => authScreen('login') }, 'Back'),
+      h('button', { type: 'button', class: 'link below', onclick: () => authScreen('login') }, 'Back'),
       error)));
   username.focus();
 }
@@ -308,16 +305,15 @@ function charactersScreen() {
   };
   add(clear(screen),
     h('h2', null, 'Who\'s playing?'),
-    h('p', { class: 'muted', style: { margin: '4px 0 18px' } },
-      'Each character has its own chips, record and achievements.'),
+    h('p', { class: 'muted screen-lead' }, 'Each character has its own chips, record and achievements.'),
     h('div', { class: 'grid' }, session.characters.map((character) => h('button', {
       class: 'tile', onclick: () => sit(api.post('characters/select', { id: character.id })),
-    }, h('span', { class: 'icon' }, '🎩'), h('h3', null, character.name),
-       h('span', { class: 'muted' }, character.difficulty),
+    }, h('span', { class: 'icon monogram' }, character.name.slice(0, 1).toUpperCase()), h('h3', null, character.name),
+       h('span', { class: 'muted tag' }, character.difficulty),
        h('span', { class: 'limits gold' }, credits(character.credits))))),
     h('div', { class: 'section-title' }, h('h2', null, 'New character')),
     h('form', {
-      class: 'panel', style: { maxWidth: '460px' },
+      class: 'panel new-character',
       onsubmit: (event) => {
         event.preventDefault();
         sit(api.post('characters', { name: name.value, difficulty: difficulty.value }));
@@ -336,12 +332,13 @@ async function lobbyScreen(_, mine) {
   const { player } = body;
   const tiles = body.tables.map((table) => {
     const short = !table.in_progress && player.credits < table.min_buy_in;
+    const known = table.game in GAMES;
     return h('button', {
-      class: 'tile', disabled: short, onclick: () => go(`#/table/${encodeURIComponent(table.key)}`),
+      class: `tile game-${table.game}`, disabled: short, onclick: () => go(`#/table/${encodeURIComponent(table.key)}`),
       title: short ? `You need at least ${credits(table.min_buy_in)} to sit here` : '',
     },
       table.in_progress && h('span', { class: 'badge' }, 'Round in progress'),
-      h('span', { class: 'icon' }, ICONS[table.game] || '🎲'),
+      h('span', { class: 'band' }, h('span', { class: known ? `icon emblem ${table.game}` : 'icon' }, !known && '🎲')),
       h('h3', null, table.title),
       h('span', { class: 'muted' }, table.description),
       h('span', { class: 'limits' }, `Limits ${limits(table)}`));
@@ -375,19 +372,21 @@ async function profileScreen(_, mine) {
       h('thead', null, h('tr', null, ['Game', 'Won', 'Lost', 'Push', 'Net', 'Best win'].map((t) => h('th', null, t)))),
       h('tbody', null, body.stats.map((row) => h('tr', null,
         h('td', null, row.game), h('td', null, row.wins), h('td', null, row.losses), h('td', null, row.pushes),
-        h('td', { class: row.net_credits > 0 ? 'win' : row.net_credits < 0 ? 'lose' : '' }, signedCredits(row.net_credits)),
+        h('td', { class: netClass(row.net_credits, '') }, signedCredits(row.net_credits)),
         h('td', null, credits(row.biggest_win))))))
     : h('p', { class: 'muted' }, 'No games played yet.');
   const categories = body.categories.map((category) => {
     const unlocked = category.items.filter((item) => item.unlocked).length;
     return [
       h('div', { class: 'section-title' }, h('h3', null, category.category),
-        h('span', { class: 'muted' }, `${unlocked}/${category.items.length}`)),
+        h('span', { class: 'progress' }, `${unlocked}/${category.items.length}`)),
       h('div', { class: 'achievements' }, category.items.map((item) => (item.unlocked
-        ? h('div', { class: 'achievement' }, h('div', { class: 'name' }, `★ ${item.display_name}`),
-          h('div', null, item.description), h('div', { class: 'when' }, item.date_unlocked))
-        : h('div', { class: 'achievement locked' }, h('div', { class: 'name' }, '☆ Hidden achievement'),
-          h('div', null, 'Keep playing to find out.'))))),
+        ? h('div', { class: 'achievement' }, h('span', { class: 'medal' }, '★'),
+          h('div', null, h('div', { class: 'name' }, item.display_name),
+            h('div', null, item.description), h('div', { class: 'when' }, item.date_unlocked)))
+        : h('div', { class: 'achievement locked' }, h('span', { class: 'medal' }, '☆'),
+          h('div', null, h('div', { class: 'name' }, 'Hidden achievement'),
+            h('div', null, 'Keep playing to find out.')))))),
     ];
   });
   add(clear(screen),
@@ -440,10 +439,10 @@ function drawCashier() {
   add(clear(screen),
     h('div', { class: 'section-title' }, h('h2', null, 'Chip Exchange'),
       h('span', { class: 'muted' }, 'Trade chips for other colors. Your total never changes.')),
-    h('div', { class: 'panel row', style: { gap: '26px', justifyContent: 'center' } }, colors.map((color) =>
-      h('div', { class: 'seat' }, chipEl(color, values[color]), h('strong', null, `×${chips[color]}`),
+    h('div', { class: 'rack' }, colors.map((color) =>
+      h('div', { class: 'rack-slot' }, chipEl(color, values[color]), h('strong', null, `×${chips[color]}`),
         h('span', { class: 'muted' }, color)))),
-    h('div', { class: 'grid', style: { marginTop: '18px' } },
+    h('div', { class: 'grid cashier-forms' },
       h('form', {
         class: 'panel',
         onsubmit: (event) => {

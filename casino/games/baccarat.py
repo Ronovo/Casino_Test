@@ -21,7 +21,7 @@ class BaccaratRound(Round):
     def __init__(self, game: "BaccaratGame", session: Session, stakes: dict[str, int]):
         super().__init__(game, session, sum(stakes.values()))
         self.stakes = stakes
-        shoe = session.new_shoe(int(game.setting("decks", 8)))
+        shoe = session.new_shoe(game.decks)
         self.coup = rules.play_coup(shoe.draw)
         settlements = [self._settle(key, label) for key, label in BET_TYPES if stakes[key]]
         self.finish(settlements, [*self.coup.log, WINNER_NOTES[self.coup.winner]])
@@ -33,7 +33,7 @@ class BaccaratRound(Round):
                 outcome = Outcome.PUSH
             elif coup.winner != key:
                 outcome = Outcome.LOSE
-            elif key == "banker" and coup.dragon7 and self.game.ez_rules:
+            elif key == "banker" and coup.dragon7:
                 outcome = Outcome.PUSH
             else:
                 outcome = Outcome.WIN
@@ -58,16 +58,16 @@ class BaccaratGame(Game):
     display_name = "Baccarat"
 
     @property
-    def ez_rules(self) -> bool:
-        return bool(self.setting("banker_push_on_dragon7", True))
+    def decks(self) -> int:
+        return int(self.setting("decks", 8))
 
     def rules_pages(self) -> list[list[str]]:
-        pages = [
+        return [
             ["Baccarat is James Bond's favorite game, and one of the easiest to play.",
              "Two hands are dealt, Player and Banker. You bet on which hand will be closer to 9, or on a tie.",
              "Aces count 1, cards 2-9 count their number, and 10s and face cards count 0.",
              "Only the last digit of a total counts: 7 + 6 = 13, which is worth 3.",
-             f"The shoe holds {self.setting('decks', 8)} decks and is reshuffled every round."],
+             f"The shoe holds {self.decks} decks and is reshuffled every round."],
             ["You don't make any decisions after betting. The dealer follows fixed drawing rules:",
              "A two-card 8 or 9 is a natural. If either hand has one, nobody draws.",
              "Player draws a third card on 0-5 and stands on 6-7.",
@@ -75,11 +75,9 @@ class BaccaratGame(Game):
              "Player and Banker bets push on a tie."],
             ["Bonus bets need a Player or Banker bet on the same coup.",
              "Dragon 7: the Banker wins with a three-card 7.",
-             "Panda 8: the Player wins with a three-card 8."],
+             "Panda 8: the Player wins with a three-card 8.",
+             "EZ rule: when the Banker wins with a three-card 7, Banker bets push instead of paying."],
         ]
-        if self.ez_rules:
-            pages[2].append("EZ rule: when the Banker wins with a three-card 7, Banker bets push instead of paying.")
-        return pages
 
     def paytable(self) -> list[dict[str, Any]]:
         pay = self.table.paytable

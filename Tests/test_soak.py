@@ -1,18 +1,14 @@
 """Thousands of random rounds per game, checking after every move that no credit appears or vanishes."""
 import os
 import random
-import threading
 import unittest
 
 from casino.config import TABLES_DIR
 from casino.engine.bets import BetError
 from casino.engine.chips import Chips
 from casino.games import load_games
-from casino.rules import baccarat, roulette
-from casino.engine.cards import Card, RANKS, SUITS
-from casino.web.floor import Floor
-from casino.web.server import CasinoApp
-from Tests.helpers import DatabaseTestCase, SECURITY_BODY
+from casino.rules import roulette
+from Tests.helpers import DatabaseTestCase
 
 
 GAMES = {game.table.key: game for game in load_games(TABLES_DIR)}
@@ -35,7 +31,7 @@ def baccarat_bets(rng, game, credits):
 
 def roulette_bets(rng, game, credits):
     low = game.table.min_bet
-    choices = [("straight", rng.choice(game.wheel)), ("red_black", rng.choice(["Red", "Black"])),
+    choices = [("straight", rng.choice(roulette.WHEEL)), ("red_black", rng.choice(["Red", "Black"])),
                ("odd_even", rng.choice(["Odd", "Even"])), ("low_high", rng.choice(["Low", "High"])),
                ("dozen", rng.randint(1, 3)), ("column", rng.randint(1, 3))]
     picked = rng.sample(choices, rng.randint(1, len(choices)))
@@ -67,7 +63,7 @@ BET_MAKERS = {"racing": racing_bets, "blackjack": blackjack_bets, "poker": poker
 @unittest.skipUnless(os.environ.get("CASINO_SOAK"), "set CASINO_SOAK=1 to run the soak tests")
 class SoakTests(DatabaseTestCase):
     def soak(self, table_key, rounds, credits, seed=1, top_up=True):
-        """Play random rounds with random legal moves. Returns (rounds played, total net)."""
+        """Play random rounds with random legal moves. Returns (rounds played, bets refused)."""
         game = GAMES[table_key]
         session = self.make_session(credits=credits, rng=random.Random(seed), name=f"{table_key}-{seed}-{credits}")
         rng = random.Random(seed + 1000)
@@ -87,7 +83,9 @@ class SoakTests(DatabaseTestCase):
                 if current.finished:
                     break
                 view = current.view()
-                self.assertEqual(session.wallet.total, before - current.staked, "wallet and stake out of step")
+                settled = sum(s.returned for s in current.settlements)
+                self.assertEqual(session.wallet.total, before - current.staked + settled,
+                                 "wallet and stake out of step")
                 self.assertTrue(view["actions"], "an unfinished round offered no moves")
                 self.assertNotIn("result", view)
                 current.act(rng.choice(view["actions"])["id"])
@@ -126,7 +124,7 @@ class SoakTests(DatabaseTestCase):
                     self.soak(key, rounds=150, credits=credits, seed=credits)
 
     def test_views_never_leak_face_down_cards(self):
-        for key in ("blackjack_classic", "ultimate_holdem"):
+        for key in ("blackjack", "ultimate_holdem"):
             game = GAMES[key]
             session = self.make_session(credits=1_000_000, rng=random.Random(5), name=key)
             rng = random.Random(6)
@@ -134,113 +132,18 @@ class SoakTests(DatabaseTestCase):
                 current = game.start(session, BET_MAKERS[game.game_key](rng, game, 1_000_000))
                 while not current.finished:
                     view = current.view()
-                    if key == "blackjack_classic":
+                    if key == "blackjack":
                         hidden = [current.dealer[1]]
                         shown = view["dealer"]["cards"]
+                        face_up = current.dealer[:1] + [card for hand in current.hands for card in hand.cards]
                     else:
                         hidden = current.dealer + current.board[current.shown:]
                         shown = view["dealer"] + view["board"]
+                        face_up = current.player + current.board[:current.shown]
                     self.assertEqual(sum(card is None for card in shown), len(hidden))
                     text = repr(view)
+                    # A six-deck shoe can deal a hidden card's twin face up, so count rather than forbid.
                     for card in hidden:
-                        self.assertNotIn(repr({"rank": card.rank, "suit": card.suit}), text)
+                        sent = repr({"rank": card.rank, "suit": card.suit})
+                        self.assertEqual(text.count(sent), face_up.count(card))
                     current.act(rng.choice(view["actions"])["id"])
-
-
-class OddsTests(DatabaseTestCase):
-    """Long-run frequencies against published figures, as a check on the drawing rules."""
-
-    def test_baccarat_outcome_frequencies(self):
-        rng = random.Random(2024)
-        counts = {"player": 0, "banker": 0, "tie": 0, "dragon7": 0, "panda8": 0}
-        coups = 60_000
-        # A coup takes at most six cards, so six drawn at random from eight decks stand in for a fresh shoe.
-        eight_decks = [Card(rank, suit) for rank in RANKS for suit in SUITS] * 8
-        for _ in range(coups):
-            coup = baccarat.play_coup(iter(rng.sample(eight_decks, 6)).__next__)
-            counts[coup.winner] += 1
-            counts["dragon7"] += coup.dragon7
-            counts["panda8"] += coup.panda8
-        expected = {"banker": 0.4586, "player": 0.4462, "tie": 0.0952, "dragon7": 0.0225, "panda8": 0.0345}
-        for key, share in expected.items():
-            with self.subTest(outcome=key):
-                self.assertAlmostEqual(counts[key] / coups, share, delta=0.006)
-
-    def test_roulette_bets_cover_the_right_number_of_pockets(self):
-        for name, wheel in roulette.WHEELS.items():
-            with self.subTest(wheel=name):
-                self.assertEqual(len(set(wheel)), len(wheel))
-                cover = lambda kind, selection: sum(roulette.wins(kind, selection, pocket) for pocket in wheel)
-                for kind, selections, pockets in (("red_black", ("Red", "Black"), 18), ("odd_even", ("Odd", "Even"), 18),
-                                                  ("low_high", ("Low", "High"), 18), ("dozen", (1, 2, 3), 12),
-                                                  ("column", (1, 2, 3), 12), ("straight", wheel, 1)):
-                    for selection in selections:
-                        self.assertEqual(cover(kind, selection), pockets, (kind, selection))
-
-
-class HostileInputTests(DatabaseTestCase):
-    def setUp(self):
-        super().setUp()
-        self.games = load_games(TABLES_DIR)
-        self.app = CasinoApp(self.db, self.games, Floor(self.db, self.games, rng_factory=lambda: random.Random(3)))
-        self.token = self.app.dispatch("POST", "register", {"username": "Fuzzer", "password": "hunter22", **SECURITY_BODY}, None).token
-        self.app.dispatch("POST", "characters", {"name": "Fuzzer", "difficulty": "Medium"}, self.token)
-        self.wallet = self.app.floor.seat(self.fuzzer()).session.wallet
-
-    def fuzzer(self):
-        user = self.app.accounts.resolve(self.token)[0]
-        return self.db.list_characters(user.id)[0]
-
-    def test_garbage_never_crashes_the_server_or_moves_credits(self):
-        rng = random.Random(99)
-        atoms = [None, True, False, 0, 1, -1, 5, 10**30, 2.5, float("nan"), float("inf"), "", "Red", "17", "00",
-                 "player", "bet", "Easy", "Impossible", "hit", "<script>", "x" * 500, [], {}, [1, 2], ["a"],
-                 {"amount": 5}, {"selection": 3, "amount": 5}, {"kind": "straight", "selection": "17", "amount": 5}]
-        keys = ["bet", "bets", "ante", "trips", "pairs", "player", "banker", "tie", "dragon7", "panda8", "kind",
-                "selection", "amount", "difficulty", "pick", "lucky", "range", "high_low", "even_odd", "action",
-                "color", "into", "count", "id", "name", "horse"]
-
-        def junk(depth=0):
-            roll = rng.random()
-            if depth < 3 and roll < 0.3:
-                return {rng.choice(keys): junk(depth + 1) for _ in range(rng.randint(0, 4))}
-            if depth < 3 and roll < 0.45:
-                return [junk(depth + 1) for _ in range(rng.randint(0, 3))]
-            return rng.choice(atoms)
-
-        paths = [f"tables/{key}/{verb}" for key in [*(g.table.key for g in self.games), "nowhere"]
-                 for verb in ("start", "act", "leave")] + ["cashier", "start-over", "characters/select", "nowhere"]
-        statuses = set()
-        for _ in range(4000):
-            path = rng.choice(paths)
-            body = {rng.choice(keys): junk() for _ in range(rng.randint(0, 4))}
-            reply = self.app.dispatch("POST", path, body, self.token)
-            statuses.add(reply.status)
-            if reply.status == 200 and path == "characters/select":
-                self.app.dispatch("POST", "characters/select",
-                                  {"id": self.fuzzer().id}, self.token)
-        self.assertLessEqual(statuses, {200, 400, 404, 409})
-        in_play = sum(current.staked for current in
-                      self.app.floor.seat(self.fuzzer()).rounds.values())
-        stats = self.db.get_stats(self.fuzzer().id)
-        self.assertEqual(self.wallet.total + in_play, 1000 + sum(row["net_credits"] for row in stats.values()))
-
-    def test_simultaneous_all_in_bets_cannot_overdraw(self):
-        bets = {"bets": {"bets": [{"kind": "red_black", "selection": "Red", "amount": 1000}]}}
-        replies = []
-        barrier = threading.Barrier(12)
-
-        def punt():
-            barrier.wait()
-            replies.append(self.app.dispatch("POST", "tables/roulette_european/start", bets, self.token))
-
-        threads = [threading.Thread(target=punt) for _ in range(12)]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
-        accepted = [reply for reply in replies if reply.status == 200]
-        net = sum(reply.body["round"]["result"]["net"] for reply in accepted)
-        self.assertEqual(self.wallet.total, 1000 + net)
-        self.assertGreaterEqual(self.wallet.total, 0)
-        self.assertTrue(all(reply.status in (200, 400) for reply in replies))

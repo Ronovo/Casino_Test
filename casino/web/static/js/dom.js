@@ -21,7 +21,7 @@ export function add(el, ...children) {
   return el;
 }
 
-export function setStyle(el, style) {
+function setStyle(el, style) {
   for (const [name, value] of Object.entries(style)) {
     if (name.startsWith('--')) el.style.setProperty(name, value);
     else el.style[name] = value;
@@ -39,6 +39,10 @@ export function credits(amount) {
 
 export function signedCredits(amount) {
   return `${amount > 0 ? '+' : ''}${credits(amount)}`;
+}
+
+export function netClass(amount, even = 'push') {
+  return amount > 0 ? 'win' : amount < 0 ? 'lose' : even;
 }
 
 export function limits(table) {

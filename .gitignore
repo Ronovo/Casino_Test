@@ -5,6 +5,16 @@ __pycache__/
 .venv/
 venv/
 .env
+.coverage
+
+# Test coverage reports
+coverage/
+
+# JavaScript tests
+node_modules/
+
+# JetBrains
+.idea/
 
 # The live database
 casino.db

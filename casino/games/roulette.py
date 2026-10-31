@@ -1,4 +1,4 @@
-"""Roulette on a European (single zero) or American (double zero) wheel."""
+"""Roulette on the American (double zero) wheel."""
 from __future__ import annotations
 
 from typing import Any, Mapping
@@ -23,7 +23,7 @@ class RouletteRound(Round):
     def __init__(self, game: "RouletteGame", session: Session, placed: list[tuple[str, Bet]]):
         super().__init__(game, session, sum(bet.amount for _, bet in placed))
         self.placed = placed
-        self.pocket = session.rng.choice(game.wheel)
+        self.pocket = session.rng.choice(rules.WHEEL)
         settlements = []
         for kind, bet in placed:
             won = rules.wins(kind, bet.selection, self.pocket)
@@ -43,14 +43,9 @@ class RouletteGame(Game):
     game_key = "roulette"
     display_name = "Roulette"
 
-    @property
-    def wheel(self) -> tuple[str, ...]:
-        return rules.WHEELS[self.setting("wheel", "european")]
-
     def rules_pages(self) -> list[list[str]]:
-        zeros = "0 and 00" if "00" in self.wheel else "a single 0"
         return [
-            [f"The wheel has {len(self.wheel)} pockets: 1-36 in red and black, plus {zeros} in green.",
+            [f"The wheel has {len(rules.WHEEL)} pockets: 1-36 in red and black, plus 0 and 00 in green.",
              "Place any number of bets, then spin. Every bet on the winning pocket pays.",
              "The green zero pockets only pay straight-up bets on that zero. Every other bet loses."],
         ]
@@ -60,7 +55,7 @@ class RouletteGame(Game):
         return [pay_section(None, pay_rows((line, pay[kind]) for kind, (_, line, _) in BET_KINDS.items()))]
 
     def layout(self) -> dict[str, Any]:
-        return {"wheel": list(self.wheel), "red": sorted(rules.RED_NUMBERS)}
+        return {"wheel": list(rules.WHEEL), "red": sorted(rules.RED_NUMBERS)}
 
     def start(self, session: Session, data: Mapping[str, Any]) -> RouletteRound:
         def spot(item: Mapping[str, Any]) -> tuple[tuple[str, Any], str, Any]:
@@ -68,7 +63,7 @@ class RouletteGame(Game):
             if not isinstance(kind, str) or kind not in BET_KINDS or type(selection) not in (str, int):
                 raise BetError("That bet isn't on the board.")
             name, _, selections = BET_KINDS[kind]
-            if selection not in (self.wheel if selections is None else selections):
+            if selection not in (rules.WHEEL if selections is None else selections):
                 raise BetError("That bet isn't on the board.")
             return (kind, selection), name, selection
 

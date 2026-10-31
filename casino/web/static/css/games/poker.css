@@ -1,0 +1,29 @@
+.felt.blue { --felt: #1c4f7a; --felt-dark: #0b2740; }
+
+.uth .pill { border-radius: 5px; font-weight: 600; letter-spacing: .06em; padding: 3px 12px; }
+
+.uth-board { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.uth-board .seat { gap: 12px; }
+.uth-strip { display: flex; gap: 8px; width: calc(5 * var(--card-w) + 32px); }
+.uth-strip span {
+  flex: 0 0 var(--card-w); padding-top: 6px; text-align: center;
+  font: 600 10px/1 var(--font-display); letter-spacing: .3em; text-transform: uppercase;
+  color: rgba(255, 228, 150, .62); text-shadow: 0 1px 0 rgba(0, 0, 0, .6);
+  border-top: 1px solid rgba(255, 228, 150, .45);
+}
+.uth-strip .flop { flex-basis: calc(3 * var(--card-w) + 16px); }
+.uth-slot { width: var(--card-w); height: var(--card-h); border: 1px dashed rgba(255, 228, 150, .35); border-radius: 8px; }
+
+.uth .uth-spots { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 18px; width: 100%; }
+.uth-side { display: flex; justify-content: center; }
+.uth-core { display: grid; grid-template-columns: auto auto; gap: 14px 18px; justify-items: center; }
+.uth-core > :nth-child(3) { grid-column: 1 / -1; }
+.uth .spot.ghost {
+  cursor: default; border-style: solid; border-color: rgba(255, 228, 150, .3);
+  background: transparent; box-shadow: none; color: rgba(255, 228, 150, .5);
+}
+
+@media (max-width: 760px) {
+  .uth .uth-spots { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .uth-core { grid-column: 1 / -1; order: -1; }
+}

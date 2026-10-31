@@ -2,7 +2,6 @@
   "key": "ultimate_holdem",
   "game": "poker",
   "title": "Ultimate Texas Hold'em",
-  "version": "3.0",
   "order": 20,
   "min_bet": 1,
   "max_bet": 5000,

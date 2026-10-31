@@ -21,12 +21,14 @@ function wheelEl(ctx, pocket) {
     `${POCKET_COLORS[colorOf(ctx.table, name)]} ${index * step}deg ${(index + 1) * step}deg`);
   const disc = h('div', {
     class: 'wheel',
-    style: { background: `conic-gradient(from ${-step / 2}deg, ${slices.join(', ')})` },
+    style: { '--pockets': String(wheel.length), background: `conic-gradient(from ${-step / 2}deg, ${slices.join(', ')})` },
   }, wheel.map((name, index) => h('span', {
-    class: 'pocket-num', style: { transform: `rotate(${index * step}deg) translateY(-106px)` },
+    class: 'pocket-num', style: { transform: `rotate(${index * step}deg) translateY(var(--pocket-orbit))` },
   }, name)));
-  const hub = h('div', { class: 'wheel-hub' }, '');
-  const box = h('div', { class: 'wheel-box' }, h('div', { class: 'wheel-pointer' }), disc, hub);
+  const hub = h('div', { class: 'wheel-hub' });
+  const ball = h('div', { class: 'wheel-ball' });
+  const box = h('div', { class: 'wheel-box' },
+    h('div', { class: 'wheel-bowl' }), h('div', { class: 'wheel-pointer' }), disc, hub, ball);
 
   if (pocket != null) {
     // Turning the disc backwards by the pocket's angle brings that pocket under the pointer at the top.
@@ -43,6 +45,7 @@ function wheelEl(ctx, pocket) {
       // The transition only runs if the browser has painted the starting position first.
       requestAnimationFrame(() => requestAnimationFrame(() => {
         disc.classList.add('spin');
+        ball.classList.add('spin');
         disc.style.transform = rest;
       }));
       setTimeout(settle, SPIN_MS);
@@ -52,7 +55,6 @@ function wheelEl(ctx, pocket) {
 }
 
 function boardEl(ctx, slip, winner) {
-  const { wheel } = ctx.table.layout;
   const playing = !ctx.round;
   const cell = (key, label, extra, style) => {
     const amount = slip.get(key);
@@ -66,17 +68,16 @@ function boardEl(ctx, slip, winner) {
     return el;
   };
 
-  const zeros = wheel.filter((name) => name === '0' || name === '00').sort();
   const cells = [h('div', {
     style: { gridColumn: '1', gridRow: '1 / span 3', display: 'flex', flexDirection: 'column', gap: '2px' },
-  }, zeros.map((name) => cell(`straight:${name}`, name, 'green', { flex: '1' })))];
+  }, ['0', '00'].map((name) => cell(`straight:${name}`, name, 'green', { flex: '1' })))];
   for (let row = 0; row < 3; row += 1) {
     for (let column = 1; column <= 12; column += 1) {
       const number = column * 3 - row;
       cells.push(cell(`straight:${number}`, String(number), colorOf(ctx.table, String(number)),
         { gridColumn: String(column + 1), gridRow: String(row + 1) }));
     }
-    cells.push(cell(`column:${3 - row}`, '2:1', 'outside', { gridColumn: '14', gridRow: String(row + 1) }));
+    cells.push(cell(`column:${3 - row}`, '2 to 1', 'outside column', { gridColumn: '14', gridRow: String(row + 1) }));
   }
   ['1st 12', '2nd 12', '3rd 12'].forEach((label, index) => {
     cells.push(cell(`dozen:${index + 1}`, label, 'outside', { gridColumn: `${2 + index * 4} / span 4`, gridRow: '4' }));

@@ -16,7 +16,6 @@ class TableConfig:
     key: str
     game: str
     title: str
-    version: str = "1.0"
     order: int = 100
     min_bet: int = 1
     max_bet: int | None = None
@@ -59,6 +58,11 @@ class Round(ABC):
         self.staked = 0
         self.take(stake)
 
+    @property
+    def open_stake(self) -> int:
+        """Chips still on the table: what comes back if the round is interrupted."""
+        return self.staked - sum(s.bet.amount for s in self.settlements)
+
     def take(self, amount: int) -> None:
         """Moves chips from the rack onto the table: the opening bets, or a double, split or Play bet later."""
         if not self.session.wallet.can_afford(amount):
@@ -75,7 +79,11 @@ class Round(ABC):
         return []
 
     def perform(self, action: str) -> None:
-        """Apply one of the moves listed by actions()."""
+        """Apply one of the moves listed by actions().
+
+        Games with decisions override both. Games without any keep this default, which act() never reaches,
+        because it refuses every move that actions() does not list.
+        """
         raise NotImplementedError
 
     def act(self, action: Any) -> None:

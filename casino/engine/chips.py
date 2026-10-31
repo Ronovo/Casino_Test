@@ -98,9 +98,6 @@ class Chips:
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Chips) and self._counts == other._counts
 
-    def __hash__(self) -> int:
-        return hash(tuple(self._counts.values()))
-
     def __repr__(self) -> str:
         parts = ", ".join(f"{color}={count}" for color, count in self._counts.items() if count)
         return f"Chips({parts})"

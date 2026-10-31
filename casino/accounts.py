@@ -67,18 +67,20 @@ class Accounts:
             raise AccountError("Usernames are 3 to 20 letters, digits, dashes or underscores.")
         _check_password(password)
         _check_security_answer(question, answer)
-        self._count_registration()
+        counted = self._count_registration()
         try:
             with self.db.transaction():
                 user = self.db.create_user(username, hash_password(password))
                 self.db.set_security_question(user.id, question,
                                               hash_password(security_questions.normalize_answer(answer)))
         except DuplicateUser:
+            with self._lock:
+                self._registrations.remove(counted)
             raise AccountError("That username is already taken.") from None
         return user
 
-    def _count_registration(self) -> None:
-        """Allows max_registrations new accounts in any window, across the whole casino."""
+    def _count_registration(self) -> float:
+        """Allows max_registrations new accounts in any window, across the whole casino. Returns the time counted."""
         with self._lock:
             now = time.monotonic()
             while self._registrations and self._registrations[0] <= now - REGISTRATION_WINDOW_SECONDS:
@@ -86,6 +88,7 @@ class Accounts:
             if len(self._registrations) >= self.max_registrations:
                 raise AccountError("Too many new accounts right now. Try again in a few minutes.")
             self._registrations.append(now)
+            return now
 
     def authenticate(self, username: object, password: object) -> User:
         if not isinstance(username, str) or not isinstance(password, str):
@@ -102,16 +105,17 @@ class Accounts:
 
     def issue_token(self, user: User) -> str:
         token = secrets.token_urlsafe(32)
-        self.db.add_login(_token_hash(token), user.id, int(time.time()) + LOGIN_LIFETIME)
+        now = int(time.time())
+        self.db.add_login(_token_hash(token), user.id, now, now + LOGIN_LIFETIME)
         return token
 
     def logout(self, token: str) -> None:
         self.db.delete_login(_token_hash(token))
 
     # ------------------------------------------------------------------ security questions and resets
-    def _reset_account(self, username: object) -> tuple[int, str, str, int, float]:
-        """Usernames are public (registering says when one is taken), so this says plainly when there is no such
-        account, and when the account logs in with the portfolio and has no question."""
+    def _reset_account(self, username: object) -> tuple[int, str, str]:
+        """The reset details for a username. Raises AccountError when there is no such account or it has no security
+        question."""
         if not isinstance(username, str) or not username.strip():
             raise AccountError("Enter your username.")
         if self.db.get_user(username.strip()) is None:
@@ -127,7 +131,7 @@ class Accounts:
     def reset_password(self, username: object, answer: object, password: object) -> None:
         """Set a new password when the security answer is right. Too many wrong answers lock resets for a while."""
         _check_password(password)
-        user_id, _, answer_hash, _, _ = self._reset_account(username)
+        user_id, _, answer_hash = self._reset_account(username)
         tries = self.db.count_reset_try(user_id, time.time())
         if tries is None or tries > security_questions.MAX_RESET_FAILURES:
             raise AccountError(f"Too many wrong answers. Try again in "
@@ -149,7 +153,7 @@ class Accounts:
         return code
 
     def held_portfolio_login(self, code: str | None) -> tuple[str, str] | None:
-        """The portfolio account (sub, username) waiting under a code, or None"""
+        """The portfolio account (sub, username) waiting under a code, or None."""
         with self._lock:
             held = self._pending.get(code or "")
         return held[:2] if held and held[2] > time.monotonic() else None

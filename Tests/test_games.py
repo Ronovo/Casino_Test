@@ -1,8 +1,12 @@
 """Full rounds played through each game's start/act interface with stacked shoes and fixed numbers."""
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from casino.config import TABLES_DIR
 from casino.engine.bets import BetError
+from casino.engine.game import Round, TableConfig
 from casino.games import load_games
 from casino.games.baccarat import BaccaratGame
 from casino.games.blackjack import BlackjackGame
@@ -21,30 +25,63 @@ class RegistryTests(unittest.TestCase):
             self.assertTrue(info["rules"])
             self.assertTrue(info["paytable"])
 
+    def test_unknown_table_keys_and_game_types_are_refused(self):
+        with self.assertRaisesRegex(ValueError, "Unknown table config keys: bogus"):
+            TableConfig.from_dict({"key": "x", "game": "blackjack", "title": "X", "bogus": 1})
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "craps.json").write_text(json.dumps({"key": "craps", "game": "craps", "title": "Craps"}),
+                                                  encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unknown game type 'craps'"):
+                load_games(tmp)
+
+
+class RoundContractTests(DatabaseTestCase):
+    def test_a_round_that_lists_moves_must_implement_perform(self):
+        class Forgetful(Round):
+            def table_view(self):
+                return {}
+
+            def actions(self):
+                return [{"id": "hit", "label": "Hit"}]
+
+        current = Forgetful(BlackjackGame(table("01_blackjack.json")), self.make_session(), 0)
+        with self.assertRaisesRegex(BetError, "isn't available"):
+            current.act("stand")
+        with self.assertRaises(NotImplementedError):
+            current.act("hit")
+
 
 class BlackjackGameTests(DatabaseTestCase):
-    def play(self, bet, cards, *actions, credits=1000, table_file="01_blackjack_classic.json"):
+    def play(self, bet, cards, *actions, credits=1000):
         session = self.make_session(credits=credits, cards=cards)
-        current = play(BlackjackGame(table(table_file)), session, {"bet": bet}, *actions)
+        current = play(BlackjackGame(table("01_blackjack.json")), session, {"bet": bet}, *actions)
         return session, current
 
-    def test_natural_pays_classic_2_to_1(self):
+    def start(self, bet, cards, credits=1000):
+        session = self.make_session(credits=credits, cards=cards)
+        return session, BlackjackGame(table("01_blackjack.json")).start(session, {"bet": bet})
+
+    def results(self, current):
+        return [(s["label"], s["result"]) for s in current.view()["result"]["settlements"]]
+
+    def test_natural_pays_3_to_2(self):
         session, _ = self.play(10, ["AS", "9H", "KH", "7D"])
-        self.assertEqual(session.wallet.total, 1020)
+        self.assertEqual(session.wallet.total, 1015)
         self.assertTrue({"Blackjack_21", "Blackjack_Win"} <= self.unlocked(session))
 
-    def test_natural_with_black_jack_pays_3_to_1(self):
-        self.assertEqual(self.play(10, ["AS", "9H", "JS", "7D"])[0].wallet.total, 1030)
-
-    def test_high_roller_natural_pays_3_to_2(self):
-        session, _ = self.play(100, ["AS", "9H", "JS", "7D"], table_file="02_blackjack_high_roller.json")
-        self.assertEqual(session.wallet.total, 1150)
+    def test_natural_winnings_round_down(self):
+        # 7.5 on a 5 credit bet
+        self.assertEqual(self.play(5, ["AS", "9H", "KH", "7D"])[0].wallet.total, 1007)
 
     def test_both_naturals_push(self):
-        self.assertEqual(self.play(10, ["AS", "AH", "KH", "KD"])[0].wallet.total, 1000)
+        session, current = self.play(10, ["AS", "AH", "KH", "KD"], "no_insurance")
+        self.assertEqual(session.wallet.total, 1000)
+        self.assertEqual(current.notes, ["You and the dealer both have blackjack."])
 
-    def test_dealer_natural_beats_player(self):
-        self.assertEqual(self.play(10, ["9S", "AH", "9H", "KD"])[0].wallet.total, 990)
+    def test_dealer_natural_with_a_ten_up_ends_the_round_at_once(self):
+        session, current = self.play(10, ["9S", "KD", "9H", "AH"])
+        self.assertEqual(session.wallet.total, 990)
+        self.assertEqual(current.notes, ["The dealer has blackjack."])
 
     def test_stand_and_dealer_busts(self):
         session, _ = self.play(10, ["10S", "9C", "6H", "7D", "10C"], "stand")
@@ -52,9 +89,9 @@ class BlackjackGameTests(DatabaseTestCase):
         self.assertEqual(self.db.get_stats(session.character.id)["blackjack"]["wins"], 1)
 
     def test_double_down_pays_on_doubled_stake_only(self):
-        # 11 doubles into 21 against 17: 20 staked, classic 21 pays 2:1 -> +40
+        # 11 doubles into 21 against 17: 20 staked, pays 1:1 -> +20
         session, _ = self.play(10, ["5S", "10C", "6H", "7D", "10H"], "double")
-        self.assertEqual(session.wallet.total, 1040)
+        self.assertEqual(session.wallet.total, 1020)
         self.assertIn("Blackjack_Double_Win", self.unlocked(session))
 
     def test_player_bust_skips_dealer(self):
@@ -68,22 +105,104 @@ class BlackjackGameTests(DatabaseTestCase):
         self.assertEqual(session.wallet.total, 1000)
         self.assertIn("Blackjack_Split", self.unlocked(session))
 
+    def test_any_two_ten_value_cards_split(self):
+        # K+5=15 and Q+8=18 both stand; the dealer's 16 draws a ten and busts -> +20
+        session, current = self.play(10, ["KS", "7C", "QH", "9D", "5C", "8D", "10D"], "split", "stand", "stand")
+        self.assertEqual(session.wallet.total, 1020)
+        self.assertEqual([hand["name"] for hand in current.view()["hands"]], ["Hand 1", "Hand 2"])
+
+    def test_resplit_up_to_four_hands_and_the_new_hand_plays_next(self):
+        session, current = self.start(10, ["8S", "7C", "8H", "9D", "8C", "8D", "3C", "2D", "4H", "8C", "10D"])
+        current.act("split")
+        current.act("split")
+        hands = current.view()["hands"]
+        self.assertEqual([hand["name"] for hand in hands], ["Hand 1", "Hand 2", "Hand 3"])
+        self.assertEqual([hand["label"] for hand in hands], ["11", "10", "16"])
+        self.assertTrue(hands[0]["active"])
+        current.act("stand")
+        current.act("stand")
+        self.assertIn("split", [action["id"] for action in current.actions()])
+        current.act("split")
+        self.assertEqual(len(current.hands), 4)
+        self.assertEqual(current.view()["hands"][3]["cards"], [{"rank": "8", "suit": "D"}, {"rank": "8", "suit": "C"}])
+        current.act("stand")
+        self.assertNotIn("split", [action["id"] for action in current.actions()])
+        with self.assertRaises(BetError):
+            current.act("split")
+        current.act("stand")
+        self.assertTrue(current.finished)
+        self.assertEqual(current.staked, 40)
+        self.assertEqual(session.wallet.total, 1040)
+        self.assertEqual([hand["name"] for hand in current.view()["hands"]], ["Hand 1", "Hand 2", "Hand 3", "Hand 4"])
+
     def test_surrender_returns_half(self):
         self.assertEqual(self.play(10, ["10S", "10C", "6H", "7D"], "surrender")[0].wallet.total, 995)
 
+    def test_surrender_is_only_for_an_unsplit_hand(self):
+        _, current = self.start(10, ["8S", "10C", "8H", "7D", "3C", "2D"])
+        current.act("split")
+        self.assertNotIn("surrender", [action["id"] for action in current.actions()])
+
     def test_double_not_offered_when_unaffordable(self):
-        session = self.make_session(credits=10, cards=["10S", "10C", "6H", "7D"])
-        current = BlackjackGame(table("01_blackjack_classic.json")).start(session, {"bet": 10})
+        _, current = self.start(10, ["10S", "10C", "6H", "7D"], credits=10)
         self.assertNotIn("double", [action["id"] for action in current.actions()])
         with self.assertRaises(BetError):
             current.act("double")
 
     def test_hole_card_is_hidden_until_the_round_ends(self):
-        session = self.make_session(cards=["10S", "9C", "6H", "7D", "10C"])
-        current = BlackjackGame(table("01_blackjack_classic.json")).start(session, {"bet": 10})
+        _, current = self.start(10, ["10S", "9C", "6H", "7D", "10C"])
         self.assertEqual(current.view()["dealer"]["cards"], [{"rank": "9", "suit": "C"}, None])
+        self.assertEqual(current.view()["insurance"], 0)
         current.act("stand")
         self.assertNotIn(None, current.view()["dealer"]["cards"])
+
+    def test_insurance_pays_2_to_1_when_the_dealer_has_blackjack(self):
+        # 5 insured wins 10, the 10 bet loses: the round is a wash
+        session, current = self.play(10, ["9S", "AH", "9H", "KD"], "insurance")
+        self.assertEqual(session.wallet.total, 1000)
+        self.assertEqual(current.staked, 15)
+        self.assertEqual(self.results(current), [("Insurance", "win"), ("Hand", "lose")])
+        self.assertEqual(current.notes, ["The dealer has blackjack."])
+        self.assertEqual(current.view()["insurance"], 5)
+
+    def test_insurance_loses_and_play_goes_on_without_dealer_blackjack(self):
+        session, current = self.start(10, ["10S", "AH", "9H", "7D"])
+        self.assertEqual([action["id"] for action in current.actions()], ["insurance", "no_insurance"])
+        current.act("insurance")
+        self.assertEqual(session.wallet.total, 985)
+        self.assertEqual(current.view()["insurance"], 5)
+        # The lost premium is settled, so only the hand's 10 would come back if the round were interrupted.
+        self.assertEqual((current.staked, current.open_stake), (15, 10))
+        self.assertEqual([action["id"] for action in current.actions()], ["hit", "stand", "double", "surrender"])
+        current.act("stand")
+        # Dealer's soft 18 stands; 19 wins 10 and the insurance is gone -> +5
+        self.assertEqual(session.wallet.total, 1005)
+        self.assertEqual(self.results(current), [("Insurance", "lose"), ("Hand", "win")])
+        self.assertEqual(current.notes[0], "Dealer doesn't have blackjack.")
+
+    def test_even_money_pays_the_natural_1_to_1_whatever_the_hole_card(self):
+        for hole in ("7D", "KD"):
+            with self.subTest(hole=hole):
+                session = self.make_session(cards=["AS", "AH", "KH", hole], name=hole)
+                current = BlackjackGame(table("01_blackjack.json")).start(session, {"bet": 5})
+                self.assertEqual([action["label"] for action in current.actions()], ["Even money", "No thanks"])
+                current.act("even_money")
+                self.assertEqual(session.wallet.total, 1005)
+                self.assertEqual((current.staked, current.open_stake), (5, 0))
+                self.assertEqual(self.results(current), [("Hand", "win")])
+                self.assertEqual(current.notes, ["Blackjack! You take even money."])
+                self.assertEqual(current.view()["insurance"], 0)
+                self.assertIn("Blackjack_21", self.unlocked(session))
+
+    def test_even_money_needs_no_spare_chips(self):
+        _, current = self.start(1, ["AS", "AH", "KH", "KD"], credits=1)
+        self.assertEqual([action["id"] for action in current.actions()], ["even_money", "no_insurance"])
+
+    def test_declining_insurance_then_dealer_blackjack_loses_the_bet(self):
+        session, current = self.play(10, ["9S", "AH", "9H", "KD"], "no_insurance")
+        self.assertEqual(session.wallet.total, 990)
+        self.assertEqual(current.staked, 10)
+        self.assertEqual(self.results(current), [("Hand", "lose")])
 
 
 class PokerGameTests(DatabaseTestCase):
@@ -118,6 +237,10 @@ class PokerGameTests(DatabaseTestCase):
         # Queens beat ace-high: Ante push, Play +40, Blind push, Pairs 8:1 +40
         cards = ["QH", "QD", "2C", "7S", "AS", "9D", "5C", "3H", "JC"]
         self.assertEqual(self.play({"ante": 10, "pairs": 5}, cards, "play4").wallet.total, 10_000 + 80)
+
+    def test_a_pairs_bet_without_a_pair_loses(self):
+        cards = ["2H", "7C", "AS", "AD", "KD", "9S", "4C", "JH", "3S"]
+        self.assertEqual(self.play({"ante": 10, "pairs": 5}, cards, "play4").wallet.total, 10_000 - 65)
 
     def test_pocket_tens_pay_pairs_bonus(self):
         cards = ["10H", "10D", "2C", "7S", "AS", "9D", "5C", "3H", "JC"]
@@ -183,6 +306,15 @@ class BaccaratGameTests(DatabaseTestCase):
     def test_panda8(self):
         self.assertEqual(self.play({"player": 10, "panda8": 10}, ["2S", "KD", "3H", "7C", "3C"]).wallet.total, 1260)
 
+    def test_a_losing_bet_and_a_finished_round(self):
+        session = self.make_session(cards=["9S", "2H", "KH", "3D"])
+        current = play(BaccaratGame(table("05_baccarat.json")), session, {"banker": 10})
+        self.assertEqual(session.wallet.total, 990)
+        self.assertEqual(current.view()["winner"], "player")
+        self.assertEqual(current.actions(), [])
+        with self.assertRaisesRegex(BetError, "over"):
+            current.act("deal")
+
 
 class GuessTheNumberGameTests(DatabaseTestCase):
     def play(self, difficulty, bets, number, credits=1000):
@@ -201,6 +333,23 @@ class GuessTheNumberGameTests(DatabaseTestCase):
         self.assertEqual(session.wallet.total, 1080)
         self.assertTrue({"GTN_Win", "GTN_Exact"} <= self.unlocked(session))
 
+    def test_lucky_number_one(self):
+        session = self.make_session(rng=FixedRng(3))
+        current = play(GuessTheNumberGame(table("06_guess_the_number.json")), session,
+                       {"difficulty": "Medium", "bets": {"lucky": {"selection": [3, 8], "amount": 10}}})
+        self.assertEqual(current.view()["number"], 3)
+        self.assertIn("GTN_Lucky", self.unlocked(session))
+
+    def test_bad_bets_are_refused(self):
+        game = GuessTheNumberGame(table("06_guess_the_number.json"))
+        session = self.make_session()
+        for data in ({"difficulty": "Nightmare", "bets": {}}, {"difficulty": "Easy", "bets": []},
+                     {"difficulty": "Easy", "bets": {"exacta": {"selection": 1, "amount": 5}}},
+                     {"difficulty": "Easy", "bets": {"high_low": {"selection": "Middle", "amount": 5}}}):
+            with self.subTest(data=data), self.assertRaises(BetError):
+                game.start(session, data)
+        self.assertEqual(session.wallet.total, 1000)
+
     def test_impossible_pays_its_real_odds(self):
         session = self.play("Impossible", {"pick": {"selection": 12_345_678, "amount": 1}}, 12_345_678)
         self.assertEqual(session.wallet.total, 1000 + 50_000_000)
@@ -208,9 +357,9 @@ class GuessTheNumberGameTests(DatabaseTestCase):
 
 
 class RouletteGameTests(DatabaseTestCase):
-    def play(self, bets, pocket, table_file="07_roulette_european.json"):
+    def play(self, bets, pocket):
         session = self.make_session(rng=FixedRng(pocket))
-        play(RouletteGame(table(table_file)), session, {"bets": bets})
+        play(RouletteGame(table("07_roulette.json")), session, {"bets": bets})
         return session
 
     def test_straight_red_and_column(self):
@@ -229,7 +378,7 @@ class RouletteGameTests(DatabaseTestCase):
     def test_double_zero(self):
         bets = [{"kind": "straight", "selection": "00", "amount": 5},
                 {"kind": "red_black", "selection": "Red", "amount": 5}]
-        session = self.play(bets, "00", "08_roulette_american.json")
+        session = self.play(bets, "00")
         self.assertEqual(session.wallet.total, 1000 + 175 - 5)
         self.assertIn("Roulette_Zero", self.unlocked(session))
 

@@ -20,6 +20,7 @@ from casino.games import GAME_TYPES
 
 # A seat with no round in progress is let go after this long unused; the next request seats the character again.
 SEAT_IDLE_SECONDS = 60 * 60
+GAME_NAMES = {game_type.game_key: game_type.display_name for game_type in GAME_TYPES.values()}
 
 
 class ApiError(Exception):
@@ -60,16 +61,24 @@ class Floor:
             seat = self._seats.get(character.id)
             if seat is None:
                 session = Session(self.db, character, Wallet.load(self.db, character.id), rng=self._rng_factory())
-                seat = self._seats[character.id] = Seat(session)
+                seat = Seat(session)
                 # Stakes still on record belong to rounds that died with a previous server process.
-                with self.db.transaction():
-                    refund = self.db.take_open_stakes(character.id)
-                    session.wallet.deposit(refund)
-                if refund:
-                    seat.notices.append(f"A round was interrupted last time. Your {fmt_credits(refund)} stake "
-                                        "has been returned.")
+                self._refund(seat)
+                self._seats[character.id] = seat
             seat.last_used = now
             return seat
+
+    def _refund(self, seat: Seat, table_key: str | None = None) -> None:
+        """Hand back the stakes on record for rounds no longer in play, at every table or just one."""
+
+        def take() -> int:
+            refund = self.db.take_open_stakes(seat.session.character.id, table_key)
+            seat.session.wallet.deposit(refund)
+            return refund
+
+        refund = self._in_one_transaction(seat, take)
+        if refund:
+            seat.notices.append(f"A round was interrupted. Your {fmt_credits(refund)} stake has been returned.")
 
     def _game(self, key: str) -> Game:
         if key not in self.games:
@@ -104,10 +113,11 @@ class Floor:
             raise ApiError(409, "Finish the round you have in progress first.")
         if not isinstance(data, Mapping):
             raise ApiError(400, "Bets must be sent as an object.")
+
         def begin() -> Round:
             started = game.start(seat.session, data)
             if not started.finished:
-                self.db.set_open_stake(seat.session.character.id, key, started.staked)
+                self.db.set_open_stake(seat.session.character.id, key, started.open_stake)
             return started
 
         try:
@@ -124,18 +134,20 @@ class Floor:
         current = seat.rounds.get(key)
         if current is None:
             raise ApiError(409, "You have no round in progress at this table.")
+
         def play() -> None:
             current.act(action)
-            self.db.set_open_stake(seat.session.character.id, key, 0 if current.finished else current.staked)
+            self.db.set_open_stake(seat.session.character.id, key, current.open_stake)
 
         try:
             self._in_one_transaction(seat, play)
         except BetError as error:
             raise ApiError(400, str(error)) from None
         except BaseException:
-            # The database went back to before the move, but the round object may be half-changed. Dropping it
-            # leaves its stake on record, which the next seating refunds.
+            # The database went back to before the move, but the round object may be half-changed, so it is dropped
+            # and the stake on record for it is handed back.
             del seat.rounds[key]
+            self._refund(seat, key)
             raise
         if current.finished:
             del seat.rounds[key]
@@ -165,8 +177,7 @@ class Floor:
     # ------------------------------------------------------------------ character
     def profile(self, seat: Seat) -> dict[str, Any]:
         session = seat.session
-        names = {game_type.game_key: game_type.display_name for game_type in GAME_TYPES.values()}
-        stats = [{"game": names.get(key, key.title()), **row}
+        stats = [{"game": GAME_NAMES.get(key, key.title()), **row}
                  for key, row in self.db.get_stats(session.character.id).items()]
         categories: dict[str, list[dict[str, Any]]] = {}
         for achievement in self.db.achievements(session.character.id):

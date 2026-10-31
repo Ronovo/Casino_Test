@@ -4,6 +4,8 @@
 **/__pycache__
 .pytest_cache
 *.db
-data
 Dockerfile
 .dockerignore
+node_modules
+coverage
+.coverage

@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from casino.engine.bets import Bet, BetError, Outcome, format_ratio, is_whole, read_stake, settle
-from casino.engine.game import Game, Round, pay_section
+from casino.engine.game import Game, Round, TableConfig, pay_section
 from casino.engine.session import Session
 from casino.rules import gtn as rules
 from casino.rules.gtn import Difficulty
@@ -66,9 +66,9 @@ class GuessTheNumberGame(Game):
     game_key = "gtn"
     display_name = "Guess the Number"
 
-    @property
-    def difficulties(self) -> list[Difficulty]:
-        return [Difficulty(item["name"], item["max_number"]) for item in self.setting("difficulties", [])]
+    def __init__(self, table: TableConfig):
+        super().__init__(table)
+        self.difficulties = [Difficulty(item["name"], item["max_number"]) for item in self.setting("difficulties", [])]
 
     def _ratios(self, difficulty: Difficulty) -> dict[str, str]:
         pay = self.table.paytable
@@ -111,8 +111,7 @@ class GuessTheNumberGame(Game):
         return sections
 
     def layout(self) -> dict[str, Any]:
-        return {"bets": [{"key": key, "label": label} for key, label in BET_NAMES.items()],
-                "difficulties": [{"name": d.name, "max_number": d.max_number, "scale": d.scale, "half": d.half,
+        return {"difficulties": [{"name": d.name, "max_number": d.max_number, "scale": d.scale, "half": d.half,
                                   "range_size": d.range_size, "digits": d.digits, "ratios": self._ratios(d)}
                                  for d in self.difficulties]}
 

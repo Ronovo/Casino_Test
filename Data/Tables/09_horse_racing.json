@@ -2,7 +2,6 @@
   "key": "horse_racing",
   "game": "racing",
   "title": "Ronovo Downs: Horse Racing",
-  "version": "1.0",
   "order": 60,
   "min_bet": 1,
   "max_bet": 5000,

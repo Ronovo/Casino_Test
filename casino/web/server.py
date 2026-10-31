@@ -1,4 +1,4 @@
-"""HTTP front door: JSON API under /api, the single-page client under /."""
+"""HTTP front door: JSON API under /api, test coverage reports under /coverage, the single-page client under /."""
 from __future__ import annotations
 
 import json
@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
-from flask import Flask, Response, g, redirect, request
+from flask import Flask, Response, g, redirect, request, send_from_directory
 from ronovo_portfolio_auth import portfolio_sso
 from ronovo_portfolio_auth.security_questions import QUESTIONS
 from werkzeug.serving import BaseWSGIServer, WSGIRequestHandler
@@ -19,7 +19,8 @@ from werkzeug.serving import make_server as make_wsgi_server
 
 from casino import APP_NAME, APP_VERSION
 from casino.accounts import LOGIN_LIFETIME, PORTFOLIO_CHOICE_SECONDS, AccountError, Accounts
-from casino.config import ACHIEVEMENTS_PATH, DB_PATH, SECURE_COOKIES, TABLES_DIR, load_starting_chips, DIFFICULTIES
+from casino.config import (ACHIEVEMENTS_PATH, COVERAGE_DIR, DB_PATH, DIFFICULTIES, SECURE_COOKIES, TABLES_DIR,
+                           load_starting_chips)
 from casino.engine.chips import CHIP_VALUES
 from casino.engine.db import Character, Database, User
 from casino.engine.game import Game
@@ -28,7 +29,7 @@ from casino.web.floor import ApiError, Floor, Seat
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 MIME_TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
-              ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".ico": "image/x-icon"}
+              ".js": "text/javascript; charset=utf-8"}
 COOKIE_NAME = "casino_login"
 SSO_STATE_COOKIE = "casino_sso_state"
 SSO_STATE_SECONDS = 600
@@ -58,6 +59,8 @@ class CasinoApp:
         self.db = db
         self.accounts = Accounts(db)
         self.floor = floor or Floor(db, games)
+        self._difficulties = [{"key": key, "label": f"{key} - {load_starting_chips(key).total:,} credits"}
+                              for key in DIFFICULTIES]
         self._seated: dict[tuple[str, str], Callable[[Seat, Any], dict[str, Any]]] = {
             ("GET", "lobby"): lambda seat, data: self.floor.lobby(seat),
             ("GET", "profile"): lambda seat, data: self.floor.profile(seat),
@@ -81,7 +84,7 @@ class CasinoApp:
         route = (method, "/".join(parts))
 
         if route == ("GET", "session"):
-            view = self._session_view(*login) if login else self._session_view(None, None)
+            view = self._session_view(*(login or (None, None)))
             held = self.accounts.held_portfolio_login(pending)
             view["portfolio_pending"] = held[1] if held else None
             return Reply(view)
@@ -164,7 +167,8 @@ class CasinoApp:
         state = portfolio_sso.new_state()
         return portfolio_sso.authorize_url("casino", f"{base_url}{portfolio_sso.CALLBACK_PATH}", state), state
 
-    def portfolio_callback(self, form: dict[str, str], expected_state: str | None, old_token: str | None = None) -> Reply:
+    def portfolio_callback(self, form: dict[str, str], expected_state: str | None,
+                           old_token: str | None = None) -> Reply:
         """Logs in to the casino account linked to the portfolio account, or holds the login until the player
         chooses one. Raises ApiError for a bad callback."""
         state = form.get("state", "")
@@ -183,9 +187,7 @@ class CasinoApp:
                                 "portfolio": portfolio_sso.enabled(),
                                 "portfolio_url": portfolio_sso.portfolio_url() if portfolio_sso.enabled() else None,
                                 "questions": QUESTIONS,
-                                "character": None, "chip_values": CHIP_VALUES,
-                                "difficulties": [{"key": key, "label": f"{key} - {load_starting_chips(key).total:,} credits"}
-                                                 for key in DIFFICULTIES]}
+                                "character": None, "chip_values": CHIP_VALUES, "difficulties": self._difficulties}
         if user:
             view["user"] = user.username
             credits = self.db.character_credits(user.id)
@@ -214,12 +216,14 @@ def parse_json_body(content_type: str, body: bytes) -> Any:
 
 
 def content_security_policy() -> str:
-    """The page may also ask the portfolio which portfolio account the browser is logged in to."""
+    """The page loads its fonts from Google Fonts, and may ask the portfolio which account the browser is logged
+    in to."""
     connect = "'self'"
     if portfolio_sso.enabled():
         portfolio = urlsplit(portfolio_sso.portfolio_url())
         connect += f" {portfolio.scheme}://{portfolio.netloc}"
-    return f"default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src {connect}; frame-ancestors 'none'"
+    return (f"default-src 'self'; style-src 'self' https://fonts.googleapis.com; "
+            f"font-src 'self' https://fonts.gstatic.com; connect-src {connect}; frame-ancestors 'none'")
 
 
 def set_cookie(response: Response, name: str, value: str, max_age: int, path: str = "/",
@@ -323,6 +327,14 @@ def create_app(casino: CasinoApp | None = None) -> Flask:
         except ApiError as error:
             return json_response({"error": error.message}, error.status)
         return set_reply_cookies(set_state_cookie(redirect("/", 303), ""), reply)
+
+    @app.get("/coverage/", defaults={"path": ""})
+    @app.get("/coverage/<path:path>")
+    def coverage(path: str) -> Response:
+        """The test coverage reports. Their pages run inline scripts, so they are served without the client's CSP."""
+        if not path or path.endswith("/"):
+            path += "index.html"
+        return send_from_directory(COVERAGE_DIR, path)
 
     @app.route("/", defaults={"path": ""}, methods=["GET", "POST"])
     @app.route("/<path:path>", methods=["GET", "POST"])

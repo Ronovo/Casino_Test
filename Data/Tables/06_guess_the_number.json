@@ -2,7 +2,6 @@
   "key": "guess_the_number",
   "game": "gtn",
   "title": "Guess the Number",
-  "version": "2.0",
   "order": 40,
   "min_bet": 1,
   "max_bet": 100,

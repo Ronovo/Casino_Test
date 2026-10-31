@@ -172,8 +172,7 @@ class HorseRacingGame(Game):
                                      ["Shortest price", format_ratio(rules.ODDS_LADDER[0])]])]
 
     def layout(self) -> dict[str, Any]:
-        return {"bets": [{"key": key, "label": label} for key, label in BET_NAMES.items()],
-                "season_length": self.season_length}
+        return {"season_length": self.season_length}
 
     def betting_view(self, session: Session) -> dict[str, Any]:
         season = self.season(session)

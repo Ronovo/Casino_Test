@@ -7,7 +7,6 @@ from typing import Any, Mapping
 from casino.engine.bets import Outcome
 
 
-
 @dataclass(frozen=True)
 class Difficulty:
     name: str

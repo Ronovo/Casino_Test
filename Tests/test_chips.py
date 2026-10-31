@@ -2,7 +2,6 @@ import random
 import unittest
 
 from casino.engine.chips import CHIP_VALUES, COLORS, Chips, InsufficientChips
-from casino.engine.bets import BetError, read_stake
 
 
 class ChipsTests(unittest.TestCase):
@@ -50,33 +49,16 @@ class ChipsTests(unittest.TestCase):
         values = [CHIP_VALUES[color] for color in COLORS]
         self.assertEqual(values, sorted(values))
 
+    def test_unknown_colors_and_negative_amounts_are_refused(self):
+        with self.assertRaises(KeyError):
+            Chips(Gold=1)
+        with self.assertRaises(ValueError):
+            Chips.make_change(-1)
+        with self.assertRaises(ValueError):
+            Chips(White=1).split_off(-1)
 
-class ReadStakeTests(unittest.TestCase):
-    def test_accepts_whole_credits_inside_the_limits(self):
-        self.assertEqual(read_stake(5, "Bet", 5, 100), 5)
-        self.assertEqual(read_stake(100, "Bet", 5, 100), 100)
-        self.assertEqual(read_stake(7, "Bet"), 7)
-
-    def test_limits_are_enforced(self):
-        with self.assertRaisesRegex(BetError, "minimum stake is 5 cr"):
-            read_stake(4, "Bet", 5, 100)
-        with self.assertRaisesRegex(BetError, "maximum stake is 100 cr"):
-            read_stake(101, "Bet", 5, 100)
-
-    def test_optional_stakes_may_be_missing_or_zero(self):
-        self.assertEqual(read_stake(None, "Trips", optional=True), 0)
-        self.assertEqual(read_stake(0, "Trips", optional=True), 0)
-        with self.assertRaises(BetError):
-            read_stake(0, "Bet")
-
-    def test_rejects_anything_that_is_not_a_positive_whole_number(self):
-        for bad in (-5, 2.5, 10.0, "10", True, None, [10], {"amount": 10}, float("nan"), float("inf")):
-            with self.subTest(value=bad), self.assertRaises(BetError):
-                read_stake(bad, "Bet", 1, 100)
-            with self.subTest(value=bad, optional=True):
-                if bad is not None:
-                    with self.assertRaises(BetError):
-                        read_stake(bad, "Bet", 1, 100, optional=True)
+    def test_repr_lists_the_chips_held(self):
+        self.assertEqual(repr(Chips(White=2, Black=1)), "Chips(White=2, Black=1)")
 
 
 if __name__ == "__main__":

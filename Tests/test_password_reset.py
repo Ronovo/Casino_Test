@@ -1,11 +1,9 @@
 import unittest
 
-from casino.accounts import AccountError, Accounts
-from casino.config import TABLES_DIR
-from casino.games import load_games
 from ronovo_portfolio_auth.security_questions import QUESTIONS
-from casino.web.server import CasinoApp
-from Tests.helpers import DatabaseTestCase, login
+
+from casino.accounts import AccountError, Accounts
+from Tests.helpers import SECURITY, AppTestCase, DatabaseTestCase, login
 
 QUESTION = QUESTIONS[1]
 
@@ -42,24 +40,22 @@ class PasswordResetTests(DatabaseTestCase):
         with self.assertRaisesRegex(AccountError, "no account with that username"):
             self.accounts.reset_password("ghost", "anything", "newpass1")
 
+    def test_a_blank_username_is_asked_for(self):
+        with self.assertRaisesRegex(AccountError, "Enter your username"):
+            self.accounts.security_question("   ")
+
     def test_portfolio_accounts_cannot_be_reset(self):
         self.accounts.portfolio_user("7", "player7")
         with self.assertRaisesRegex(AccountError, "logs in with the portfolio"):
             self.accounts.reset_password("player7", "", "newpass1")
 
 
-class ApiTests(DatabaseTestCase):
-    def setUp(self):
-        super().setUp()
-        self.app = CasinoApp(self.db, load_games(TABLES_DIR))
-
+class ApiTests(AppTestCase):
     def test_reset_through_the_api(self):
-        body = {"username": "Ronovo", "password": "hunter22", "question": QUESTION, "answer": "rex"}
-        self.app.dispatch("POST", "register", body, None)
-        self.assertEqual(self.app.dispatch("POST", "reset-question", {"username": "Ronovo"}, None).body,
-                         {"question": QUESTION})
+        self.assertEqual(self.call("POST", "reset-question", {"username": "Ronovo"}, token=None),
+                         {"question": SECURITY[0]})
         reset = {"username": "Ronovo", "answer": "REX", "password": "newpass1"}
-        self.assertEqual(self.app.dispatch("POST", "reset-password", reset, None).body, {"reset": True})
+        self.assertEqual(self.call("POST", "reset-password", reset, token=None), {"reset": True})
 
 
 if __name__ == "__main__":

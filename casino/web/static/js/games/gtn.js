@@ -75,7 +75,7 @@ export function render(ctx, mount) {
     add(felt,
       h('div', { class: 'felt-legend' }, `${difficulty.name}: 1 to ${difficulty.max_number.toLocaleString('en-US')}`),
       sealedEl(difficulty.digits, round.number),
-      late(h('div', { class: 'felt-legend' }, `The number is ${round.number.toLocaleString('en-US')}`), reveal));
+      late(h('div', { class: 'felt-legend reveal' }, `The number is ${round.number.toLocaleString('en-US')}`), reveal));
     add(mount, resultPanel(ctx, round, { delay: reveal, again: 'Same bets, new number' }));
     return reveal;
   }
@@ -89,7 +89,7 @@ export function render(ctx, mount) {
     stakeBox(slip, key));
 
   add(felt,
-    h('div', { class: 'row center' }, difficulties.map((d) => h('button', {
+    h('div', { class: 'row center difficulty' }, difficulties.map((d) => h('button', {
       class: `toggle ${d.name === difficulty.name ? 'on' : ''}`,
       onclick: () => {
         local.gtn = freshChoices(d.name);

@@ -15,6 +15,7 @@ CHIPS_PATH = DATA_DIR / "Money" / "chips.json"
 HORSES_PATH = DATA_DIR / "horses.json"
 DB_PATH = Path(os.environ.get("CASINO_DB") or ROOT / "casino.db")
 SECURE_COOKIES = os.environ.get("SECURE_COOKIES") == "1"
+COVERAGE_DIR = ROOT / "coverage"
 
 # Difficulty name -> its column in chips.json
 DIFFICULTIES: dict[str, str] = {

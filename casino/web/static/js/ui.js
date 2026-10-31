@@ -1,6 +1,15 @@
-import { add, credits, h, signedCredits } from './dom.js';
+import { add, credits, h, netClass, signedCredits } from './dom.js';
 
 const SUITS = { S: '♠', H: '♥', D: '♦', C: '♣' };
+
+/* Classic pip positions for 2-10 as [column, row] on a 3 by 13 grid; pips below the middle row hang upside down. */
+const sides = (rows) => rows.flatMap((row) => [[1, row], [3, row]]);
+const PIPS = {
+  2: [[2, 1], [2, 13]], 3: [[2, 1], [2, 7], [2, 13]],
+  4: sides([1, 13]), 5: [...sides([1, 13]), [2, 7]],
+  6: sides([1, 7, 13]), 7: [...sides([1, 7, 13]), [2, 4]], 8: [...sides([1, 7, 13]), [2, 4], [2, 10]],
+  9: [...sides([1, 5, 9, 13]), [2, 7]], 10: [...sides([1, 5, 9, 13]), [2, 3], [2, 11]],
+};
 
 // ------------------------------------------------------------------ cards
 export function cardEl(card, { animation = '', delay = 0 } = {}) {
@@ -9,7 +18,12 @@ export function cardEl(card, { animation = '', delay = 0 } = {}) {
   if (delay) el.style.animationDelay = `${delay}ms`;
   if (card) {
     const suit = SUITS[card.suit];
-    add(el, [h('span', { class: 'corner' }, card.rank, h('br'), suit), h('span', { class: 'pip' }, suit),
+    const spots = PIPS[card.rank];
+    const kind = spots ? 'number' : card.rank === 'A' ? 'ace' : 'face';
+    const pip = { number: () => spots.map(([col, row]) => h('i', { class: row > 7 ? 'flip' : '', style: { gridArea: `${row} / ${col}` } }, suit)),
+      ace: () => suit, face: () => h('b', null, card.rank) }[kind]();
+    el.classList.add(kind);
+    add(el, [h('span', { class: 'corner' }, card.rank, h('br'), suit), h('span', { class: 'pip' }, pip),
              h('span', { class: 'corner flip' }, card.rank, h('br'), suit)]);
   }
   return el;
@@ -48,7 +62,7 @@ export function chipEl(color, value, extra = '') {
 }
 
 /* Up to `limit` chips showing an amount the way a dealer would stack it, biggest chips at the bottom. */
-export function stackEl(ctx, amount, limit = 5) {
+function stackEl(ctx, amount, limit = 5) {
   const el = h('div', { class: 'stack' });
   const colors = Object.keys(ctx.chipValues).reverse();
   let left = amount;
@@ -98,7 +112,7 @@ export function betSlip(ctx, { cost = (stakes) => Object.values(stakes).reduce((
   };
 }
 
-export function chipTray(ctx) {
+function chipTray(ctx) {
   const tray = h('div', { class: 'tray' });
   for (const [color, value] of Object.entries(ctx.chipValues)) {
     const button = h('button', {
@@ -128,20 +142,21 @@ export function slipHandlers(slip, key) {
   };
 }
 
+function spotContents(ctx, name, amount, pays) {
+  return [h('span', { class: 'spot-name' }, name), pays && h('span', { class: 'spot-pays' }, pays),
+    amount ? [stackEl(ctx, amount), h('span', { class: 'spot-amount' }, credits(amount))] : null];
+}
+
 export function spotEl(ctx, slip, key, name, pays, { wide = false } = {}) {
-  const amount = slip.get(key);
   return h('button', {
     class: `spot ${wide ? 'wide' : ''}`,
     title: SLIP_HINT,
     ...slipHandlers(slip, key),
-  }, h('span', { class: 'spot-name' }, name), pays && h('span', { class: 'spot-pays' }, pays),
-     amount ? [stackEl(ctx, amount), h('span', { class: 'spot-amount' }, credits(amount))] : null);
+  }, spotContents(ctx, name, slip.get(key), pays));
 }
 
 export function lockedSpot(ctx, name, amount, pays) {
-  return h('div', { class: `spot locked` }, h('span', { class: 'spot-name' }, name),
-           pays && h('span', { class: 'spot-pays' }, pays),
-           amount ? [stackEl(ctx, amount), h('span', { class: 'spot-amount' }, credits(amount))] : null);
+  return h('div', { class: 'spot locked' }, spotContents(ctx, name, amount, pays));
 }
 
 export function betBar(ctx, slip, { label = 'Deal', ready = true, onDeal, extra = [] }) {
@@ -168,16 +183,16 @@ const RESULT_CLASS = { win: 'win', lose: 'lose', push: 'push', surrender: 'push'
 
 export function resultPanel(ctx, round, { delay = 0, again = 'Same bets again' } = {}) {
   const { net, notes, settlements } = round.result;
-  const banner = net > 0 ? ['win', `★ YOU WIN ${signedCredits(net)} ★`]
-    : net < 0 ? ['lose', `THE HOUSE WINS ${signedCredits(net)}`]
-    : ['push', 'PUSH: your stake comes back'];
+  const outcome = netClass(net);
+  const banner = { win: `★ YOU WIN ${signedCredits(net)} ★`, lose: `THE HOUSE WINS ${signedCredits(net)}`,
+    push: 'PUSH: your stake comes back' }[outcome];
   const rows = settlements.map((s) => h('tr', null,
     h('td', null, s.label),
     h('td', null, credits(s.amount)),
     h('td', { class: RESULT_CLASS[s.result] }, RESULT_TEXT[s.result] + (s.ratio ? ` ${s.ratio}` : '')),
-    h('td', { class: s.net > 0 ? 'win' : s.net < 0 ? 'lose' : 'push' }, signedCredits(s.net))));
+    h('td', { class: netClass(s.net) }, signedCredits(s.net))));
   const panel = h('div', { class: 'result' },
-    h('div', { class: `banner ${banner[0]}` }, banner[1]),
+    h('div', { class: `banner ${outcome}` }, banner),
     h('div', { class: 'notes' }, notes.map((note) => h('p', null, note))),
     h('table', { class: 'data' },
       h('thead', null, h('tr', null, ['Bet', 'Stake', 'Result', 'Net'].map((name) => h('th', null, name)))),

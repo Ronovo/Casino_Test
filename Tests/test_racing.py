@@ -1,10 +1,13 @@
 """Horse racing: the odds maths, bet settlement, the 40-race season and steward handicapping."""
+import json
 import random
+import tempfile
 import unittest
 from dataclasses import replace
+from pathlib import Path
 
 from casino.engine.bets import BetError
-from casino.games.racing import HorseRacingGame
+from casino.games.racing import HorseRacingGame, new_season
 from casino.rules import racing as rules
 from casino.rules.racing import Conditions, HandicapRules, Horse, Model
 from Tests.helpers import DatabaseTestCase, play, table
@@ -93,8 +96,7 @@ class StrengthTests(unittest.TestCase):
         model = Model()
         stayer = Horse("s", "Stayer", 80, 1.0, 0.0, "closer", "#000")
         mudder = Horse("m", "Mudder", 80, 0.0, 1.0, "closer", "#000")
-        self.assertEqual(rules.strength(stayer, Conditions(8, "Good"), 0, model),
-                         80 + model.aptitude * 0 + 0)
+        self.assertEqual(rules.strength(stayer, Conditions(8, "Good"), 0, model), 80)
         self.assertGreater(rules.strength(stayer, Conditions(12, "Good"), 0, model),
                            rules.strength(stayer, Conditions(5, "Good"), 0, model))
         self.assertGreater(rules.strength(mudder, Conditions(8, "Heavy"), 0, model),
@@ -264,6 +266,26 @@ class RacingGameTests(DatabaseTestCase):
         self.assertEqual(card["race"], 2)
         self.assertEqual(card["standings"][0]["key"], self.keys[4])
 
+    def test_a_changed_stable_starts_a_fresh_season(self):
+        session = self.session()
+        session.rng.favor(8, winner=4)
+        play(self.game, session, {"bets": [self.bet(4, "win", 5)]})
+        season = self.game.season(session)
+        season["horses"]["retired"] = season["horses"].pop(self.keys[0])
+        self.db.save_table_state(session.character.id, self.game.table.key, season)
+        fresh = self.game.season(session)
+        self.assertEqual((fresh["season"], fresh["race"]), (1, 0))
+        self.assertEqual(set(fresh["horses"]), set(self.keys))
+
+    def test_the_stable_needs_four_horses_with_unique_keys(self):
+        horse = {"key": "a", "name": "A", "rating": 80, "stamina": 0, "mud": 0, "style": "front", "silks": "#000"}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "horses.json"
+            for stable in ([horse] * 3, [horse] * 4):
+                path.write_text(json.dumps(stable), encoding="utf-8")
+                with self.subTest(horses=len(stable)), self.assertRaises(ValueError):
+                    HorseRacingGame(table("09_horse_racing.json"), path)
+
     def test_a_horse_that_keeps_winning_is_weighted_down_and_its_odds_lengthen(self):
         session = self.session()
         favorite = 0
@@ -319,9 +341,7 @@ class SeasonBalanceTests(unittest.TestCase):
         titles = dict(wins)
         most_in_a_season = []
         for _ in range(count):
-            season = {"race": 0, "horses": {horse.key: {"starts": 0, "firsts": 0, "seconds": 0, "thirds": 0,
-                                                        "points": 0, "weight": 0, "recent": []}
-                                            for horse in game.horses}}
+            season = new_season(1, game.horses, Conditions(8, "Good"), None)
             for _ in range(game.season_length):
                 conditions = Conditions(rng.choice(list(rules.DISTANCES)), rng.choice(list(rules.GOING)))
                 strengths = [rules.strength(horse, conditions, season["horses"][horse.key]["weight"], game.model)

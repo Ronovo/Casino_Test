@@ -3,16 +3,15 @@ A repo for learning how to program casino games, played in the browser. One pers
 the network can log in and play.
 
 ## Games Featured
-Each table is a JSON file in `Data/Tables`. Several tables can share one game engine.
+Each game has one table, a JSON file in `Data/Tables`, played by Vegas rules.
 
 | Table | Game | Highlights |
 |---|---|---|
-| Blackjack: Ronovo Classic | Blackjack | Any winning 21 pays 2:1, natural with a black Jack pays 3:1, double, split, surrender |
-| Blackjack: High Roller | Blackjack | 6 decks, dealer hits soft 17, blackjack 3:2, 100 cr minimum |
-| Ultimate Texas Hold'em (+ High Roller) | Poker | Ante/Blind/Play, Trips and Pairs Bonus side bets, full kicker comparison |
+| Blackjack | Blackjack | Vegas rules: 6 decks, dealer hits soft 17, blackjack 3:2, double, split up to 4 hands including any two ten-value cards, surrender, insurance |
+| Ultimate Texas Hold'em | Poker | Ante/Blind/Play, Trips and Pairs Bonus side bets, full kicker comparison |
 | EZ Baccarat | Baccarat | Commission-free, Dragon 7 and Panda 8 bonus bets |
 | Guess the Number | Guess the Number | Easy to Impossible, five bet types |
-| Roulette: European / American | Roulette | Straight up, red/black, odd/even, low/high, dozens, columns |
+| Roulette | Roulette | American double-zero wheel: straight up, red/black, odd/even, low/high, dozens, columns |
 | Ronovo Downs: Horse Racing | Horse Racing | Win/Place/Show on any number of horses, 40-race season, standings, handicapping |
 
 Also included: accounts, achievements, per-game win/loss records, a chip exchange, and a fresh start for broke
@@ -40,8 +39,8 @@ python main.py --verbose            # log every request
 - Each player creates an account (username and password) on the login page, and picks a security question.
   Passwords and answers are stored as salted PBKDF2 hashes, and a login lasts 30 days per browser.
 - **Forgot password?** resets the password with the security answer and logs the account out everywhere. Five
-  wrong answers lock resets for 15 minutes. A question can't be changed once it is set. Five wrong passwords in a row lock a username's logins for a
-  minute.
+  wrong answers lock resets for 15 minutes. A question can't be changed once it is set. Five wrong passwords in a
+  row lock a username's logins for a minute.
 - With `PORTFOLIO_SSO_URL` (the portfolio's address) and `PORTFOLIO_SSO_PUBLIC_KEY`
   (printed by the portfolio's `python sso.py`) set, the login page offers to log in with a portfolio account. It
   reads **Log in as** and the portfolio username when this browser is logged in to the portfolio. The first
@@ -53,7 +52,9 @@ python main.py --verbose            # log every request
 - Usernames are public: registering says when one is taken, and **Forgot password?** says when there is no such
   account. At most 20 accounts can be made in any 10 minutes.
 - The server uses plain HTTP, which is fine on a home network. To open it to the internet, put it behind an
-  HTTPS reverse proxy; the portfolio login callback address and the login cookie are still built for plain HTTP.
+  HTTPS reverse proxy and set `SECURE_COOKIES=1`, so the login cookies are only sent over HTTPS. The portfolio login
+  callback address uses the scheme the request came in with. In the Docker image, gunicorn takes that from the
+  proxy's `X-Forwarded-Proto` when `FORWARDED_ALLOW_IPS` trusts the proxy; `python main.py` always sees plain HTTP.
 
 ## Horse Racing
 - Every horse in `Data/horses.json` has a rating, a preferred trip (sprinter or stayer), a preferred surface
@@ -75,6 +76,30 @@ The tests need the requirements installed. Game rules are pure functions (`casin
 through each game's `start`/`act` interface with stacked decks (`Tests/test_games.py`), and thousands of random
 rounds check that no credit is ever created or lost (`Tests/test_soak.py`). The longest of those soak tests take
 about 100 seconds, so they only run with `CASINO_SOAK=1` set.
+
+### Coverage
+Python, after `pip install -r requirements-dev.txt` once:
+```
+python -m coverage run -m unittest discover -s Tests -t .
+python -m coverage report
+python -m coverage html
+```
+The browser client's tests (`Tests/js`) run on Node.js, after `npm install` once:
+```
+npm test
+npm run coverage
+```
+Both cover every line and branch, and the coverage commands fail if that ever drops below 100%. The HTML reports,
+which mark each line the tests run or miss, go to `coverage/python` and `coverage/js`.
+
+The Docker image builds both reports and serves them at `/coverage/`, under a landing page that shows each
+report's total and lists every measured file in one table: filter by name, sort by any column, or show only the
+files with gaps, and click a file for its line-by-line page.
+
+The page, its stylesheets and the tool that counts functions for the Python report live in `coverage-index/`, the
+`ronovos-coverage-index` repository as a git submodule, the same in every project. This repo's own file is
+`coverage-reports.json`, which names the project and its two reports. `coverage-index/README.md` has the recipe
+for setting up another project.
 
 ## Project Layout
 ```
@@ -102,15 +127,28 @@ Data/
   horses.json           the racing stable
   achievements.json     achievement definitions (edits reach existing saves)
   Money/chips.json      starting chips per difficulty
-Tests/
-docker/git-sync.sh      updates the container from GitHub on start
+Tests/                  Python tests; js/ holds the browser client's tests
+coverage-index/         the coverage landing page, its stylesheets and the function-count tool, the same in any repo
+                        (the ronovos-coverage-index repository, as a submodule)
+coverage-reports.json   this repo's entry for that page: the project name and its two reports
 Dockerfile
-requirements.txt        PyJWT and ronovo-portfolio-auth (portfolio login, security questions, login lock)
+requirements.txt        Flask, PyJWT and ronovo-portfolio-auth (portfolio login, security questions, login lock)
+requirements-dev.txt    the requirements plus coverage, for measuring the tests
+package.json            the browser client's test tools (Vitest, jsdom)
 ```
 
 ## Adding a Table (new scenario, no code)
 Copy a file in `Data/Tables`, change `key`, `title`, `order`, limits, `settings` and `paytable`.
-It appears on the casino floor the next time the server starts.
+It appears on the casino floor the next time the server starts. What each game reads:
+
+| Game | `settings` | `paytable` |
+|---|---|---|
+| `blackjack` | `decks`, `dealer_stands_on`, `dealer_hits_soft_17`, `allow_double`, `double_after_split`, `allow_split`, `allow_surrender` | `win`, `natural` |
+| `poker` | none | `blind` and `trips` by hand name, `pairs` by rank (`2-9` for the low pairs) |
+| `baccarat` | `decks` | `player`, `banker`, `tie`, `dragon7`, `panda8` |
+| `gtn` | `difficulties`, each a `name` and `max_number` | `exact`, `close`, `high_low`, `even_odd`, `range`, `lucky_1`, `lucky_2` |
+| `roulette` | none | `straight`, `red_black`, `odd_even`, `low_high`, `dozen`, `column` |
+| `racing` | `season_length`, `margin`, `points`, `model`, `handicap` | none |
 
 ## Adding a Game
 1. Put the rules as pure functions in `casino/rules/<game>.py` and unit test them.
@@ -118,28 +156,52 @@ It appears on the casino floor the next time the server starts.
    and `table_view`) and `Game` (`rules_pages`, `paytable`, and `start`, which validates the bets with
    `read_stake` and returns the round, built with the total stake). Take later bets with `take`, pay out with
    `settle` and end the round with `finish`.
+   `Game` also has optional hooks: `layout` (fixed details the client needs to draw the betting area),
+   `betting_view` (details that change between rounds), `leave` (the player got up without betting) and
+   `min_buy_in` (the least a player needs to sit down).
 3. Register the class in `casino/games/__init__.py` and add a table JSON with `"game": "<game_key>"`.
 4. Add `casino/web/static/js/games/<game>.js` exporting `render(ctx, mount)` and list it in `GAMES` in
    `js/app.js`.
+
+## API
+The browser client talks to the server in JSON under `/api/`. Every POST body must be sent as `application/json`.
+
+| Route | What it does |
+|---|---|
+| `GET session` | The account, its characters and the login options |
+| `POST register`, `POST login`, `POST logout` | Make an account, log in, log out |
+| `POST reset-question`, `POST reset-password` | Look up an account's security question, then reset its password |
+| `POST portfolio/link`, `POST portfolio/new` | After a first portfolio login: link an existing account, or make a new one |
+| `POST characters`, `POST characters/select` | Make a character, or sit down as one (`"id": null` stands up) |
+| `GET lobby`, `GET profile` | The tables, or the character's record and achievements |
+| `GET cashier`, `POST cashier` | The chip rack, or break chips and color up |
+| `POST start-over` | Fresh starting chips for a character who can't afford any table |
+| `GET tables/<key>` | A table's rules, payouts, betting details and any round in progress |
+| `POST tables/<key>/start`, `POST tables/<key>/act`, `POST tables/<key>/leave` | Place bets, make a move, get up from the table |
+
+Logging in with a portfolio account goes through `GET /sso/login` and `POST /sso/callback`. The test coverage
+reports are under `GET /coverage/`.
 
 ## Saves
 Progress lives in `casino.db` next to `main.py` (set the `CASINO_DB` environment variable to use another file).
 
 ## Docker
-The image serves on port 8000 and keeps the database at `/app/data/casino.db` (`CASINO_DB`), so mount a volume
-at `/app/data` to keep it.
+The image runs the casino with gunicorn on port 8000, with one worker (seated players and their locks live in its
+memory) and 8 threads. It keeps the database at `/app/data/casino.db`, so mount a volume at `/app/data` to keep it.
+The app runs as its own user, which can write only to `/app/data`. A health check asks `/api/session` every 30
+seconds, and `docker ps` shows the result.
 
-On every start the container runs `docker/git-sync.sh` before the server. It fetches the latest commit on GitHub
-`main`, so a pushed commit goes live on the next restart without rebuilding the image. When that commit hasn't
-been built yet it reinstalls `requirements.txt` first, and a failed install is tried again on the next start. If
-GitHub can't be reached the server starts on the code it already has.
+Building the image runs both test suites to make the coverage reports at `/coverage/`. The tests and their tools
+stay out of the final image, and failing tests or coverage under 100% don't stop the build: the reports show
+what is missing.
 
-| Variable | What it does | Default in the image |
-|---|---|---|
-| `REPO_URL` | The repo to pull. Set it empty to run exactly what is in the image. | This repo on GitHub |
-| `REPO_BRANCH` | Branch to pull | `main` |
-| `SYNC_DIR` | Folder the code is pulled into | The app folder |
-| `BUILD_CMD` | Runs after pulling a commit that hasn't been built yet | `pip install --no-cache-dir --user -q -r requirements.txt` |
+| Variable | What it does |
+|---|---|
+| `CASINO_DB` | The database file. The image sets `/app/data/casino.db` |
+| `SECURE_COOKIES` | `1` marks the login cookies Secure, for when the casino is served over HTTPS |
+| `FORWARDED_ALLOW_IPS` | gunicorn's list of proxy addresses whose `X-Forwarded-Proto` it trusts (`*` when only the proxy can reach it) |
+| `PORTFOLIO_SSO_URL` | The portfolio's address, for logging in with a portfolio account |
+| `PORTFOLIO_SSO_PUBLIC_KEY` | The key that checks portfolio logins, printed by the portfolio's `python sso.py` |
 
 ## License
 
