@@ -100,7 +100,7 @@ table.data.race-card th {
 
 /* ---------------------------------------------------------------- leaderboard */
 .leaderboard {
-  margin-top: 16px; border: 2px solid var(--brass-dark);
+  width: 100%; max-width: 900px; border: 2px solid var(--brass-dark);
   background: linear-gradient(#141a22, var(--panel));
   box-shadow: inset 0 0 0 1px rgba(255, 230, 160, .25), var(--shadow);
 }

@@ -23,6 +23,11 @@ const IN_PLAY = { finished: false, actions: [{ id: 'stand', label: 'Stand' }], h
 const DONE = { finished: true, actions: [], hands: [{ ...HAND, active: false }],
   dealer: { cards: [card('9C'), card('8D')], label: '17', state: '' },
   result: { net: 1, notes: ['Dealer stands on 17.'], settlements: [] } };
+// Time for the dealer's hole card to turn (500ms), the pause after it and the hold on the finished table before
+// the result takes the felt's place. A fresh deal lands four cards first, so it takes longer.
+const HOLD = 2500;
+const REVEAL = 800 + HOLD;
+const REDEAL = 1100 + HOLD;
 
 const listeners = [];
 let server;
@@ -446,11 +451,15 @@ describe('tables', () => {
     click(button('Deal'));
     await settle();
     expect(posted('tables/blackjack/start')[0].body).toEqual({ bets: { bet: 1 } });
+    vi.useFakeTimers();
     click(button('Stand'));
-    await settle();
+    await vi.advanceTimersByTimeAsync(0);
+    expect($('.banner')).toBeNull();
+    await vi.advanceTimersByTimeAsync(REVEAL);
+    expect($('.felt')).toBeNull();
     expect($('.banner').textContent).toContain('YOU WIN');
     click(button('Deal again'));
-    await settle();
+    await vi.advanceTimersByTimeAsync(REDEAL);
     expect(posted('tables/blackjack/start')[1].body).toEqual({ bets: { bet: 1 } });
     click(button('Change bets'));
     expect(button('Deal')).toBeTruthy();
@@ -463,13 +472,14 @@ describe('tables', () => {
     const stand = button('Stand');
     click(stand);
     click(stand);
+    vi.useFakeTimers();
     slow.resolve(floor({ round: DONE }));
-    await settle();
+    await vi.advanceTimersByTimeAsync(REVEAL);
     expect(posted('tables/blackjack/act')).toHaveLength(1);
     click(button('Change bets'));
     click($('.spot'));
     click(button('Deal'));
-    await settle();
+    await vi.advanceTimersByTimeAsync(0);
     expect(toasts()).toEqual(['The maximum stake is 100 cr.']);
   });
 
@@ -509,6 +519,25 @@ describe('tables', () => {
     expect($('.chip.on').textContent).toBe('1');
     await sit({}, null, { ...BLACKJACK, key: 'tens', min_bet: 10 });
     expect($('.chip.on').textContent).toBe('25');
+  });
+
+  it('plays the spin again when the same bets go down for another round', async () => {
+    const roulette = { ...BLACKJACK, key: 'roulette', game: 'roulette', title: 'Roulette',
+      layout: { wheel: ['0', '00', '1', '2'], red: [1] } };
+    const spun = { finished: true, actions: [], pocket: '2', color: 'black',
+      result: { net: -1, notes: [], settlements: [] } };
+    await sit({ 'POST tables/roulette/start': floor({ round: spun }) }, null, roulette);
+    vi.useFakeTimers();
+    click($('.cell'));
+    click(button('Spin'));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect($('.wheel-hub').textContent).toBe('2');
+    await vi.advanceTimersByTimeAsync(300);
+    click(button('Spin again'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect($('.wheel-hub').textContent).toBe('');
+    await vi.advanceTimersByTimeAsync(5000);
+    expect($('.wheel-hub').textContent).toBe('2');
   });
 
   it('shows the rules and payouts in a dialog', async () => {

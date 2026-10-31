@@ -78,7 +78,7 @@
 #topbar .nav .link:hover:not(:disabled)::after { transform: scaleX(1); }
 #topbar .logout { font-size: 13px; }
 
-#screen { max-width: 1180px; margin: 0 auto; padding: 24px 18px 60px; }
+#screen { max-width: 1180px; margin: 0 auto; padding: 16px 18px; }
 .panel {
   background: var(--panel-glass);
   backdrop-filter: blur(14px);
@@ -176,6 +176,7 @@
 
 /* ---------------------------------------------------------------- tiles */
 .grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.grid.tables { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .tile {
   background: var(--panel-glass);
   backdrop-filter: blur(14px);
@@ -353,40 +354,16 @@
 }
 .emblem.gtn::after { content: '7'; font: 700 18px var(--font-display); color: var(--gold-bright); position: static; margin-top: 10px; }
 
-.emblem.roulette {
-  border-radius: 50%;
-  border: 2px solid var(--gold);
-  background:
-    radial-gradient(circle, #0b2e1d 0 32%, var(--gold) 33% 37%, transparent 38%),
-    repeating-conic-gradient(#b3212c 0 20deg, #151515 20deg 40deg);
-  box-shadow: inset 0 0 8px rgba(0, 0, 0, .6);
+/* Drawn pictures: a wheel and a horse's head, served from the static folder because the page's CSP refuses data URIs. */
+.emblem.roulette, .emblem.racing {
+  width: 56px;
+  height: 56px;
+  background: center / contain no-repeat;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .6));
 }
-.emblem.roulette::before { inset: 16px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #163a28, #0b2e1d); }
-.emblem.roulette::after {
-  width: 7px; height: 7px;
-  top: 5px; right: 9px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #fff, #c9c9c9);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .6);
-}
-
-.emblem.racing {
-  width: 44px;
-  height: 44px;
-  margin: 2px;
-  border-radius: 50%;
-  border: 7px solid #d4a73a;
-  border-top-color: transparent;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35), 0 0 0 1px rgba(0, 0, 0, .35);
-}
-.emblem.racing::before, .emblem.racing::after {
-  width: 4px; height: 4px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, .55);
-  bottom: 4px;
-}
-.emblem.racing::before { left: -6px; }
-.emblem.racing::after { right: -6px; }
+.emblem.roulette::before, .emblem.roulette::after, .emblem.racing::before, .emblem.racing::after { content: none; }
+.emblem.roulette { background-image: url(../img/roulette.svg); }
+.emblem.racing { background-image: url(../img/racing.svg); }
 
 .section-title { margin: 26px 0 12px; display: flex; align-items: baseline; gap: 12px; }
 .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--gold-line), transparent); align-self: center; }
@@ -571,6 +548,10 @@ table.data tr.me td { background: rgba(217, 180, 74, .08); }
 .paytable .pay-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px dotted var(--line); font-size: 14px; }
 .paytable .pay-row span:last-child { font: 600 14px var(--font-display); color: var(--gold-bright); white-space: nowrap; }
 
+@media (max-width: 900px) {
+  .grid.tables { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 760px) {
   #topbar { flex-wrap: wrap; gap: 8px 12px; padding: 8px 12px; }
   #topbar .nav { flex-wrap: wrap; }
@@ -578,6 +559,7 @@ table.data tr.me td { background: rgba(217, 180, 74, .08); }
   .narrow { margin-top: 2vh; }
   .hero::before { inset: -40px -16px -10px; }
   .paytable { grid-template-columns: 1fr; }
+  .grid.tables { grid-template-columns: 1fr; }
   .rack { padding: 16px; gap: 10px; }
   .rack-slot { min-width: 74px; padding: 10px 8px 8px; }
 }

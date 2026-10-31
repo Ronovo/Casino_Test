@@ -17,7 +17,7 @@ export function makeCtx({ table = {}, betting = null, round = null, credits = 10
     round,
     player: player({ credits }),
     chipValues: CHIP_VALUES,
-    local: { stakes: {}, chip, cards: {}, lastBets: null, ...local },
+    local: { stakes: {}, chip, cards: {}, shown: false, lastBets: null, ...local },
     busy: false,
     toast: vi.fn(),
     rerender: vi.fn(),

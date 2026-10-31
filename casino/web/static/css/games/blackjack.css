@@ -25,12 +25,12 @@
 .cardfelt .pill.bust { background: linear-gradient(180deg, #932121, #561010); color: #ffdede; border-color: rgba(227, 93, 93, .7); }
 
 /* ---------------------------------------------------------------- blackjack */
-.bj .seat.dealer { gap: 12px; }
+.bj .seat.dealer { gap: 8px; }
 .bj-legend { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; margin: -4px 0; }
 .bj-arc {
-  --arc-r: 280px; --arc-step: 3.3deg;
-  position: relative; width: 100%; height: 70px;
-  font: 600 20px/1 var(--font-display); text-transform: uppercase;
+  --arc-r: 240px; --arc-step: 3.1deg;
+  position: relative; width: 100%; height: 54px;
+  font: 600 16px/1 var(--font-display); text-transform: uppercase;
   color: rgba(255, 228, 150, .8); text-shadow: 0 1px 0 rgba(0, 0, 0, .7);
 }
 .bj-arc span {
@@ -40,18 +40,18 @@
 }
 .bj .bj-rule { font-size: 11px; letter-spacing: .24em; color: rgba(255, 228, 150, .85); }
 
-.bj .bj-curve { position: relative; isolation: isolate; width: 100%; padding: 18px 28px 12px; }
+.bj .bj-curve { position: relative; isolation: isolate; width: 100%; padding: 8px 28px 12px; }
 .bj .bj-curve::before {
-  content: ''; position: absolute; z-index: -1; left: 10%; right: 10%; top: -44px; bottom: 0;
-  border: 2px solid rgba(255, 228, 150, .3); border-top: 0;
-  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  content: ''; position: absolute; z-index: -1; left: 10%; right: 10%; top: 0; bottom: -24px;
+  border: 2px solid rgba(255, 228, 150, .3); border-bottom: 0;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
   pointer-events: none;
 }
-.bj .hands { gap: 26px; align-items: flex-end; }
+.bj .hands { gap: 26px; align-items: flex-start; }
 .bj .hands .seat {
   position: relative; isolation: isolate;
-  padding: 10px 14px 8px; border-radius: 30px;
-  transform: translateY(calc(var(--fan, 0) * var(--fan, 0) * -9px)) rotate(calc(var(--fan, 0) * 3deg));
+  padding: 8px 14px 10px; border-radius: 30px;
+  transform: translateY(calc(var(--fan, 0) * var(--fan, 0) * 9px)) rotate(calc(var(--fan, 0) * -3deg));
 }
 .bj .hands .seat.active::before {
   content: ''; position: absolute; z-index: -1; inset: -4px; border-radius: inherit;
@@ -77,10 +77,10 @@
   .bj-arc { --arc-r: 210px; font-size: 16px; height: 58px; }
   .bj .hands { gap: 10px; }
   .bj .hands .seat {
-    padding: 6px 6px 4px;
-    transform: translateY(calc(var(--fan, 0) * var(--fan, 0) * -5px)) rotate(calc(var(--fan, 0) * 2deg));
+    padding: 4px 6px 6px;
+    transform: translateY(calc(var(--fan, 0) * var(--fan, 0) * 5px)) rotate(calc(var(--fan, 0) * -2deg));
   }
-  .bj .bj-curve { padding: 12px 8px 8px; }
+  .bj .bj-curve { padding: 8px 8px 12px; }
   .bj-insurance { gap: 12px; padding: 4px 14px; }
   .bj-insurance::after { content: none; }
 }

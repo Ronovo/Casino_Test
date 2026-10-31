@@ -2,8 +2,9 @@
 
 .uth .pill { border-radius: 5px; font-weight: 600; letter-spacing: .06em; padding: 3px 12px; }
 
+.uth .uth-top { align-items: flex-start; }
 .uth-board { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.uth-board .seat { gap: 12px; }
+.uth-board .seat { gap: 8px; }
 .uth-strip { display: flex; gap: 8px; width: calc(5 * var(--card-w) + 32px); }
 .uth-strip span {
   flex: 0 0 var(--card-w); padding-top: 6px; text-align: center;

@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  actionBar, betBar, betSlip, cardEl, chipEl, chipLabel, handEl, late, lockedSpot, resultPanel, seatEl, slipHandlers,
-  spotEl,
+  actionBar, afterReveal, betBar, betSlip, cardEl, chipEl, chipLabel, handEl, late, lockedSpot, resultPanel, seatEl,
+  settleRound, slipHandlers, spotEl, tabsEl,
 } from '../../casino/web/static/js/ui.js';
-import { byText, click, makeCtx, rightClick } from './helpers.js';
+import { byText, click, makeCtx, mount, rightClick } from './helpers.js';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('cards', () => {
   it('draws face-up red and black cards and face-down backs', () => {
@@ -184,10 +188,9 @@ describe('resultPanel', () => {
     const round = { result: { net: 15, notes: ['Dealer busts!'], settlements: [
       settlement('win', 20, '2:1'), settlement('lose', -10), settlement('push', 0), settlement('surrender', -5),
     ] } };
-    const panel = resultPanel(ctx, round, { delay: 900, again: 'Deal again' });
+    const panel = resultPanel(ctx, round, { again: 'Deal again' });
     expect(panel.querySelector('.banner').className).toBe('banner win');
     expect(panel.querySelector('.banner').textContent).toBe('★ YOU WIN +15 cr ★');
-    expect(panel.style.animationDelay).toBe('900ms');
     expect([...panel.querySelectorAll('tbody td:nth-child(3)')].map((td) => td.textContent))
       .toEqual(['WIN 2:1', 'LOSE', 'PUSH', 'SURRENDER']);
     expect([...panel.querySelectorAll('tbody td:nth-child(4)')].map((td) => td.className))
@@ -202,10 +205,47 @@ describe('resultPanel', () => {
     const ctx = makeCtx();
     const lost = resultPanel(ctx, { result: { net: -10, notes: [], settlements: [] } });
     expect(lost.querySelector('.banner').textContent).toBe('THE HOUSE WINS -10 cr');
-    expect(lost.style.animationDelay).toBe('0ms');
     expect(byText(lost, 'button', 'Same bets again').disabled).toBe(true);
     const pushed = resultPanel(ctx, { result: { net: 0, notes: [], settlements: [] } });
     expect(pushed.querySelector('.banner').className).toBe('banner push');
+  });
+
+  it('takes the felt\'s place once the reveal delay has passed', () => {
+    vi.useFakeTimers();
+    const stage = mount();
+    const felt = stage.appendChild(document.createElement('div'));
+    felt.className = 'felt';
+    settleRound(makeCtx(), felt, { result: { net: 5, notes: [], settlements: [] } }, { delay: 700, hold: 300 });
+    expect(stage.querySelector('.result')).toBeNull();
+    vi.advanceTimersByTime(999);
+    expect(stage.querySelector('.felt')).toBe(felt);
+    vi.advanceTimersByTime(1);
+    expect(stage.querySelector('.felt')).toBeNull();
+    const panel = stage.querySelector('.result');
+    expect(panel.className).toBe('result late');
+    expect(panel.style.animationDelay).toBe('0ms');
+    expect(byText(panel, 'button', 'Same bets again')).toBeTruthy();
+  });
+
+  it('lies over the felt at once when there is nothing left to reveal', () => {
+    const felt = mount();
+    const overlay = document.createElement('div');
+    afterReveal(felt, overlay, 0, { over: true });
+    expect(overlay.parentElement).toBe(felt);
+    expect(overlay.className).toBe('late');
+  });
+});
+
+describe('tabs', () => {
+  it('marks the chosen tab and reports a pick', () => {
+    const picked = [];
+    const tabs = tabsEl({ card: 'Race card', standings: 'Standings' }, 'standings', (key) => picked.push(key));
+    const [card, standings] = tabs.querySelectorAll('button');
+    expect(card.className).toBe('');
+    expect(card.type).toBe('button');
+    expect(standings.className).toBe('on');
+    click(card);
+    expect(picked).toEqual(['card']);
   });
 });
 

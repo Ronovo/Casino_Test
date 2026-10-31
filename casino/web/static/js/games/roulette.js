@@ -1,5 +1,5 @@
 import { add, credits, h } from '../dom.js';
-import { chipLabel, SLIP_HINT, betBar, betSlip, resultPanel, slipHandlers } from '../ui.js';
+import { chipLabel, SLIP_HINT, betBar, betSlip, settleRound, slipHandlers } from '../ui.js';
 
 const SPIN_MS = 5000;
 const FULL_TURNS = 5;
@@ -37,11 +37,11 @@ function wheelEl(ctx, pocket) {
       hub.textContent = pocket;
       hub.classList.add(ctx.round.color);
     };
-    if (ctx.local.spun) {
+    if (ctx.local.shown) {
       disc.style.transform = rest;
       settle();
     } else {
-      ctx.local.spun = true;
+      ctx.local.shown = true;
       // The transition only runs if the browser has painted the starting position first.
       requestAnimationFrame(() => requestAnimationFrame(() => {
         disc.classList.add('spin');
@@ -100,18 +100,18 @@ function toBets(stakes) {
 export function render(ctx, mount) {
   const { round } = ctx;
   const felt = h('div', { class: 'felt' });
-  add(mount, felt);
   const slip = betSlip(ctx);
-  if (!round) ctx.local.spun = false;
 
   add(felt, h('div', { class: 'roulette' }, wheelEl(ctx, round ? round.pocket : null),
     boardEl(ctx, slip, round ? round.pocket : null)));
   if (!round) {
     add(mount,
       betBar(ctx, slip, { label: 'Spin', onDeal: () => ctx.start({ bets: toBets(slip.stakes) }) }),
+      felt,
       h('p', { class: 'hint' }, `Each bet: ${credits(ctx.table.min_bet)} minimum. Click the board to place chips; right-click takes one back.`));
     return 0;
   }
-  add(mount, resultPanel(ctx, round, { delay: SPIN_MS + 300, again: 'Spin again' }));
+  add(mount, felt);
+  settleRound(ctx, felt, round, { delay: SPIN_MS + 300, again: 'Spin again' });
   return SPIN_MS + 300;
 }

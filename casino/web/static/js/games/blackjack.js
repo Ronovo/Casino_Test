@@ -1,5 +1,5 @@
 import { add, credits, h } from '../dom.js';
-import { actionBar, betBar, betSlip, handEl, late, lockedSpot, resultPanel, seatEl, spotEl } from '../ui.js';
+import { actionBar, betBar, betSlip, handEl, late, lockedSpot, seatEl, settleRound, spotEl } from '../ui.js';
 
 /* One span per character so the CSS can rotate each onto an arc. */
 function arcText(text) {
@@ -7,6 +7,8 @@ function arcText(text) {
   return h('div', { class: 'bj-arc', style: { '--mid': String((chars.length - 1) / 2) } },
     chars.map((ch, index) => h('span', { style: { '--i': String(index) } }, ch)));
 }
+
+const HOLD_MS = 2500;
 
 function legend(table) {
   return h('div', { class: 'bj-legend' },
@@ -17,15 +19,15 @@ function legend(table) {
 export function render(ctx, mount) {
   const { round, table } = ctx;
   const felt = h('div', { class: 'felt cardfelt bj' });
-  add(mount, felt);
 
   if (!round) {
     const slip = betSlip(ctx);
-    add(felt, seatEl('Dealer', null, h('div', { class: 'hand' }), 'dealer'), legend(table),
-      h('div', { class: 'spots bj-curve' }, spotEl(ctx, slip, 'bet', 'Your bet')));
     add(mount,
       betBar(ctx, slip, { label: 'Deal', onDeal: () => ctx.start({ bet: slip.get('bet') }) }),
+      felt,
       h('p', { class: 'hint' }, 'Pick a chip, then click the betting circle. Right-click takes a chip back.'));
+    add(felt, h('div', { class: 'spots bj-curve' }, spotEl(ctx, slip, 'bet', 'Your bet')),
+      seatEl('Dealer', null, h('div', { class: 'hand' }), 'dealer'), legend(table));
     return 0;
   }
 
@@ -49,8 +51,11 @@ export function render(ctx, mount) {
   dealerSeat.firstChild.append(late(h('span', { class: `pill ${round.dealer.state}` }, round.dealer.label), reveal));
   if (round.insurance) dealerSeat.append(h('div', { class: 'bj-insurance' }, lockedSpot(ctx, 'Insurance', round.insurance)));
 
-  add(felt, dealerSeat, legend(table), h('div', { class: 'hands bj-curve' }, hands));
-  if (round.finished) add(mount, resultPanel(ctx, round, { delay: reveal, again: `Deal again (${credits(ctx.local.lastBets?.bet || 0)})` }));
-  else add(mount, actionBar(ctx, round));
+  if (!round.finished) add(mount, actionBar(ctx, round));
+  add(mount, felt);
+  add(felt, h('div', { class: 'hands bj-curve' }, hands), dealerSeat, legend(table));
+  if (round.finished) {
+    settleRound(ctx, felt, round, { delay: reveal, hold: HOLD_MS, again: `Deal again (${credits(ctx.local.lastBets?.bet || 0)})` });
+  }
   return reveal;
 }

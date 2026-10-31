@@ -181,7 +181,7 @@ export function actionBar(ctx, round) {
 const RESULT_TEXT = { win: 'WIN', lose: 'LOSE', push: 'PUSH', surrender: 'SURRENDER' };
 const RESULT_CLASS = { win: 'win', lose: 'lose', push: 'push', surrender: 'push' };
 
-export function resultPanel(ctx, round, { delay = 0, again = 'Same bets again' } = {}) {
+export function resultPanel(ctx, round, { again = 'Same bets again' } = {}) {
   const { net, notes, settlements } = round.result;
   const outcome = netClass(net);
   const banner = { win: `★ YOU WIN ${signedCredits(net)} ★`, lose: `THE HOUSE WINS ${signedCredits(net)}`,
@@ -191,7 +191,7 @@ export function resultPanel(ctx, round, { delay = 0, again = 'Same bets again' }
     h('td', null, credits(s.amount)),
     h('td', { class: RESULT_CLASS[s.result] }, RESULT_TEXT[s.result] + (s.ratio ? ` ${s.ratio}` : '')),
     h('td', { class: netClass(s.net) }, signedCredits(s.net))));
-  const panel = h('div', { class: 'result' },
+  return h('div', { class: 'result' },
     h('div', { class: `banner ${outcome}` }, banner),
     h('div', { class: 'notes' }, notes.map((note) => h('p', null, note))),
     h('table', { class: 'data' },
@@ -200,7 +200,19 @@ export function resultPanel(ctx, round, { delay = 0, again = 'Same bets again' }
     h('div', { class: 'actions' },
       h('button', { class: 'primary', disabled: !ctx.local.lastBets, onclick: () => ctx.repeat() }, again),
       h('button', { onclick: () => ctx.newRound() }, 'Change bets')));
-  return late(panel, delay);
+}
+
+/* Once the reveal delay has passed, `el` takes the felt's place, or lies over it when `over` is set. */
+export function afterReveal(felt, el, delay, { over = false } = {}) {
+  late(el, 0);
+  const show = () => (over ? felt.append(el) : felt.replaceWith(el));
+  if (delay) setTimeout(show, delay);
+  else show();
+}
+
+/* `hold` keeps the finished table up for a while after the reveal before the result takes its place. */
+export function settleRound(ctx, felt, round, { delay = 0, hold = 0, again } = {}) {
+  afterReveal(felt, resultPanel(ctx, round, { again }), delay + hold);
 }
 
 /* Keep an element hidden until `delay` ms from now, so it can't give away a result mid-animation. */
@@ -208,6 +220,11 @@ export function late(el, delay) {
   el.classList.add('late');
   el.style.animationDelay = `${delay}ms`;
   return el;
+}
+
+export function tabsEl(options, selected, pick) {
+  return h('div', { class: 'tabs' }, Object.entries(options).map(([key, label]) =>
+    h('button', { type: 'button', class: key === selected ? 'on' : '', onclick: () => pick(key) }, label)));
 }
 
 export function seatEl(label, pill, body, extra = '') {

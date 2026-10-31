@@ -29,7 +29,7 @@ from casino.web.floor import ApiError, Floor, Seat
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 MIME_TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
-              ".js": "text/javascript; charset=utf-8"}
+              ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml"}
 COOKIE_NAME = "casino_login"
 SSO_STATE_COOKIE = "casino_sso_state"
 SSO_STATE_SECONDS = 600

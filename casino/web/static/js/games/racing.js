@@ -1,5 +1,5 @@
-import { add, h } from '../dom.js';
-import { SLIP_HINT, betBar, betSlip, late, resultPanel, slipHandlers } from '../ui.js';
+import { add, clear, h } from '../dom.js';
+import { SLIP_HINT, afterReveal, betBar, betSlip, resultPanel, slipHandlers, tabsEl } from '../ui.js';
 
 const WINNER_MS = 11000;
 // Real margins are a few percent of the race time; stretching them makes the finish readable on screen.
@@ -10,6 +10,8 @@ const GATE_PX = 46;
 const STYLE_CURVE = { front: 0.82, stalker: 1, closer: 1.22 };
 const STYLE_NAMES = { front: 'Front-runner', stalker: 'Stalker', closer: 'Closer' };
 const KINDS = ['win', 'place', 'show'];
+const CARD_TABS = { card: 'Race card', standings: 'Standings' };
+const RESULT_TABS = { results: 'Results', standings: 'Standings' };
 
 function ordinal(n) {
   const teen = n % 100 >= 11 && n % 100 <= 13;
@@ -102,10 +104,10 @@ function trackEl(ctx, round) {
     });
   };
 
-  if (ctx.local.raced) {
+  if (ctx.local.shown) {
     place(last * 1.04);
   } else {
-    ctx.local.raced = true;
+    ctx.local.shown = true;
     place(0);
     const began = performance.now();
     const tick = (now) => {
@@ -121,35 +123,54 @@ function trackEl(ctx, round) {
 export function render(ctx, mount) {
   const { round, betting } = ctx;
   const felt = h('div', { class: 'felt turf' });
-  add(mount, felt);
 
   if (!round) {
-    ctx.local.raced = false;
     const slip = betSlip(ctx);
     // Stakes left over from the last race may point at prices the new card no longer offers.
     for (const key of Object.keys(slip.stakes)) {
       const [horse, kind] = key.split('|');
       if (!betting.runners.find((runner) => runner.key === horse)?.odds[kind]) delete slip.stakes[key];
     }
+    const tab = ctx.local.tab || 'card';
+    add(mount,
+      betBar(ctx, slip, { label: 'Run the race', onDeal: () => ctx.start({ bets: toBets(slip.stakes) }) }),
+      felt,
+      h('p', { class: 'hint' }, 'Pick a chip, then click any price to bet on it. Bet on as many horses as you like. Right-click takes a chip back.'));
     add(felt,
       h('div', { class: 'felt-legend' }, `Season ${betting.season} · Race ${betting.race} of ${ctx.table.layout.season_length} · ${conditionsText(betting.conditions)}`),
       betting.champion && h('div', { class: 'champion' }, `🏆 Reigning champion: ${betting.champion}`),
-      raceCardEl(ctx, slip));
-    add(mount,
-      betBar(ctx, slip, { label: 'Run the race', onDeal: () => ctx.start({ bets: toBets(slip.stakes) }) }),
-      h('p', { class: 'hint' }, 'Pick a chip, then click any price to bet on it. Bet on as many horses as you like. Right-click takes a chip back.'),
-      standingsEl(ctx, betting.standings, betting.race - 1));
+      tabsEl(CARD_TABS, tab, (picked) => {
+        ctx.local.tab = picked;
+        ctx.rerender();
+      }),
+      tab === 'card' ? raceCardEl(ctx, slip) : standingsEl(ctx, betting.standings, betting.race - 1));
     return 0;
   }
 
+  // A race that is just starting takes the whole screen; one being drawn again is already over.
+  const replay = ctx.local.shown;
+  if (!replay) window.scrollTo(0, 0);
   const track = trackEl(ctx, round);
-  const reveal = track.until + 500;
+  const reveal = replay ? 0 : track.until + 500;
+  add(mount, felt);
   add(felt,
     h('div', { class: 'felt-legend' }, `Season ${round.race.season} · Race ${round.race.number} · ${conditionsText(round.race)}`),
-    track.el,
-    round.season_over && late(h('div', { class: 'banner win' }, `🏆 ${round.season_over.champion} wins season ${round.season_over.season}!`), reveal));
-  add(mount,
-    resultPanel(ctx, round, { delay: reveal, again: 'Same bets, next race' }),
-    late(standingsEl(ctx, round.standings, round.season_over ? ctx.table.layout.season_length : round.race.number), reveal));
+    track.el);
+
+  const views = {
+    results: resultPanel(ctx, round, { again: 'Same bets, next race' }),
+    standings: standingsEl(ctx, round.standings, round.season_over ? ctx.table.layout.season_length : round.race.number),
+  };
+  const overlay = h('div', { class: 'overlay' });
+  let tab = 'results';
+  const draw = () => add(clear(overlay),
+    round.season_over && h('div', { class: 'banner win' }, `🏆 ${round.season_over.champion} wins season ${round.season_over.season}!`),
+    tabsEl(RESULT_TABS, tab, (picked) => {
+      tab = picked;
+      draw();
+    }),
+    views[tab]);
+  draw();
+  afterReveal(felt, overlay, reveal, { over: true });
   return reveal;
 }

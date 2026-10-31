@@ -1,5 +1,5 @@
 import { add, credits, h } from '../dom.js';
-import { betBar, betSlip, late, resultPanel } from '../ui.js';
+import { betBar, betSlip, late, settleRound } from '../ui.js';
 
 const DIGIT_STEP = 350;
 
@@ -68,15 +68,15 @@ export function render(ctx, mount) {
   const difficulty = difficulties.find((d) => d.name === (round ? round.difficulty : local.gtn.difficulty));
   const { picks } = local.gtn;
   const felt = h('div', { class: 'felt purple' });
-  add(mount, felt);
 
   if (round) {
     const reveal = difficulty.digits * DIGIT_STEP + 300;
+    add(mount, felt);
     add(felt,
       h('div', { class: 'felt-legend' }, `${difficulty.name}: 1 to ${difficulty.max_number.toLocaleString('en-US')}`),
       sealedEl(difficulty.digits, round.number),
       late(h('div', { class: 'felt-legend reveal' }, `The number is ${round.number.toLocaleString('en-US')}`), reveal));
-    add(mount, resultPanel(ctx, round, { delay: reveal, again: 'Same bets, new number' }));
+    settleRound(ctx, felt, round, { delay: reveal, again: 'Same bets, new number' });
     return reveal;
   }
 
@@ -88,14 +88,18 @@ export function render(ctx, mount) {
     h('div', { class: 'picks' }, controls),
     stakeBox(slip, key));
 
-  add(felt,
-    h('div', { class: 'row center difficulty' }, difficulties.map((d) => h('button', {
-      class: `toggle ${d.name === difficulty.name ? 'on' : ''}`,
-      onclick: () => {
-        local.gtn = freshChoices(d.name);
-        slip.clear();
+  add(mount,
+    betBar(ctx, slip, {
+      label: 'Reveal the number',
+      onDeal: () => {
+        const { bets, problem } = collect(slip, picks, difficulty);
+        if (problem) ctx.toast(problem, 'error');
+        else ctx.start(bets);
       },
-    }, `${d.name}: 1 to ${d.max_number.toLocaleString('en-US')}`))),
+    }),
+    felt,
+    h('p', { class: 'hint' }, 'Pick a chip above, then use + and − on each bet you want to make.'));
+  add(felt,
     sealedEl(difficulty.digits, null),
     h('div', { class: 'bet-rows' },
       row('pick', 'Pick a Number', `exact ${pays.exact} · within ${difficulty.scale.toLocaleString('en-US')} pays ${pays.close}`,
@@ -107,16 +111,13 @@ export function render(ctx, mount) {
       row('range', 'Range', `${difficulty.range_size.toLocaleString('en-US')} numbers in a row · pays ${pays.range}`,
         numberInput(picks, 'range', null, 1, top - difficulty.range_size + 1, 'first number')),
       row('lucky', 'Lucky Combo', `#1 pays ${pays.lucky_1} · #2 pays ${pays.lucky_2}`, [
-        numberInput(picks, 'lucky', 0, 1, top, 'lucky #1'), numberInput(picks, 'lucky', 1, 1, top, 'lucky #2')])));
-  add(mount,
-    betBar(ctx, slip, {
-      label: 'Reveal the number',
-      onDeal: () => {
-        const { bets, problem } = collect(slip, picks, difficulty);
-        if (problem) ctx.toast(problem, 'error');
-        else ctx.start(bets);
+        numberInput(picks, 'lucky', 0, 1, top, 'lucky #1'), numberInput(picks, 'lucky', 1, 1, top, 'lucky #2')])),
+    h('div', { class: 'row center difficulty' }, difficulties.map((d) => h('button', {
+      class: `toggle ${d.name === difficulty.name ? 'on' : ''}`,
+      onclick: () => {
+        local.gtn = freshChoices(d.name);
+        slip.clear();
       },
-    }),
-    h('p', { class: 'hint' }, 'Pick a chip below, then use + and − on each bet you want to make.'));
+    }, `${d.name}: 1 to ${d.max_number.toLocaleString('en-US')}`))));
   return 0;
 }

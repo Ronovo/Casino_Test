@@ -33,6 +33,7 @@ describe('roulette', () => {
     };
     const el = mount();
     expect(render(ctx, el)).toBe(0);
+    expect([...el.children].map((child) => child.className)).toEqual(['bet-bar', 'felt', 'hint']);
     expect([...el.querySelectorAll('.cell.green')].map((c) => c.textContent)).toEqual(['0', '00']);
     expect(cell(el, '1').className).toContain('red');
     expect(cell(el, '2').className).toContain('black');
@@ -71,11 +72,15 @@ describe('roulette', () => {
     vi.advanceTimersByTime(5000);
     expect(el.querySelector('.wheel-hub').className).toBe('wheel-hub black');
     expect(el.querySelector('.wheel-hub').textContent).toBe('17');
+    expect(el.querySelector('.result')).toBeNull();
+    vi.advanceTimersByTime(300);
+    expect(el.querySelector('.felt')).toBeNull();
+    expect(byText(el, '.result button', 'Spin again')).toBeTruthy();
   });
 
   it('shows a wheel that has already spun at rest', () => {
     const ctx = makeCtx({ table: TABLE, round: { pocket: '0', color: 'green', finished: true, actions: [],
-      result: RESULT }, local: { spun: true } });
+      result: RESULT }, local: { shown: true } });
     const el = mount();
     render(ctx, el);
     expect(frames).toHaveLength(0);

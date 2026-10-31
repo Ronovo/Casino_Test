@@ -1,14 +1,37 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import * as baccarat from '../../../casino/web/static/js/games/baccarat.js';
 import * as blackjack from '../../../casino/web/static/js/games/blackjack.js';
 import * as poker from '../../../casino/web/static/js/games/poker.js';
 import { byText, card, click, makeCtx, mount } from '../helpers.js';
 
 const RESULT = { net: 10, notes: ['Done.'], settlements: [] };
+// How long the finished table stays up after the reveal before the result takes its place.
+const HOLD = 2500;
+const BACCARAT_HOLD = 5000;
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function redraw(game, ctx, el) {
   el.replaceChildren();
   return game.render(ctx, el);
+}
+
+/* The order things sit in on the screen: the bar above the felt, the hint below it. */
+function order(el) {
+  return [...el.children].map((child) => child.className.split(' ')[0]);
+}
+
+/* Lets the reveal pass, then checks the result has taken the felt's place. */
+function settled(el, reveal) {
+  vi.advanceTimersByTime(reveal);
+  expect(el.querySelector('.felt')).toBeNull();
+  return el.querySelector('.result');
 }
 
 describe('baccarat', () => {
@@ -20,6 +43,8 @@ describe('baccarat', () => {
     const ctx = makeCtx({ table });
     const el = mount();
     expect(baccarat.render(ctx, el)).toBe(0);
+    expect(order(el)).toEqual(['bet-bar', 'felt']);
+    expect(el.querySelector('.felt').lastChild.className).toBe('hint');
     expect(el.querySelector('.bac-player .spot').textContent).toContain('Player');
     expect([...el.querySelectorAll('.bac-strip .spot .spot-name')].map((s) => s.textContent)).toEqual(['Dragon 7 bonus', 'Tie', 'Panda 8 bonus']);
     click(byText(el, '.spot', 'Player'));
@@ -36,10 +61,14 @@ describe('baccarat', () => {
     };
     const el = mount();
     expect(baccarat.render(makeCtx({ table, round }), el)).toBe(3000);
+    expect(order(el)).toEqual(['felt']);
     expect(el.querySelector('.bac-winner').textContent).toBe('Tie');
     expect([...el.querySelectorAll('.spot.locked .spot-name')].map((s) => s.textContent)).toEqual(['Banker', 'Tie']);
     expect(el.querySelector('.bac-tie .bac-win').style.animationDelay).toBe('3000ms');
     expect(el.querySelector('.bac-boxes .bac-win')).toBeNull();
+    vi.advanceTimersByTime(3000 + BACCARAT_HOLD - 1);
+    expect(el.querySelector('.bac-winner')).toBeTruthy();
+    expect(settled(el, 1).querySelector('.banner').textContent).toContain('YOU WIN');
   });
 
   it('outlines the winning box once the cards are down', () => {
@@ -66,6 +95,8 @@ describe('blackjack', () => {
     const ctx = makeCtx({ table });
     const el = mount();
     expect(blackjack.render(ctx, el)).toBe(0);
+    expect(order(el)).toEqual(['bet-bar', 'felt', 'hint']);
+    expect(order(el.querySelector('.felt'))).toEqual(['spots', 'seat', 'bj-legend']);
     expect(el.querySelector('.bj-arc').textContent).toBe('Blackjack pays 3 to 2');
     expect(el.querySelector('.bj-arc').style.getPropertyValue('--mid')).toBe('10');
     expect(el.querySelectorAll('.bj-arc span')[4].style.getPropertyValue('--i')).toBe('4');
@@ -80,6 +111,8 @@ describe('blackjack', () => {
       dealer: { cards: [card('9C'), null], label: 'Showing 9', state: '' }, hands: [hand()] };
     const el = mount();
     expect(blackjack.render(makeCtx({ table, round }), el)).toBe(0);
+    expect(order(el)).toEqual(['actions', 'felt']);
+    expect(order(el.querySelector('.felt'))).toEqual(['hands', 'seat', 'bj-legend']);
     expect(el.querySelector('.seat.active .seat-label').textContent).toContain('You');
     expect(byText(el, 'button', 'Hit')).toBeTruthy();
   });
@@ -89,7 +122,7 @@ describe('blackjack', () => {
       dealer: { cards: [card('AC'), null], label: 'Showing 11', state: '' }, hands: [hand()] };
     const el = mount();
     blackjack.render(makeCtx({ table, round }), el);
-    expect([...el.querySelectorAll('.spot.locked .spot-name')].map((s) => s.textContent)).toEqual(['Insurance', 'Bet']);
+    expect([...el.querySelectorAll('.spot.locked .spot-name')].map((s) => s.textContent)).toEqual(['Bet', 'Insurance']);
     expect(byText(el, '.spot.locked', 'Insurance').textContent).toContain('5 cr');
   });
 
@@ -112,11 +145,15 @@ describe('blackjack', () => {
     const el = mount();
     const reveal = blackjack.render(ctx, el);
     expect(reveal).toBeGreaterThan(0);
+    expect(order(el)).toEqual(['felt']);
     expect(el.querySelector('.seat.waiting')).toBeNull();
     expect(el.textContent).toContain('Doubled');
-    expect(byText(el, 'button', 'Deal again').textContent).toBe('Deal again (10 cr)');
+    expect(byText(el, 'button', 'Deal again')).toBeUndefined();
+    vi.advanceTimersByTime(reveal);
+    expect(el.querySelector('.felt')).toBeTruthy();
+    expect(byText(settled(el, HOLD), 'button', 'Deal again').textContent).toBe('Deal again (10 cr)');
     ctx.local.lastBets = null;
-    redraw(blackjack, ctx, el);
+    settled(el, redraw(blackjack, ctx, el) + HOLD);
     expect(byText(el, 'button', 'Deal again').textContent).toBe('Deal again (0 cr)');
   });
 });
@@ -126,6 +163,9 @@ describe('poker', () => {
     const ctx = makeCtx();
     const el = mount();
     expect(poker.render(ctx, el)).toBe(0);
+    expect(order(el)).toEqual(['bet-bar', 'felt', 'hint']);
+    expect(order(el.querySelector('.felt'))).toEqual(['spots', 'hands', 'felt-legend', 'felt-legend']);
+    expect(order(el.querySelector('.uth-top'))).toEqual(['seat', 'uth-board']);
     expect(byText(el, 'button', 'Deal').disabled).toBe(true);
     for (const name of ['Trips', 'Ante', 'Pairs Bonus']) {
       redraw(poker, ctx, el);
@@ -146,6 +186,9 @@ describe('poker', () => {
       dealer: [null, null], dealer_hand: null, bets: { ante: 10, blind: 10 } };
     const el = mount();
     expect(poker.render(makeCtx({ round }), el)).toBe(0);
+    expect(order(el)).toEqual(['actions', 'felt']);
+    expect(order(el.querySelector('.felt'))).toEqual(['spots', 'seat', 'hands']);
+    expect(order(el.querySelector('.uth-top'))).toEqual(['seat', 'uth-board']);
     expect(el.querySelectorAll('.card.back')).toHaveLength(7);
     expect([...el.querySelectorAll('.spot.ghost .spot-name')].map((s) => s.textContent)).toEqual(['Trips', 'Play', 'Pairs Bonus']);
     expect([...el.querySelectorAll('.uth-core .spot .spot-name')].map((s) => s.textContent)).toEqual(['Ante', 'Blind', 'Play']);
@@ -160,9 +203,11 @@ describe('poker', () => {
     const el = mount();
     const ctx = makeCtx({ round, local: { cards: { player: ['AS', 'AD'], board: ['2C', '7S', 'KD', null, null],
       dealer: [null, null] } } });
-    expect(poker.render(ctx, el)).toBeGreaterThan(0);
+    const reveal = poker.render(ctx, el);
+    expect(reveal).toBeGreaterThan(0);
     expect(el.textContent).toContain('High Card, King');
     expect(el.querySelectorAll('.spot.locked')).toHaveLength(5);
     expect(el.querySelector('.spot.ghost')).toBeNull();
+    expect(settled(el, reveal + HOLD).querySelector('.banner').textContent).toContain('YOU WIN');
   });
 });

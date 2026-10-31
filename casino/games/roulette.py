@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from casino.engine.bets import Bet, BetError, Outcome, gather_slip, settle
+from casino.engine.bets import Bet, BetError, Outcome, format_ratio, gather_slip, settle
 from casino.engine.game import Game, Round, pay_rows, pay_section
 from casino.engine.session import Session
 from casino.rules import roulette as rules
@@ -14,8 +14,8 @@ BET_KINDS: dict[str, tuple[str, str, tuple[Any, ...] | None]] = {
     "red_black": ("Red/Black", "Red or Black", ("Red", "Black")),
     "odd_even": ("Odd/Even", "Odd or Even", ("Odd", "Even")),
     "low_high": ("Low/High", "Low (1-18) or High (19-36)", ("Low", "High")),
-    "dozen": ("Dozen", "Dozen", (1, 2, 3)),
-    "column": ("Column", "Column", (1, 2, 3)),
+    "dozen": ("Dozen", "Dozen: 1st 12, 2nd 12 or 3rd 12", (1, 2, 3)),
+    "column": ("Column", "Column: a '2 to 1' box", (1, 2, 3)),
 }
 
 
@@ -44,10 +44,17 @@ class RouletteGame(Game):
     display_name = "Roulette"
 
     def rules_pages(self) -> list[list[str]]:
+        pay = self.table.paytable
         return [
             [f"The wheel has {len(rules.WHEEL)} pockets: 1-36 in red and black, plus 0 and 00 in green.",
              "Place any number of bets, then spin. Every bet on the winning pocket pays.",
              "The green zero pockets only pay straight-up bets on that zero. Every other bet loses."],
+            ["Click a number to bet on it straight up. The boxes around the numbers are the outside bets.",
+             "Red, Black, Odd, Even, 1 to 18 and 19 to 36 each cover half of the numbers 1-36.",
+             f"1st 12, 2nd 12 and 3rd 12 are the dozens: 1-12, 13-24 and 25-36. A dozen pays "
+             f"{format_ratio(pay['dozen'])}.",
+             f"The three '2 to 1' boxes at the end of the rows are column bets. Each covers the 12 numbers in its "
+             f"row and pays {format_ratio(pay['column'])}, which is what the box says."],
         ]
 
     def paytable(self) -> list[dict[str, Any]]:

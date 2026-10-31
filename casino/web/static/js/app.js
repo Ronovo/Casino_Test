@@ -1,6 +1,6 @@
 import { ApiError, api } from './api.js';
 import { add, clear, credits, h, limits, netClass, signedCredits } from './dom.js';
-import { chipEl } from './ui.js';
+import { chipEl, tabsEl } from './ui.js';
 import * as baccarat from './games/baccarat.js';
 import * as blackjack from './games/blackjack.js';
 import * as gtn from './games/gtn.js';
@@ -177,10 +177,7 @@ function authScreen(mode = 'login', notice = '') {
     notice && h('p', { class: 'muted auth-notice' }, notice),
     state.session.portfolio && portfolioButton(),
     h('form', { class: 'panel', onsubmit: submit },
-      h('div', { class: 'tabs' },
-        h('button', { type: 'button', class: mode === 'login' ? 'on' : '', onclick: () => authScreen('login') }, 'Log in'),
-        h('button', { type: 'button', class: mode === 'register' ? 'on' : '', onclick: () => authScreen('register') },
-          'Create account')),
+      tabsEl({ login: 'Log in', register: 'Create account' }, mode, (picked) => authScreen(picked)),
       h('div', { class: 'field' }, h('label', null, 'Username'), username),
       h('div', { class: 'field' }, h('label', null, 'Password'), password),
       mode === 'register' && h('p', { class: 'muted field-hint' },
@@ -349,7 +346,7 @@ async function lobbyScreen(_, mine) {
       h('button', { class: 'primary', onclick: startOver }, 'Start over')),
     h('div', { class: 'section-title' }, h('h2', null, 'Casino Floor'),
       h('span', { class: 'muted' }, `Welcome, ${player.name}. You have ${credits(player.credits)} in chips.`)),
-    h('div', { class: 'grid' }, tiles));
+    h('div', { class: 'grid tables' }, tiles));
 }
 
 async function startOver() {
@@ -487,7 +484,7 @@ async function tableScreen(key, mine) {
   if (mine !== visit) return;
   absorb(body);
   const game = GAMES[body.table.game];
-  const mount = h('div');
+  const mount = h('div', { class: 'stage' });
   const smallest = Object.values(state.session.chip_values).find((value) => value >= body.table.min_bet) || 1;
 
   const ctx = {
@@ -496,8 +493,9 @@ async function tableScreen(key, mine) {
     round: body.round,
     player: state.player,
     chipValues: state.session.chip_values,
-    // UI state that outlives a render: stakes being built, the selected chip, cards already on the felt.
-    local: { stakes: {}, chip: smallest, cards: {}, lastBets: null },
+    // UI state that outlives a render: stakes being built, the selected chip, cards already on the felt,
+    // and whether the round's one-off animation (a spin, a race) has already played.
+    local: { stakes: {}, chip: smallest, cards: {}, shown: false, lastBets: null },
     busy: false,
     toast,
     rerender() {
@@ -507,12 +505,14 @@ async function tableScreen(key, mine) {
     start: (bets) => send('start', { bets }, () => {
       ctx.local.lastBets = bets;
       ctx.local.cards = {};
+      ctx.local.shown = false;
     }),
     act: (action) => send('act', { action }),
     repeat: () => ctx.start(ctx.local.lastBets),
     newRound() {
       ctx.round = null;
       ctx.local.cards = {};
+      ctx.local.shown = false;
       ctx.rerender();
     },
   };

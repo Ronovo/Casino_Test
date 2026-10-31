@@ -22,14 +22,21 @@ let frames;
 
 beforeEach(() => {
   frames = [];
+  vi.useFakeTimers();
   vi.stubGlobal('requestAnimationFrame', (fn) => frames.push(fn));
+  vi.stubGlobal('scrollTo', vi.fn());
   vi.spyOn(performance, 'now').mockReturnValue(0);
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+function tab(el, name) {
+  click(byText(el, '.tabs button', name));
+}
 
 function race(overrides = {}) {
   return { finished: true, actions: [], result: RESULT, standings, season_over: null,
@@ -52,9 +59,11 @@ describe('horse racing', () => {
     };
     const el = mount();
     expect(render(ctx, el)).toBe(0);
+    expect([...el.children].map((child) => child.className)).toEqual(['bet-bar', 'felt turf', 'hint']);
     expect(ctx.local.stakes).toEqual({ 'alpha|win': 5 });
     expect(el.textContent).toContain('Season 1 · Race 3 of 40 · 8 furlongs · Good going');
     expect(el.textContent).not.toContain('Reigning champion');
+    expect(el.querySelector('.leaderboard')).toBeNull();
 
     const show = byText(el, '.tote tr', 'Alpha').querySelectorAll('.price')[2];
     expect(show.disabled).toBe(true);
@@ -65,9 +74,14 @@ describe('horse racing', () => {
     click(bravo.querySelectorAll('.price')[1]);
     expect(byText(el, 'tbody tr', 'Bravo').querySelector('.price.on .marker').textContent).toBe('5');
 
-    const leaderboard = el.querySelector('.leaderboard');
+    tab(el, 'Standings');
+    expect(ctx.local.tab).toBe('standings');
+    expect(el.querySelector('.tote')).toBeNull();
+    const leaderboard = el.querySelector('.felt .leaderboard');
     expect(leaderboard.textContent).toContain('after 2 of 40 races');
     expect(leaderboard.querySelector('tbody tr').className).toBe('me');
+    tab(el, 'Race card');
+    expect(el.querySelector('.felt .tote')).toBeTruthy();
     click(byText(el, 'button', 'Run the race'));
     expect(ctx.start).toHaveBeenCalledWith({ bets: [{ horse: 'alpha', kind: 'win', amount: 5 },
       { horse: 'bravo', kind: 'place', amount: 5 }] });
@@ -77,14 +91,16 @@ describe('horse racing', () => {
     const fresh = standings.map((row) => ({ ...row, starts: 0 }));
     const betting = { season: 2, race: 1, champion: 'Alpha', conditions, runners, standings: fresh };
     const el = mount();
-    render(makeCtx({ table, betting }), el);
+    render(makeCtx({ table, betting, local: { tab: 'standings' } }), el);
     expect(el.querySelector('.champion').textContent).toContain('Reigning champion: Alpha');
     expect(el.querySelector('.leaderboard tbody tr').className).toBe('');
   });
 
-  it('runs the race to the line, then shows the places', () => {
+  it('runs the race to the line, then lays the result and the standings over the track', () => {
     const el = mount();
     const reveal = render(makeCtx({ table, round: race() }), el);
+    expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+    expect([...el.children].map((child) => child.className)).toEqual(['felt turf']);
     const horses = el.querySelectorAll('.horse');
     expect([...horses].map((h) => h.textContent)).toEqual(['🏇1st', '🏇4th', '🏇11th']);
     expect(horses[0].className).toBe('horse');
@@ -95,17 +111,32 @@ describe('horse racing', () => {
     expect(frames).toHaveLength(0);
     expect([...horses].every((h) => h.className.includes('home'))).toBe(true);
     expect(el.querySelector('.place-badge.paid').textContent).toBe('1st');
-    expect(el.querySelector('.leaderboard').textContent).toContain('after 3 of 40 races');
+    expect(el.querySelector('.overlay')).toBeNull();
+
+    vi.advanceTimersByTime(reveal);
+    const overlay = el.querySelector('.felt .overlay');
+    expect(el.querySelector('.track')).toBeTruthy();
+    expect(overlay.querySelector('.banner').textContent).toContain('YOU WIN');
+    expect(overlay.querySelector('.leaderboard')).toBeNull();
+    tab(overlay, 'Standings');
+    expect(overlay.querySelector('.result')).toBeNull();
+    expect(overlay.querySelector('.leaderboard').textContent).toContain('after 3 of 40 races');
+    tab(overlay, 'Results');
+    expect(byText(overlay, 'button', 'Same bets, next race')).toBeTruthy();
   });
 
   it('shows a finished race at the line and crowns the season champion', () => {
     const el = mount();
     const round = race({ season_over: { season: 1, champion: 'Alpha' },
       race: { season: 1, number: 40, ...conditions } });
-    render(makeCtx({ table, round, local: { raced: true } }), el);
+    expect(render(makeCtx({ table, round, local: { shown: true } }), el)).toBe(0);
     expect(frames).toHaveLength(0);
+    expect(window.scrollTo).not.toHaveBeenCalled();
     expect([...el.querySelectorAll('.horse')].every((h) => h.className.includes('home'))).toBe(true);
-    expect(el.querySelector('.banner').textContent).toBe('🏆 Alpha wins season 1!');
-    expect(el.querySelector('.leaderboard').textContent).toContain('after 40 of 40 races');
+    const overlay = el.querySelector('.overlay');
+    expect(overlay.firstChild.textContent).toBe('🏆 Alpha wins season 1!');
+    tab(overlay, 'Standings');
+    expect(overlay.firstChild.textContent).toBe('🏆 Alpha wins season 1!');
+    expect(overlay.querySelector('.leaderboard').textContent).toContain('after 40 of 40 races');
   });
 });
